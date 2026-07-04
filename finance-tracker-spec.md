@@ -1,4 +1,4 @@
-# Personal Finance Tracker — Build Specification (Revision 2.1)
+# Personal Finance Tracker — Build Specification (Revision 2.2)
 
 ## 0. Purpose & audience
 
@@ -40,6 +40,19 @@ whole file, but do **not** regress anything that already works.
   original total-interest-÷-balance ratio, which unfairly punished long loans with reasonable
   rates. Only the severity metric and its wording change — the module, its UI, its charts, and
   its two summary bars all stay exactly as designed in §22–§27.
+
+**Polish in revision 2.2 — clarity fixes visible on the current build:**
+- **Replace jargon with plain English.** The word "APR" is not obvious to non-finance users
+  and should be **removed from the UI entirely**. Use plain "**per year**" (or "/yr") instead.
+  Same number, clearer label. (§26.1, §28.1)
+- **Clarify the "What the interest costs you" bar.** The bar's inline label currently just
+  reads "Interest", which is ambiguous. Change it to make explicit that this is the **total
+  interest that will be paid to the lender over the remaining life of the loan(s)** — i.e.
+  the lender's total future earnings on this debt. (§26.4, §28.2)
+- **Fix the Debt & Interest Over Time chart hover.** The tooltip currently doesn't show the
+  value(s) at the hovered point. It must show, on hover of any month on the x-axis, both the
+  remaining balance and the cumulative interest paid so far, with clear labels and formatted
+  numbers. (§26.5, §28.3)
 
 Everything not mentioned here stays exactly as it already is.
 
@@ -524,6 +537,17 @@ change between them (see §10). Semantic accents stay recognizable in both, tune
 24. **Loans visual consistency:** the Loans module uses the same card style, spacing, typography,
     color tokens, and animation timing as the rest of the app (§17) — it must not look like a
     bolted-on, differently-styled section — and works correctly in both light and dark themes.
+25. **No "APR" in the UI (§28.1):** the string "APR" does not appear in any user-visible label,
+    tooltip, or aria-label anywhere in the app. Every place a rate is shown reads as e.g.
+    `28.1% per year` or `28.1%/yr`. The underlying numbers are unchanged.
+26. **"Interest" bar label is self-explanatory (§28.2):** the inline label on the "What the
+    interest costs you" bar reads "Total interest you'll pay" (or the longer alternative in
+    §28.2), not just "Interest". Applies to both single-loan and All-Loans views.
+27. **Chart hover works (§28.3):** hovering anywhere on the plot area of the Debt & Interest
+    Over Time chart reveals a tooltip showing the time label, the Remaining balance, and the
+    Cumulative interest paid at that x-position — with clear labels, plain-number formatting,
+    and correct rendering in both light and dark themes, in both single-loan and All-Loans
+    selector states.
 
 ---
 
@@ -814,10 +838,11 @@ Within the module (below everything else on the page, §22), suggested top-to-bo
 - Each row shows: Name, Current Balance, Monthly Payment, Annual Rate (the nominal rate the
   user entered), and "as of [Last Updated]". The **Annual Effective Interest Rate** (§24.3) is
   displayed prominently — this is the number that determines the row's color and ranking, so it
-  should be the visually strongest figure on the card (e.g. large tabular numeral like
-  `15.4% APR`). Underneath, in secondary weight, show the diagnostic **Interest-to-Balance
-  Ratio** in plain language (e.g. "will cost about +23% in interest over its remaining life")
-  so the user sees the total cost too, without confusing it with the ranking metric.
+  should be the visually strongest figure on the card (large tabular numeral). **Label it in the
+  UI as `per year` (or `/yr`)** — **not** "APR". E.g. show `15.4% per year`. Underneath, in
+  secondary weight, show the diagnostic **Interest-to-Balance Ratio** in plain language (e.g.
+  "will cost about +23% in interest over its remaining life") so the user sees the total cost
+  too, without confusing it with the ranking metric.
 - Background/accent colored by severity tier (§24.4) — worst loan at the top, most intense red.
 - A negative-amortization loan gets a distinct warning badge in addition to (not instead of) its
   top position.
@@ -835,8 +860,15 @@ Within the module (below everything else on the page, §22), suggested top-to-bo
   gap between them **is** the interest — this bar sets up the next one.
 
 ### 26.4 Bar — the lender's Total Remaining Interest
-- **"What the interest costs you"** (= Total Remaining Interest, or the sum if "All Loans").
-  Styled in the same warning-red family as loan severity (§17, §24.4) — this number is a cost.
+- **Card title:** "What the interest costs you".
+- **Inline bar label:** must be self-explanatory — do **not** just say "Interest". Use
+  something like **"Total interest you'll pay"** (or **"Interest paid to lender over the
+  loan's life"**), so that at a glance the user understands this is the *lifetime* total
+  interest that will still be paid to the lender on this debt — not "interest paid so far"
+  and not "this month's interest".
+- Value = Total Remaining Interest for the selected loan, or the sum across all loans if
+  "All Loans" is selected.
+- Styled in the same warning-red family as loan severity (§17, §24.4) — this number is a cost.
 
 ### 26.5 Chart — debt + interest over time
 - Two series, month by month, from today until payoff:
@@ -844,6 +876,13 @@ Within the module (below everything else on the page, §22), suggested top-to-bo
   - **Cumulative interest paid so far in the projection** (rising line) — "the interest amount."
 - Under "All Loans," both series are the aggregate across every (non-negative-amortization)
   loan (§24.5); under a single loan, they reflect that loan alone.
+- **Hover behavior (must work).** Hovering any point on the x-axis shows a tooltip that
+  displays: the time label of that point (month/year), the **Remaining balance** at that
+  point, and the **Cumulative interest paid** by that point — each with a clear label and
+  formatted as a plain number (no currency symbol, §14). The tooltip must appear anywhere
+  on the plot area, not only exactly on a data point (use an "index"/nearest-x hover mode),
+  and must work in both light and dark themes. **This is currently broken and must be
+  fixed in this revision.**
 - Style consistent with the existing charts (§17): clean lines, muted gridlines, no 3D, animates
   in on load and when the selector changes.
 
@@ -864,3 +903,38 @@ Within the module (below everything else on the page, §22), suggested top-to-bo
   divides by zero from the `ln(1+i)` term.
 - **Deleting the loan currently selected** in §26.2 resets the selector back to "All Loans."
 - No currency symbol here either (§14) — all amounts are plain numbers.
+
+---
+
+## 28. Revision 2.2 clarity & polish fixes (targeted)
+
+Three targeted fixes on the shipped Loans module. None of them change the math, the DB, or the
+overall design — only visible UI wording and one bug fix on chart interaction.
+
+### 28.1 Remove "APR" from the UI
+- "APR" is finance jargon many users don't parse. Everywhere it appears in the UI right now,
+  replace it with **"per year"** (or the compact form **"/yr"** if space is tight).
+- The number itself is unchanged (it is still the Annual Effective Interest Rate, §24.3).
+- Example: a card that currently shows `28.1% APR` must show `28.1% per year` after this fix.
+- Applies to the ranked list card (§26.1) and anywhere else "APR" surfaces (tooltips,
+  aria-labels, empty states, etc.). The word "APR" should not remain in any user-visible string.
+
+### 28.2 Rename the "Interest" bar label to something self-explanatory
+- The horizontal bar under "What the interest costs you" (§26.4) currently uses the inline
+  label **"Interest"**, which is ambiguous — a reader can't tell whether it's interest paid so
+  far, interest this month, or lifetime interest.
+- Replace that inline label with **"Total interest you'll pay"** (or, if a longer form is
+  preferred, **"Interest paid to lender over the loan's life"**). Same value, same styling —
+  only the label text changes.
+- Applies both to the single-loan view and the "All Loans" aggregate view.
+
+### 28.3 Fix the Debt & Interest Over Time chart hover
+- Bug: hovering over the chart currently does not display the values at the hovered point.
+- Fix: enable a nearest-x / index-mode tooltip so that hovering **anywhere on the plot area**
+  reveals a tooltip containing:
+  - the time label of that x-position (month, e.g. "Aug 2027");
+  - **Remaining balance** at that point, labeled clearly, formatted as a plain number;
+  - **Cumulative interest paid** by that point, labeled clearly, formatted as a plain number.
+- The tooltip must be readable in both light and dark themes (use the same tokens as other
+  chart tooltips in the app — do not introduce a new tooltip style).
+- The tooltip must work under both "All Loans" and single-loan selector states (§26.2).

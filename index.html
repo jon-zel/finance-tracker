@@ -583,7 +583,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <div class="loan-bar-card">
             <h3>What the Interest Costs You</h3>
             <div class="loan-bar-row">
-              <div class="loan-bar-label">Interest</div>
+              <div class="loan-bar-label">Total interest you'll pay</div>
               <div class="loan-bar-track"><div class="loan-bar-fill interest" id="loanBarInterestFill"></div></div>
               <div class="loan-bar-value emphasis" id="loanBarInterestValue">0</div>
             </div>
@@ -2120,7 +2120,7 @@ function renderLoansList(projections) {
           <div class="loan-row-meta">Balance ${formatNumber(loan.balance)} &middot; Payment ${formatNumber(loan.payment)}/mo &middot; ${formatNumber(loan.rate)}% nominal &middot; as of ${friendlyDate(loan.lastUpdated)}</div>
           <div class="loan-row-ratio">${ratioLine}</div>
         </div>
-        <div class="loan-row-rate">${formatPercent1(proj.effectiveAnnualRate)}%<span class="loan-row-rate-label"> APR</span></div>
+        <div class="loan-row-rate">${formatPercent1(proj.effectiveAnnualRate)}%<span class="loan-row-rate-label"> per year</span></div>
         <div class="loan-row-actions">
           <button type="button" class="icon-btn" data-action="edit" aria-label="Edit loan" title="Edit loan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -2224,11 +2224,22 @@ function renderLoanChart(projections) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // index/intersect:false so hovering anywhere along the plot area (not just
+      // exactly on a point marker — these have pointRadius 0) shows both series
+      // at the nearest month (§28.3 fix).
+      interaction: { mode: "index", intersect: false },
       scales: {
         y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatNumber(v) }, grid: { color: theme.grid } },
         x: { ticks: { color: theme.text, maxTicksLimit: 12 }, grid: { display: false } }
       },
-      plugins: { legend: { position: "bottom", labels: { color: theme.heading } } }
+      plugins: {
+        legend: { position: "bottom", labels: { color: theme.heading } },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}` }
+        }
+      }
     }
   });
 }
