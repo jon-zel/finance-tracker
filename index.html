@@ -508,6 +508,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <tbody id="historyTableBody"></tbody>
         </table>
       </div>
+      <button type="button" class="btn-link hidden" id="btnShowAllHistory"></button>
       <div class="table-note">To edit or delete an entry, open the Excel file directly.</div>
     </div>
 
@@ -881,6 +882,8 @@ let allRows = [];               // normalized rows from the workbook
 let usingFallback = false;      // true once we're in import/download mode
 let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
+const HISTORY_ROW_LIMIT = 20;
+let historyShowAll = false; // reset to false whenever the time range changes
 
 // ---- Loans module state ----
 let allLoans = [];              // normalized loan records
@@ -1364,6 +1367,11 @@ function wireStaticEvents() {
   el("customFrom").addEventListener("change", () => setRange("Custom"));
   el("customTo").addEventListener("change", () => setRange("Custom"));
 
+  el("btnShowAllHistory").addEventListener("click", () => {
+    historyShowAll = true;
+    refreshDashboard();
+  });
+
   wireLoanEvents();
 }
 
@@ -1760,6 +1768,7 @@ async function handleIncomeSubmit(e) {
    ============================================================ */
 function setRange(rangeType) {
   currentRangeType = rangeType;
+  historyShowAll = false;
   document.querySelectorAll(".range-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.range === rangeType);
   });
@@ -2027,6 +2036,7 @@ function renderHistoryTable(rangeRows) {
   if (rangeRows.length === 0) {
     show("historyEmpty");
     body.parentElement.parentElement.classList.add("hidden");
+    hide("btnShowAllHistory");
     return;
   }
   hide("historyEmpty");
@@ -2035,7 +2045,17 @@ function renderHistoryTable(rangeRows) {
   const sorted = rangeRows.slice().reverse();
   sorted.sort((a, b) => (a.Date < b.Date ? 1 : a.Date > b.Date ? -1 : 0));
 
-  sorted.forEach(r => {
+  const hasMore = sorted.length > HISTORY_ROW_LIMIT;
+  const visible = (historyShowAll || !hasMore) ? sorted : sorted.slice(0, HISTORY_ROW_LIMIT);
+  const btnShowAll = el("btnShowAllHistory");
+  if (hasMore && !historyShowAll) {
+    btnShowAll.textContent = `Show all ${sorted.length} transactions`;
+    show("btnShowAllHistory");
+  } else {
+    hide("btnShowAllHistory");
+  }
+
+  visible.forEach(r => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${friendlyDate(r.Date)}</td>
