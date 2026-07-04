@@ -1,4 +1,4 @@
-# Personal Finance Tracker — Build Specification (Revision 1.3)
+# Personal Finance Tracker — Build Specification (Revision 2.1)
 
 ## 0. Purpose & audience
 
@@ -14,20 +14,32 @@ overriding design principle is: **dead simple, obvious, and impossible to break.
 
 ## 1. What's new in this revision
 
-The app already exists and I'm happy with it — this is an **incremental update**. Read the
+The app already exists and I'm happy with it — this is an **additive update**. Read the
 whole file, but do **not** regress anything that already works.
 
-**Already in place (revision 1.1–1.2) — keep exactly as-is:**
+**Already in place (revisions 1.1–1.3) — keep exactly as-is:**
 - Golden Rule / DB compatibility (§2) — still the highest-priority rule.
 - Light / dark mode toggle (§10).
-- "Mom Bills" expense category (§8.1).
+- "Mom Bills", "Sister Bills", "Subscriptions" expense categories (§8.1).
 - The "calm modern fintech" visual design (§17).
 - Savings-goal side panel (§21).
 
-**New in revision 1.3 — the only thing to add now:**
-- Two more expense categories (§8.1): **"Subscriptions"** and **"Sister Bills"**. Same pattern
-  as "Mom Bills" — plain additions to the fixed category list, no DB structure change
-  (Golden Rule fully preserved).
+**New in revision 2.0 — a whole new module, the biggest addition so far:**
+- **Loans module (§22–§27).** A new section on the **same page**, placed **below** everything
+  above (below the history table and the savings panel area). It lets the user track multiple
+  loans (amount owed, monthly payment, interest rate), see them ranked from worst to best,
+  and view charts/figures projecting their payoff. Unlike the rest of the app, **loan entries
+  are editable and deletable**. It lives in its **own new sheet** in the same `.xlsx` file, so
+  the existing `Transactions` sheet and the Golden Rule (§2) are completely unaffected. It must
+  reuse the **exact same visual language** already defined (§17) — no new design style.
+
+**Refinement in revision 2.1 — corrects the loan severity metric:**
+- The "worst loan" ranking now uses **Annual Effective Interest Rate (APR-style, §24.3)** —
+  the true per-year cost of each loan given its current balance and payment. This answers the
+  real question ("which of my loans is the least worthwhile *right now*?") much better than the
+  original total-interest-÷-balance ratio, which unfairly punished long loans with reasonable
+  rates. Only the severity metric and its wording change — the module, its UI, its charts, and
+  its two summary bars all stay exactly as designed in §22–§27.
 
 Everything not mentioned here stays exactly as it already is.
 
@@ -483,6 +495,35 @@ change between them (see §10). Semantic accents stay recognizable in both, tune
     selected range — e.g. income 10,000 with 800 classified as `Investment` → target 1,000,
     progress 80%. Income 0 → no divide-by-zero (neutral state). Saving more than the target
     caps the bar at 100% but still shows the true percentage. The panel adds **no** new DB column.
+16. **Add a loan:** add a loan (Balance 1000 / Monthly Payment 100 / Rate 12%) → it appears in a
+    new `Loans` sheet in the same `.xlsx` file → the `Transactions` sheet is untouched.
+17. **Amortization math:** for the loan above (1000 balance, 100/month, 12%/yr → 1%/month), the
+    app computes remaining months, total remaining payments, and total remaining interest that
+    are internally consistent (Total Remaining Payments − Current Balance = Total Remaining
+    Interest), and a 0% loan uses simple division with no divide-by-zero error.
+18. **Severity ranking (Effective Annual Rate):** given two loans — Loan A: a payday-style loan
+    at 15% annual rate, small balance, short term; Loan B: a mortgage-style loan at 4.5% annual
+    rate, large balance, long term — Loan A ranks **worse** than Loan B (higher on the list,
+    colored more intensely red), because effective annual rate governs ranking regardless of
+    loan size or remaining term. The Interest-to-Balance Ratio may show Loan B with a larger
+    total-cost figure; that's the diagnostic line, not the ranking metric.
+19. **Negative amortization guard:** a loan whose monthly payment doesn't cover its monthly
+    interest is detected, shown with a clear distinct warning, pinned at the top of the ranking
+    regardless of computed ratio, and excluded (with a visible note) from any summed "total"
+    figures that would otherwise be misleading.
+20. **Edit a loan:** editing any single field of an existing loan (e.g. updating Current Balance
+    after a bank statement) updates that same row in the `Loans` sheet (matched by its stable ID,
+    not by position) and refreshes all loan figures/charts/ranking.
+21. **Delete a loan:** deleting a loan asks for confirmation, then removes it from the `Loans`
+    sheet and from every chart, bar, and ranking — with no impact on the `Transactions` sheet.
+22. **Loan selector:** choosing "All Loans" aggregates the chart and the two bars across every
+    loan; choosing one specific loan filters everything in the module to that loan alone.
+23. **Loans chart & bars:** the debt+interest-over-time chart shows a declining balance line and
+    a rising cumulative-interest line through projected payoff; the two bars correctly show
+    (a) Current Balance vs. Total Remaining Payments, and (b) the bank's Total Remaining Interest.
+24. **Loans visual consistency:** the Loans module uses the same card style, spacing, typography,
+    color tokens, and animation timing as the rest of the app (§17) — it must not look like a
+    bolted-on, differently-styled section — and works correctly in both light and dark themes.
 
 ---
 
@@ -501,6 +542,12 @@ Expose these as clearly labeled constants so a non-technical owner can tweak the
   user's toggle in localStorage (never in the DB).
 - `SAVINGS_TARGET_PERCENT` — default `10`. The savings target as a % of income, feeding the
   savings-goal side panel (§21).
+- `LOANS_SHEET_NAME` — default `"Loans"`. The separate worksheet holding loan records (§23).
+- `SEVERITY_BANDS` — thresholds mapping the **Annual Effective Interest Rate** (§24.3) to a
+  red-intensity tier. Defaults tuned to consumer/mortgage lending realities:
+  `[{max: 5, tier: "mild"}, {max: 10, tier: "moderate"}, {max: 20, tier: "high"},
+  {max: Infinity, tier: "severe"}]` (percent per year). Kept as an editable constant so the
+  thresholds can be tuned without touching the calculation logic.
 
 ---
 
@@ -549,3 +596,271 @@ only; **no DB change** (Golden Rule, §2).
 > This is the same "Investment" concept already used in the expense classification breakdown
 > (§9 item 4, §13.4). The side panel is simply a goal-oriented view of it, measured against the
 > 10%-of-income target.
+
+---
+
+## 22. Loans Module — overview & placement
+
+A **second module on the same page**, placed **below** the entire existing dashboard (below
+the history table and the savings-goal panel area). Same file, same tab, just further down the
+scroll — the user never navigates away.
+
+**What it's for:** tracking the loans a person owes (mortgage, car loan, personal loan, etc.) —
+their current standing, what they'll cost in total, and which ones are the worst deals — as a
+distinct concern from day-to-day income/expense logging above.
+
+**Relationship to the existing expense Classification = "Loan" (§8.3):** these stay
+**independent and loosely related by concept only** — this spec does **not** add any
+auto-sync between them. The user keeps manually logging a monthly payment as an `Expense`
+(`Classification = Loan`) up in the main dashboard as they already do, exactly as before. The
+Loans module is a separate, periodically-updated record of each loan's terms and current
+balance. (Practically: the user edits a loan's Current Balance here every so often — e.g. after
+checking a bank statement — independent of logging that month's payment as an expense above.)
+
+**Key differences from the rest of the app (intentional):**
+- Loan records are **editable** (§25) — every field can be changed after creation.
+- Loan records are **deletable** (§25.3) — with a confirmation step first.
+- Loans live in their **own worksheet** (§23), not in `Transactions`.
+
+**Visual consistency (important):** this module must look like it was built by the same hand as
+everything above it. Reuse the exact same card style, corner radius, shadows, spacing scale,
+typography (including tabular numerals), color tokens, icon style, and animation timing defined
+in §17. **Do not introduce a new visual style, a new accent color, or different component
+patterns.** The red used here for loan severity is the same red family already established for
+expenses / the "Loan" classification (§8.3, §17) — this module simply uses more of its range
+(from a mild tint up to the most saturated/darkest shade for the worst loan).
+
+---
+
+## 23. Loans data model (new worksheet)
+
+A second worksheet, named **`Loans`** (constant `LOANS_SHEET_NAME`, §19), in the **same**
+`.xlsx` file as `Transactions`. First row = headers, matched **by header name** (same discipline
+as §2, extended to this sheet — see §23.2).
+
+### 23.1 Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `Loan ID` | text | Stable unique identifier generated when the loan is created (e.g. timestamp + random suffix). **Never changes.** Used to find the correct row on edit/delete — never match by row position or by name. |
+| `Name` | text | User-facing label (e.g. "Mortgage", "Car Loan"). Required. Used in the loan selector (§26.2) and the ranked list (§26.1). |
+| `Current Balance` | number | The amount **currently outstanding** (not the original loan amount) — see §24.1 for why. Positive number. Updated by editing (§25.2) as the real-world balance changes. |
+| `Monthly Payment` | number | The fixed monthly payment amount. Positive number. |
+| `Payment Day` | number | Day of month (1–31) the payment recurs. **Reference/display only** — does not feed the calculations in §24, since there's no loan start date in this model. |
+| `Annual Interest Rate` | number | Percent, e.g. `4.5` for 4.5%/year. Can be `0` (interest-free loan). |
+| `Last Updated` | date | Auto-set whenever the loan is created or edited. Shown in the UI as "as of [date]" next to the loan's figures, so projections are transparently understood as based on the balance as of that date, not necessarily today. |
+| `Notes` | text | Optional free text, same spirit as `Description` on transactions. |
+
+### 23.2 This sheet is now also a permanent contract
+
+From this revision onward, `Loans` follows the **same discipline as the Golden Rule (§2)**:
+read columns by header name, add future fields only as new optional columns at the end, and
+never rename / remove / reorder / repurpose an existing column. The difference from
+`Transactions` is only that **rows** here are mutable and deletable (§25) — the **column
+structure** is just as permanent a contract as `Transactions`' is.
+
+### 23.3 Row lifecycle (unlike Transactions' append-only rows)
+
+- **Create:** append a new row with a freshly generated `Loan ID`.
+- **Edit:** locate the row by `Loan ID`, update the changed field(s) and `Last Updated`, write
+  the sheet back.
+- **Delete:** locate the row by `Loan ID`, remove that row entirely, write the sheet back.
+- In all cases, read the whole sheet first and write back everything **including any columns
+  this app version doesn't know about** (same preserve-the-unknown principle as §2).
+
+---
+
+## 24. Loans calculations
+
+All figures below are computed **fresh, starting from today**, using each loan's currently
+stored `Current Balance`, `Monthly Payment`, and `Annual Interest Rate`. There is no loan start
+date in this model (see §24.1), so nothing here depends on loan history — only on where things
+stand right now and where they're headed.
+
+### 24.1 Why "Current Balance" instead of original principal
+
+This spec deliberately models `Current Balance` as **today's outstanding balance**, not the
+original amount borrowed. That's a conscious choice: it needs no extra "loan start date" field,
+and it stays accurate simply by the user occasionally editing it (§25.2) after checking a
+statement — which the module already supports. All projections below run **forward** from this
+balance, not backward into history.
+
+### 24.2 Amortization (the core projection)
+
+Given a loan with balance `P`, monthly payment `M`, and annual rate `r` (percent):
+
+- Monthly interest rate: `i = r / 100 / 12`
+- Step the balance forward month by month, starting at month 0 = today:
+  - `interest_this_month = balance × i`
+  - `principal_this_month = M − interest_this_month`
+  - `balance_next_month = balance − principal_this_month`
+  - Stop when `balance_next_month ≤ 0`. The final month's payment is capped at whatever
+    clears the remaining balance (it will be smaller than `M`) — don't overshoot into a
+    negative balance.
+- **Special case `r = 0`:** skip the formula below; remaining months = `ceil(P / M)`, and total
+  remaining interest = `0`.
+- **Special case — negative amortization:** if `M ≤ P × i`, the payment doesn't even cover the
+  interest accruing this month, so the balance will never go down (or will grow) as configured.
+  Do **not** attempt to compute a finite payoff. Instead:
+  - Flag this loan distinctly (e.g. a "growing debt" warning badge), separate from normal
+    severity coloring.
+  - Pin it at the **very top** of the ranked list (§26.1) regardless of any computed ratio,
+    since an unpayable loan is definitionally the worst case.
+  - **Exclude** it from any summed "total" figures (aggregate bars/chart in §24.5, §26.3–26.4)
+    and show a visible note when this happens (e.g. "1 loan excluded from totals — its payment
+    doesn't cover its interest; edit it to fix this").
+- Otherwise, the closed-form number of remaining months is:
+  `n = ceil( −ln(1 − (P × i) / M) / ln(1 + i) )`
+  (This is the standard loan amortization formula; running the month-by-month steps above to
+  completion gives the same answer and is a fine implementation choice too.)
+
+### 24.3 Derived figures (per loan)
+
+- **Total Remaining Payments** — the sum of every future payment until payoff (principal +
+  interest combined). This is "how much will actually go out in practice" from here on.
+- **Total Remaining Interest** = `Total Remaining Payments − Current Balance`. This is what the
+  lender still stands to earn on this loan — feeds the "bank's interest" bar (§26.4).
+- **Annual Effective Interest Rate** — **the severity metric used for ranking (§24.4).**
+  This is the true annualized cost of the loan given its current standing. In this model, since
+  the user provides `Annual Interest Rate` directly and payments are monthly, the effective
+  annual rate is derived by compounding the monthly rate:
+  `Effective Annual Rate = ((1 + i)^12 − 1) × 100`  where  `i = r / 100 / 12`  (the same `i`
+  used in the amortization loop, §24.2).
+  For a `0%` loan, this evaluates to `0%` naturally. Round to one decimal for display
+  (e.g. `15.4%`).
+  *Why this metric:* it directly answers "which of my loans is the least worthwhile right
+  now?" A 15% loan is **always** worse than a 4.5% loan, regardless of size or remaining term.
+  Small precision note: because the user enters a nominal APR and payments compound monthly,
+  the displayed effective rate can be slightly higher than the number they entered (e.g. `12%`
+  nominal → about `12.7%` effective) — that's correct and intentional, and mirrors how banks
+  disclose an APR alongside an effective APR.
+
+- **(Diagnostic figure — shown, not used for ranking)** **Interest-to-Balance Ratio**
+  = `Total Remaining Interest ÷ Current Balance`, as a percentage. Shown as a plain-language
+  line on each loan card (e.g. "will cost about +23% in interest over its remaining life") so
+  the user can still see the *total* cost of a loan — this is useful for a long loan even at a
+  low rate. It is **not** the ranking metric.
+
+### 24.4 Severity ranking (worst → best)
+
+- Sort all loans by **Annual Effective Interest Rate**, descending (highest rate = worst = shown
+  first/top). This means a 15% loan is always ranked above a 4.5% loan, regardless of size or
+  remaining term — the "which is least worthwhile right now?" question, answered directly.
+- Any loan flagged as negative-amortization (§24.2) is pinned above all others regardless of
+  rate.
+- Map the effective rate to a color intensity using `SEVERITY_BANDS` (§19) — mild tint for a low
+  rate, increasingly saturated/darker red as the rate rises, most intense for the worst band
+  (and for the negative-amortization warning state).
+
+### 24.5 Aggregation for "All Loans"
+
+When the module's selector (§26.2) is set to "All Loans":
+- **Debt-over-time chart:** for each month offset from today, sum the projected remaining
+  balance across all loans still outstanding at that point (a loan that finishes early simply
+  contributes 0 afterward), and separately sum cumulative interest paid across all loans at
+  that point. Chart out to whichever loan pays off last.
+- **The two bars (§26.3, §26.4):** sum Current Balance, Total Remaining Payments, and Total
+  Remaining Interest across all loans.
+- Loans in negative amortization are **excluded** from these sums (§24.2) with a visible note,
+  since including an undefined/infinite figure would make the totals meaningless.
+
+---
+
+## 25. Add / Edit / Delete loan flow
+
+### 25.1 Add a loan
+A modal (reusing the same modal styling as Add Expense/Add Income, §17) with:
+
+| Field | Control | Notes |
+|---|---|---|
+| Name | text input | Required. |
+| Current Balance | number input | Required, `> 0`. |
+| Monthly Payment | number input | Required, `> 0`. |
+| Payment Day | number input (1–31) | Required. Defaults to today's day-of-month for convenience. |
+| Annual Interest Rate | number input | Required, `≥ 0`. `0` is allowed (interest-free loan). |
+| Notes | text input | Optional. |
+
+Buttons: **Cancel** / **Save**. On Save, if `Monthly Payment ≤ Current Balance × monthly rate`
+(negative amortization, §24.2), show a clear inline warning **but still allow saving** — this
+can be a real situation (e.g. an intentional interest-only period) and the module already
+handles it gracefully downstream (flagged, pinned top, excluded from totals). Set `Last Updated`
+to today and append the row (§23.3).
+
+### 25.2 Edit a loan
+Clicking a loan (from the ranked list, §26.1) opens the **same modal**, pre-filled with its
+current values, identified internally by its `Loan ID`. Saving updates that row in place and
+refreshes `Last Updated` to today. This is the mechanism by which the user keeps `Current
+Balance` accurate over time (e.g., after checking a statement).
+
+### 25.3 Delete a loan
+A delete control on each loan (e.g. a small trash icon in the ranked list, §26.1). Clicking it
+asks for confirmation first (e.g. "Delete '[Name]'? This can't be undone.") before removing the
+row. No effect on `Transactions` or any other loan.
+
+---
+
+## 26. Loans module — UI layout
+
+Within the module (below everything else on the page, §22), suggested top-to-bottom order:
+
+1. **Section header** — title (e.g. "Loans"), plus a **"+ Add Loan"** button.
+2. **Ranked list of loans** (§26.1).
+3. **Loan selector** (§26.2) — "All Loans" (default) or one specific loan by name.
+4. **Two summary bars** (§26.3, §26.4), reflecting the current selector state.
+5. **Debt + interest over time chart** (§26.5), reflecting the current selector state.
+
+### 26.1 Ranked list
+- One row/card per loan, sorted worst → best by severity (§24.4).
+- Each row shows: Name, Current Balance, Monthly Payment, Annual Rate (the nominal rate the
+  user entered), and "as of [Last Updated]". The **Annual Effective Interest Rate** (§24.3) is
+  displayed prominently — this is the number that determines the row's color and ranking, so it
+  should be the visually strongest figure on the card (e.g. large tabular numeral like
+  `15.4% APR`). Underneath, in secondary weight, show the diagnostic **Interest-to-Balance
+  Ratio** in plain language (e.g. "will cost about +23% in interest over its remaining life")
+  so the user sees the total cost too, without confusing it with the ranking metric.
+- Background/accent colored by severity tier (§24.4) — worst loan at the top, most intense red.
+- A negative-amortization loan gets a distinct warning badge in addition to (not instead of) its
+  top position.
+- Edit and Delete controls on each row (§25.2, §25.3). Clicking a row (outside those controls)
+  can also set the selector (§26.2) to that loan, as a convenience.
+
+### 26.2 Loan selector
+- A dropdown or segmented control: **"All Loans"** (default) plus one entry per loan (by Name).
+- Drives the two bars and the chart below it. The ranked list above always shows every loan
+  regardless of this selector.
+
+### 26.3 Bar — Current Balance vs. Total Remaining Payments
+- A simple, clearly-labeled comparison: **"Debt today"** (Current Balance, or the sum across
+  loans if "All Loans") next to **"Total you'll actually pay"** (Total Remaining Payments). The
+  gap between them **is** the interest — this bar sets up the next one.
+
+### 26.4 Bar — the lender's Total Remaining Interest
+- **"What the interest costs you"** (= Total Remaining Interest, or the sum if "All Loans").
+  Styled in the same warning-red family as loan severity (§17, §24.4) — this number is a cost.
+
+### 26.5 Chart — debt + interest over time
+- Two series, month by month, from today until payoff:
+  - **Remaining balance** (declining line) — "the debt amount."
+  - **Cumulative interest paid so far in the projection** (rising line) — "the interest amount."
+- Under "All Loans," both series are the aggregate across every (non-negative-amortization)
+  loan (§24.5); under a single loan, they reflect that loan alone.
+- Style consistent with the existing charts (§17): clean lines, muted gridlines, no 3D, animates
+  in on load and when the selector changes.
+
+---
+
+## 27. Loans-specific validation & edge cases
+
+- `Current Balance`, `Monthly Payment` must be numeric and **> 0**.
+- `Annual Interest Rate` must be numeric and **≥ 0**.
+- `Payment Day` must be an integer **1–31**.
+- `Name` is required (used everywhere as the loan's identity in the UI).
+- **Negative amortization** (`Monthly Payment` doesn't cover monthly interest): allowed to save,
+  but flagged, pinned top of the ranking, and excluded from summed totals with a visible note
+  (§24.2, §24.5, §25.1) — never silently produces `Infinity`/`NaN` in a chart or bar.
+- **Zero loans:** friendly empty state ("No loans yet — add one above.") instead of an empty or
+  broken chart/bars.
+- **Zero-interest loan (`r = 0`):** handled by the simple-division special case (§24.2) — never
+  divides by zero from the `ln(1+i)` term.
+- **Deleting the loan currently selected** in §26.2 resets the selector back to "All Loans."
+- No currency symbol here either (§14) — all amounts are plain numbers.

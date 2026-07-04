@@ -239,6 +239,71 @@ canvas{max-width:100%;}
 .savings-alltime{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:12px;font-variant-numeric:tabular-nums;}
 .savings-empty{color:var(--text-muted);font-size:14px;padding:6px 0 14px;}
 
+/* ---- Loans module ---- */
+.loans-section-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;}
+.loans-list{display:flex;flex-direction:column;gap:12px;}
+.loan-row{
+  border-radius:var(--radius-sm);border:1px solid var(--border);padding:16px 18px;
+  background:var(--surface-alt);border-left:4px solid var(--border-strong);cursor:pointer;
+  transition:background-color .2s ease,border-color .2s ease,box-shadow .18s ease,transform .18s ease;
+}
+.loan-row:hover{box-shadow:var(--shadow-hover);transform:translateY(-1px);}
+.loan-row-main{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.loan-row-info{flex:1;min-width:220px;}
+.loan-row-name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.loan-row-meta{font-size:13px;color:var(--text-muted);margin-top:4px;font-variant-numeric:tabular-nums;}
+.loan-row-ratio{font-size:13px;color:var(--text-muted);margin-top:6px;}
+.loan-row-rate{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--loan);white-space:nowrap;}
+.loan-row-rate-label{font-size:12px;font-weight:600;color:var(--text-muted);}
+.loan-row-actions{display:flex;gap:6px;}
+.loan-badge-negative{
+  display:inline-block;background:var(--loan);color:#fff;font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:10px;vertical-align:middle;
+}
+/* Severity tiers: same red family as --loan everywhere, intensity via tint/border only */
+.loan-row.tier-mild{background:rgba(192,57,43,0.05);border-left-color:rgba(192,57,43,0.35);}
+.loan-row.tier-moderate{background:rgba(192,57,43,0.10);border-left-color:rgba(192,57,43,0.55);}
+.loan-row.tier-high{background:rgba(192,57,43,0.18);border-left-color:rgba(192,57,43,0.8);}
+.loan-row.tier-severe{background:rgba(192,57,43,0.28);border-left-color:var(--loan);}
+.loan-row.tier-negative{background:rgba(192,57,43,0.32);border-left-color:var(--loan);}
+:root[data-theme="dark"] .loan-row.tier-mild{background:rgba(240,113,108,0.08);border-left-color:rgba(240,113,108,0.35);}
+:root[data-theme="dark"] .loan-row.tier-moderate{background:rgba(240,113,108,0.16);border-left-color:rgba(240,113,108,0.55);}
+:root[data-theme="dark"] .loan-row.tier-high{background:rgba(240,113,108,0.26);border-left-color:rgba(240,113,108,0.8);}
+:root[data-theme="dark"] .loan-row.tier-severe{background:rgba(240,113,108,0.38);border-left-color:var(--loan);}
+:root[data-theme="dark"] .loan-row.tier-negative{background:rgba(240,113,108,0.42);border-left-color:var(--loan);}
+
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--border);
+  background:var(--panel);color:var(--text-muted);cursor:pointer;padding:0;
+  transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .05s ease;
+}
+.icon-btn:hover{background:var(--surface-alt);color:var(--text);}
+.icon-btn:active{transform:scale(.92);}
+.icon-btn svg{width:15px;height:15px;}
+.icon-btn.danger:hover{background:var(--loan-bg);color:var(--loan);border-color:var(--loan-border);}
+
+.loan-selector-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.loan-selector-row label{font-size:13px;font-weight:600;color:var(--text-muted);}
+.loan-selector-row select{
+  padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;
+  color:var(--text);background:var(--panel);transition:background-color .2s ease,border-color .2s ease,color .2s ease;
+}
+
+.loans-bars-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
+.loan-bar-card h3{font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:14px;font-weight:600;}
+.loan-bar-row{display:grid;grid-template-columns:110px 1fr auto;align-items:center;gap:12px;margin-bottom:12px;}
+.loan-bar-row:last-child{margin-bottom:0;}
+.loan-bar-label{font-size:13px;color:var(--text-muted);}
+.loan-bar-track{height:14px;border-radius:7px;background:var(--regular-bg);overflow:hidden;border:1px solid var(--border);}
+.loan-bar-fill{height:100%;border-radius:7px;transition:width .4s cubic-bezier(.16,1,.3,1);}
+.loan-bar-fill.balance{background:var(--accent);}
+.loan-bar-fill.payments{background:var(--loan);}
+.loan-bar-fill.interest{background:var(--loan);}
+.loan-bar-value{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.loan-bar-value.emphasis{font-size:20px;color:var(--loan);}
+.field-warning{color:var(--loan);font-size:12px;margin-top:5px;}
+
 /* ---- Modal ---- */
 .modal-overlay{
   position:fixed;inset:0;background:var(--overlay);display:flex;
@@ -471,6 +536,69 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
    </div>
   </div>
 
+  <!-- ============================================================
+       LOANS MODULE
+       (independent of Transactions/Golden Rule — see spec §22-27)
+       ============================================================ -->
+  <div id="loansModule" class="hidden">
+    <div class="panel">
+      <div class="loans-section-header">
+        <div class="app-title" style="font-size:20px;">Loans</div>
+        <button class="btn btn-expense" id="btnAddLoan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          Add Loan
+        </button>
+      </div>
+    </div>
+
+    <div id="loansEmpty" class="panel empty-state hidden">No loans yet — add one above.</div>
+
+    <div id="loansContent" class="hidden">
+      <div id="loansExcludedNote"></div>
+
+      <div class="panel">
+        <h2>Loans, Ranked Worst to Best</h2>
+        <div class="loans-list" id="loansList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="loan-selector-row">
+          <label for="loanSelector">Show</label>
+          <select id="loanSelector"></select>
+        </div>
+        <div class="loans-bars-grid">
+          <div class="loan-bar-card">
+            <h3>Debt Today vs. Total You'll Actually Pay</h3>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label">Debt today</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill balance" id="loanBarBalanceFill"></div></div>
+              <div class="loan-bar-value" id="loanBarBalanceValue">0</div>
+            </div>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label">Total you'll pay</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill payments" id="loanBarPaymentsFill"></div></div>
+              <div class="loan-bar-value" id="loanBarPaymentsValue">0</div>
+            </div>
+          </div>
+          <div class="loan-bar-card">
+            <h3>What the Interest Costs You</h3>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label">Interest</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill interest" id="loanBarInterestFill"></div></div>
+              <div class="loan-bar-value emphasis" id="loanBarInterestValue">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Debt &amp; Interest Over Time</h2>
+        <div id="loanChartEmpty" class="empty-state hidden">No payoff projection available — the selected loan(s) have a payment that doesn't cover the interest. Edit them to fix this.</div>
+        <div class="chart-wrap" id="loanChartWrap"><canvas id="loanChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <footer class="app-footer">Your data stays on your computer. Nothing is ever sent anywhere.</footer>
 </div>
 
@@ -568,6 +696,53 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 </div>
 
 <!-- ============================================================
+     ADD / EDIT LOAN MODAL
+     ============================================================ -->
+<div class="modal-overlay hidden" id="loanModalOverlay">
+  <div class="modal">
+    <h2 id="loanModalTitle">Add Loan</h2>
+    <form id="loanForm">
+      <input type="hidden" id="loanId">
+      <div class="field">
+        <label for="loanName">Name</label>
+        <input type="text" id="loanName" required>
+      </div>
+      <div class="field">
+        <label for="loanBalance">Current Balance</label>
+        <input type="number" id="loanBalance" min="0.01" step="0.01" required>
+        <div class="field-error hidden" id="loanBalanceError">Enter a balance greater than 0.</div>
+      </div>
+      <div class="field">
+        <label for="loanPayment">Monthly Payment</label>
+        <input type="number" id="loanPayment" min="0.01" step="0.01" required>
+        <div class="field-error hidden" id="loanPaymentError">Enter a payment greater than 0.</div>
+      </div>
+      <div class="field">
+        <label for="loanPaymentDay">Payment Day (1–31)</label>
+        <input type="number" id="loanPaymentDay" min="1" max="31" step="1" required>
+        <div class="field-error hidden" id="loanPaymentDayError">Enter a day between 1 and 31.</div>
+        <div class="field-hint">Reference only — doesn't affect the projections below.</div>
+      </div>
+      <div class="field">
+        <label for="loanRate">Annual Interest Rate (%)</label>
+        <input type="number" id="loanRate" min="0" step="0.01" required>
+        <div class="field-error hidden" id="loanRateError">Enter a rate of 0 or more.</div>
+      </div>
+      <div class="field">
+        <label for="loanNotes">Notes (optional)</label>
+        <input type="text" id="loanNotes">
+      </div>
+      <div class="field-warning hidden" id="loanNegAmortWarning">This payment doesn't cover the monthly interest — the balance won't go down as configured. You can still save it; it will be flagged and pinned at the top of the ranking.</div>
+      <div class="modal-error hidden" id="loanFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelLoan">Cancel</button>
+        <button type="submit" class="btn btn-expense" id="btnSaveLoan">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
      CONFIGURATION CONSTANTS
      Edit these to change categories, the data filename, or the
      default view — no other code changes are required.
@@ -622,6 +797,20 @@ const THEME_STORAGE_KEY = "finance_tracker_theme"; // must match the inline scri
 
 // Savings-goal side panel: target = this % of income in the selected range.
 const SAVINGS_TARGET_PERCENT = 10;
+
+// ---- Loans module (§22-27) — a second, independent worksheet in the same
+// .xlsx file. Rows here are editable/deletable, unlike Transactions.
+const LOANS_SHEET_NAME = "Loans";
+const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "Payment Day", "Annual Interest Rate", "Last Updated", "Notes"];
+
+// Maps the Annual Effective Interest Rate (%/year) to a severity tier used for
+// ranking color intensity. Tune these without touching the calculation logic.
+const SEVERITY_BANDS = [
+  { max: 5, tier: "mild" },
+  { max: 10, tier: "moderate" },
+  { max: 20, tier: "high" },
+  { max: Infinity, tier: "severe" }
+];
 </script>
 
 <!-- ============================================================
@@ -692,6 +881,13 @@ let allRows = [];               // normalized rows from the workbook
 let usingFallback = false;      // true once we're in import/download mode
 let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
+
+// ---- Loans module state ----
+let allLoans = [];              // normalized loan records
+let rawLoanRows = [];           // raw sheet rows for the Loans sheet (Golden-Rule-style preservation)
+let sourceLoanHeader = LOAN_COLUMNS.slice();
+let selectedLoanId = null;      // null = "All Loans"
+let loanChart = null;
 
 const CATEGORY_COLORS = [
   "#2f6fa8", "#1a9c6b", "#d68a2f", "#8659c9", "#d64545",
@@ -782,7 +978,9 @@ function getChartThemeColors() {
     text: pick("--text-muted", "#6b7280"),
     heading: pick("--text", "#1f2937"),
     grid: pick("--border", "#e2e6ea"),
-    surface: pick("--panel", "#ffffff")
+    surface: pick("--panel", "#ffffff"),
+    loan: pick("--loan", "#c0392b"),
+    accent: pick("--accent", "#2f6fa8")
   };
 }
 
@@ -790,6 +988,7 @@ function getChartThemeColors() {
    SMALL HELPERS
    ============================================================ */
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+function round1(n) { return Math.round((n + Number.EPSILON) * 10) / 10; }
 
 function formatNumber(n) {
   if (!isFinite(n)) return "0";
@@ -926,38 +1125,57 @@ function buildHeaderOnlySheet(headerOrder) {
 // fully understand, must survive a read/append/write cycle unchanged. So besides
 // the normalized `allRows` used for the dashboard, we keep the raw sheet rows
 // (rawRows) and the original header order (sourceHeader) around untouched, and
-// writes are always built from those — never from the normalized view.
+// writes are always built from those — never from the normalized view. The same
+// discipline now applies to the Loans sheet (rawLoanRows/sourceLoanHeader, §23.2).
 let rawRows = [];
 let sourceHeader = COLUMNS.slice();
 
 // Original column order first, then any of our own columns the file didn't have
 // yet, then anything else unexpected — new columns only ever land at the end.
-function computeFinalHeader(headerOrder, rows) {
+function computeFinalHeader(headerOrder, rows, knownColumns) {
   const seen = new Set();
   const result = [];
   (headerOrder || []).forEach(h => { if (h && !seen.has(h)) { seen.add(h); result.push(h); } });
-  COLUMNS.forEach(c => { if (!seen.has(c)) { seen.add(c); result.push(c); } });
+  knownColumns.forEach(c => { if (!seen.has(c)) { seen.add(c); result.push(c); } });
   rows.forEach(r => Object.keys(r).forEach(k => { if (!seen.has(k)) { seen.add(k); result.push(k); } }));
   return result;
 }
 
-function parseWorkbookSheet(buf) {
-  const wb = XLSX.read(buf, { type: "array" });
-  const ws = wb.Sheets[SHEET_NAME] || wb.Sheets[wb.SheetNames[0]];
-  if (!ws) return { header: COLUMNS.slice(), rows: [] };
+function parseSheetFromWorkbook(wb, sheetName, defaultColumns, fallbackToFirstSheet) {
+  let ws = wb.Sheets[sheetName];
+  if (!ws && fallbackToFirstSheet) ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return { header: defaultColumns.slice(), rows: [] };
   const headerAoa = XLSX.utils.sheet_to_json(ws, { header: 1 })[0];
-  const header = (headerAoa && headerAoa.length) ? headerAoa.map(h => String(h)) : COLUMNS.slice();
+  const header = (headerAoa && headerAoa.length) ? headerAoa.map(h => String(h)) : defaultColumns.slice();
   const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
   return { header, rows };
 }
 
+// Reads both worksheets from one buffer. The Loans sheet is looked up by exact
+// name only (it's brand new — there's no legacy file to fall back from); the
+// Transactions sheet keeps its original fallback-to-first-sheet behavior.
+function parseWorkbookBuffer(buf) {
+  const wb = XLSX.read(buf, { type: "array" });
+  const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, true);
+  const loans = parseSheetFromWorkbook(wb, LOANS_SHEET_NAME, LOAN_COLUMNS, false);
+  return { txHeader: tx.header, txRows: tx.rows, loanHeader: loans.header, loanRows: loans.rows };
+}
+
 async function readWorkbookRows(handle) {
   const file = await handle.getFile();
-  if (file.size === 0) { rawRows = []; sourceHeader = COLUMNS.slice(); return []; }
+  if (file.size === 0) {
+    rawRows = []; sourceHeader = COLUMNS.slice();
+    rawLoanRows = []; sourceLoanHeader = LOAN_COLUMNS.slice();
+    allLoans = [];
+    return [];
+  }
   const buf = await file.arrayBuffer();
-  const parsed = parseWorkbookSheet(buf);
-  sourceHeader = parsed.header;
-  rawRows = parsed.rows;
+  const parsed = parseWorkbookBuffer(buf);
+  sourceHeader = parsed.txHeader;
+  rawRows = parsed.txRows;
+  sourceLoanHeader = parsed.loanHeader;
+  rawLoanRows = parsed.loanRows;
+  allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   return rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
 }
 
@@ -966,21 +1184,26 @@ function rowsToWorksheet(rows, headerOrder) {
   return XLSX.utils.json_to_sheet(rows, { header: headerOrder });
 }
 
-function buildWorkbookBytes(rows, headerOrder) {
+// Both sheets are always written together so neither one is ever left stale —
+// the Transactions sheet from rawRows/sourceHeader (append-only), the Loans
+// sheet from rawLoanRows/sourceLoanHeader (mutable), completely independent of
+// each other's content but sharing one physical .xlsx file.
+function buildWorkbookBytes() {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(rows, headerOrder), SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(rawRows, sourceHeader), SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(rawLoanRows, sourceLoanHeader), LOANS_SHEET_NAME);
   return XLSX.write(wb, { bookType: "xlsx", type: "array" });
 }
 
-async function writeWorkbookToHandle(handle, rows, headerOrder) {
-  const bytes = buildWorkbookBytes(rows, headerOrder);
+async function writeWorkbookToHandle(handle) {
+  const bytes = buildWorkbookBytes();
   const writable = await handle.createWritable();
   await writable.write(bytes);
   await writable.close();
 }
 
-function downloadWorkbook(rows, headerOrder) {
-  const bytes = buildWorkbookBytes(rows, headerOrder);
+function downloadWorkbook() {
+  const bytes = buildWorkbookBytes();
   const blob = new Blob([bytes], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -990,6 +1213,18 @@ function downloadWorkbook(rows, headerOrder) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// Persists both sheets to disk (or triggers a download in fallback mode),
+// recomputing each sheet's header from its own known columns first.
+async function persistWorkbook() {
+  sourceHeader = computeFinalHeader(sourceHeader, rawRows, COLUMNS);
+  sourceLoanHeader = computeFinalHeader(sourceLoanHeader, rawLoanRows, LOAN_COLUMNS);
+  if (usingFallback) {
+    downloadWorkbook();
+  } else {
+    await writeWorkbookToHandle(fileHandle);
+  }
 }
 
 /* ============================================================
@@ -1043,7 +1278,10 @@ async function openDataFile() {
   if (file.size === 0) {
     rawRows = [];
     sourceHeader = COLUMNS.slice();
-    await writeWorkbookToHandle(fileHandle, rawRows, sourceHeader);
+    rawLoanRows = [];
+    sourceLoanHeader = LOAN_COLUMNS.slice();
+    allLoans = [];
+    await writeWorkbookToHandle(fileHandle);
     allRows = [];
   } else {
     allRows = await readWorkbookRows(fileHandle);
@@ -1053,13 +1291,16 @@ async function openDataFile() {
   hide("fallbackWelcome");
   show("headerActions");
   show("dashboard");
+  show("loansModule");
   setNotice("statusNotice", "", false);
   refreshDashboard();
+  refreshLoansModule();
 }
 
 function showReconnect(message) {
   hide("welcomeScreen");
   hide("dashboard");
+  hide("loansModule");
   hide("headerActions");
   el("reconnectMessage").innerHTML = message;
   show("reconnectScreen");
@@ -1079,10 +1320,15 @@ function wireStaticEvents() {
     allRows = [];
     rawRows = [];
     sourceHeader = COLUMNS.slice();
+    allLoans = [];
+    rawLoanRows = [];
+    sourceLoanHeader = LOAN_COLUMNS.slice();
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
+    show("loansModule");
     refreshDashboard();
+    refreshLoansModule();
   });
 
   el("btnAddExpense").addEventListener("click", () => openModal("expenseModalOverlay"));
@@ -1117,6 +1363,8 @@ function wireStaticEvents() {
   });
   el("customFrom").addEventListener("change", () => setRange("Custom"));
   el("customTo").addEventListener("change", () => setRange("Custom"));
+
+  wireLoanEvents();
 }
 
 async function chooseFolder() {
@@ -1155,14 +1403,19 @@ async function handleImportFile(e) {
   if (!file) return;
   try {
     const buf = await file.arrayBuffer();
-    const parsed = parseWorkbookSheet(buf);
-    sourceHeader = parsed.header;
-    rawRows = parsed.rows;
+    const parsed = parseWorkbookBuffer(buf);
+    sourceHeader = parsed.txHeader;
+    rawRows = parsed.txRows;
     allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+    sourceLoanHeader = parsed.loanHeader;
+    rawLoanRows = parsed.loanRows;
+    allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
+    show("loansModule");
     refreshDashboard();
+    refreshLoansModule();
   } catch (err) {
     console.error(err);
     setNotice("statusNotice", "Couldn't read that file &mdash; make sure it's a valid finances.xlsx file.", true);
@@ -1177,14 +1430,8 @@ async function handleImportFile(e) {
 async function appendRow(row) {
   allRows.push(row);
   rawRows.push(row); // a freshly-created row only ever has our own known columns
-  const headerOrder = computeFinalHeader(sourceHeader, rawRows);
   try {
-    if (usingFallback) {
-      downloadWorkbook(rawRows, headerOrder);
-    } else {
-      await writeWorkbookToHandle(fileHandle, rawRows, headerOrder);
-    }
-    sourceHeader = headerOrder;
+    await persistWorkbook();
     refreshDashboard();
     return true;
   } catch (err) {
@@ -1195,6 +1442,197 @@ async function appendRow(row) {
     return false;
   }
 }
+
+/* ============================================================
+   LOANS — DATA MODEL, CRUD, PROJECTIONS
+   ============================================================ */
+function generateLoanId() {
+  return `loan_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeLoanRow(raw) {
+  const id = String(raw["Loan ID"] || "").trim();
+  const name = String(raw["Name"] || "").trim();
+  const balance = round2(parseFloat(raw["Current Balance"]));
+  const payment = round2(parseFloat(raw["Monthly Payment"]));
+  const paymentDay = parseInt(raw["Payment Day"], 10);
+  const rate = parseFloat(raw["Annual Interest Rate"]);
+  const lastUpdated = normalizeDateValue(raw["Last Updated"]) || todayISO();
+  const notes = String(raw["Notes"] || "").trim();
+  return {
+    id, name,
+    balance: isFinite(balance) ? balance : 0,
+    payment: isFinite(payment) ? payment : 0,
+    paymentDay: isFinite(paymentDay) ? paymentDay : 1,
+    rate: isFinite(rate) ? rate : 0,
+    lastUpdated,
+    notes
+  };
+}
+
+function loanToRawRow(loan) {
+  return {
+    "Loan ID": loan.id,
+    "Name": loan.name,
+    "Current Balance": loan.balance,
+    "Monthly Payment": loan.payment,
+    "Payment Day": loan.paymentDay,
+    "Annual Interest Rate": loan.rate,
+    "Last Updated": loan.lastUpdated,
+    "Notes": loan.notes
+  };
+}
+
+function findRawLoanIndex(id) {
+  return rawLoanRows.findIndex(r => String(r["Loan ID"] || "").trim() === id);
+}
+
+async function appendLoan(loan) {
+  allLoans.push(loan);
+  rawLoanRows.push(loanToRawRow(loan));
+  try {
+    await persistWorkbook();
+    refreshLoansModule();
+    return true;
+  } catch (err) {
+    console.error(err);
+    allLoans.pop();
+    rawLoanRows.pop();
+    setNotice("statusNotice", "Couldn't save your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    return false;
+  }
+}
+
+// Loans are matched by their stable Loan ID — never by array position or name —
+// since the raw sheet rows and the normalized list can diverge in order/length
+// (e.g. a malformed row present in the sheet but filtered out of allLoans).
+async function updateLoan(id, fields) {
+  const rawIdx = findRawLoanIndex(id);
+  const loanIdx = allLoans.findIndex(l => l.id === id);
+  if (rawIdx === -1 || loanIdx === -1) return false;
+  const prevRaw = rawLoanRows[rawIdx];
+  const prevLoan = allLoans[loanIdx];
+  const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
+  const updatedRaw = Object.assign({}, prevRaw, loanToRawRow(updatedLoan));
+  rawLoanRows[rawIdx] = updatedRaw;
+  allLoans[loanIdx] = updatedLoan;
+  try {
+    await persistWorkbook();
+    refreshLoansModule();
+    return true;
+  } catch (err) {
+    console.error(err);
+    rawLoanRows[rawIdx] = prevRaw;
+    allLoans[loanIdx] = prevLoan;
+    setNotice("statusNotice", "Couldn't update your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    return false;
+  }
+}
+
+async function deleteLoan(id) {
+  const rawIdx = findRawLoanIndex(id);
+  const loanIdx = allLoans.findIndex(l => l.id === id);
+  if (rawIdx === -1 || loanIdx === -1) return false;
+  const prevRaw = rawLoanRows[rawIdx];
+  const prevLoan = allLoans[loanIdx];
+  rawLoanRows.splice(rawIdx, 1);
+  allLoans.splice(loanIdx, 1);
+  try {
+    await persistWorkbook();
+    if (selectedLoanId === id) selectedLoanId = null; // §27: reset to "All Loans"
+    refreshLoansModule();
+    return true;
+  } catch (err) {
+    console.error(err);
+    rawLoanRows.splice(rawIdx, 0, prevRaw);
+    allLoans.splice(loanIdx, 0, prevLoan);
+    setNotice("statusNotice", "Couldn't delete your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    return false;
+  }
+}
+
+/* ---- Amortization & severity (§24) ---- */
+
+// Runs the amortization loop forward from today. Returns { negativeAmortization: true }
+// when the payment doesn't even cover this month's interest (§24.2) — callers must
+// never treat that as a normal projection. Otherwise returns months/totalPayments/
+// totalInterest/schedule, all guaranteed finite.
+function computeLoanProjection(loan) {
+  const P = loan.balance;
+  const M = loan.payment;
+  const i = (loan.rate / 100) / 12;
+  const effectiveAnnualRate = computeEffectiveAnnualRate(loan.rate);
+
+  if (P <= 0) {
+    return { negativeAmortization: false, months: 0, totalPayments: 0, totalInterest: 0, effectiveAnnualRate, schedule: [{ month: 0, balance: 0, cumulativeInterest: 0 }] };
+  }
+  if (M <= P * i) {
+    return { negativeAmortization: true, effectiveAnnualRate };
+  }
+
+  const schedule = [{ month: 0, balance: P, cumulativeInterest: 0 }];
+  let balance = P;
+  let cumInterest = 0;
+  let totalPayments = 0;
+  let month = 0;
+  const SAFETY_MAX_MONTHS = 100000; // guards against any unforeseen edge case; never hit in practice
+
+  if (i === 0) {
+    while (balance > 0 && month < SAFETY_MAX_MONTHS) {
+      month++;
+      const payment = Math.min(M, balance);
+      balance = round2(balance - payment);
+      totalPayments = round2(totalPayments + payment);
+      schedule.push({ month, balance, cumulativeInterest: 0 });
+    }
+  } else {
+    while (balance > 0 && month < SAFETY_MAX_MONTHS) {
+      month++;
+      const interest = round2(balance * i);
+      let principal = M - interest;
+      let payment = M;
+      if (principal >= balance) {
+        payment = round2(balance + interest); // final payment: cap at what clears the balance
+        principal = balance;
+      }
+      balance = round2(Math.max(0, balance - principal));
+      cumInterest = round2(cumInterest + interest);
+      totalPayments = round2(totalPayments + payment);
+      schedule.push({ month, balance, cumulativeInterest: cumInterest });
+    }
+  }
+
+  // Derive total interest from totalPayments - P (rather than the accumulated
+  // per-step interest) so "Total Remaining Payments - Current Balance = Total
+  // Remaining Interest" holds exactly, with no drift from per-step rounding.
+  const totalInterest = round2(totalPayments - P);
+  schedule[schedule.length - 1].cumulativeInterest = totalInterest;
+
+  return { negativeAmortization: false, months: month, totalPayments, totalInterest, effectiveAnnualRate, schedule };
+}
+
+// (1+i)^12 - 1, the true annualized cost of the loan — the ranking metric (§24.3).
+// Depends only on the nominal rate, so it's always a finite number, even for a
+// loan currently flagged as negative-amortization.
+function computeEffectiveAnnualRate(annualRatePercent) {
+  const i = (annualRatePercent / 100) / 12;
+  return round1((Math.pow(1 + i, 12) - 1) * 100);
+}
+
+// Diagnostic-only figure (§24.3) — NOT used for ranking. Guarded against P<=0.
+function computeInterestToBalanceRatio(projection, loan) {
+  if (projection.negativeAmortization || loan.balance <= 0) return 0;
+  return round1((projection.totalInterest / loan.balance) * 100);
+}
+
+function severityTierForRate(effectiveAnnualRate) {
+  for (const band of SEVERITY_BANDS) {
+    if (effectiveAnnualRate <= band.max) return band.tier;
+  }
+  return "severe";
+}
+
+function formatPercent1(n) { return (isFinite(n) ? n : 0).toFixed(1); }
 
 /* ============================================================
    MODALS
@@ -1615,6 +2053,302 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s == null ? "" : String(s);
   return div.innerHTML;
+}
+
+/* ============================================================
+   LOANS — RENDERING
+   ============================================================ */
+function computeAllLoanProjections() {
+  const map = {};
+  allLoans.forEach(loan => { map[loan.id] = computeLoanProjection(loan); });
+  return map;
+}
+
+// Negative-amortization loans always pinned to the very top (§24.4), regardless
+// of rate; everyone else sorted by Annual Effective Interest Rate, descending.
+function sortedLoansForRanking(projections) {
+  return allLoans.slice().sort((a, b) => {
+    const pa = projections[a.id], pb = projections[b.id];
+    if (pa.negativeAmortization !== pb.negativeAmortization) return pa.negativeAmortization ? -1 : 1;
+    return pb.effectiveAnnualRate - pa.effectiveAnnualRate;
+  });
+}
+
+function selectedLoansSet() {
+  if (selectedLoanId) {
+    const loan = allLoans.find(l => l.id === selectedLoanId);
+    return loan ? [loan] : allLoans;
+  }
+  return allLoans;
+}
+
+function refreshLoansModule() {
+  if (allLoans.length === 0) {
+    show("loansEmpty");
+    hide("loansContent");
+    populateLoanSelector();
+    return;
+  }
+  hide("loansEmpty");
+  show("loansContent");
+
+  const projections = computeAllLoanProjections();
+  renderLoansList(projections);
+  populateLoanSelector();
+  renderLoanBars(projections);
+  renderLoanChart(projections);
+}
+
+function renderLoansList(projections) {
+  const list = el("loansList");
+  list.innerHTML = "";
+  const sorted = sortedLoansForRanking(projections);
+  sorted.forEach(loan => {
+    const proj = projections[loan.id];
+    const tier = proj.negativeAmortization ? "negative" : severityTierForRate(proj.effectiveAnnualRate);
+    const ratioLine = proj.negativeAmortization
+      ? "Growing debt — this payment doesn't cover the interest, so the balance won't go down as configured."
+      : `Will cost about +${formatNumber(Math.round(computeInterestToBalanceRatio(proj, loan)))}% in interest over its remaining life.`;
+
+    const row = document.createElement("div");
+    row.className = `loan-row tier-${tier}`;
+    row.dataset.loanId = loan.id;
+    row.innerHTML = `
+      <div class="loan-row-main">
+        <div class="loan-row-info">
+          <div class="loan-row-name">${escapeHtml(loan.name)}${proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : ""}</div>
+          <div class="loan-row-meta">Balance ${formatNumber(loan.balance)} &middot; Payment ${formatNumber(loan.payment)}/mo &middot; ${formatNumber(loan.rate)}% nominal &middot; as of ${friendlyDate(loan.lastUpdated)}</div>
+          <div class="loan-row-ratio">${ratioLine}</div>
+        </div>
+        <div class="loan-row-rate">${formatPercent1(proj.effectiveAnnualRate)}%<span class="loan-row-rate-label"> APR</span></div>
+        <div class="loan-row-actions">
+          <button type="button" class="icon-btn" data-action="edit" aria-label="Edit loan" title="Edit loan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button type="button" class="icon-btn danger" data-action="delete" aria-label="Delete loan" title="Delete loan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function populateLoanSelector() {
+  const sel = el("loanSelector");
+  sel.innerHTML = "";
+  const allOpt = document.createElement("option");
+  allOpt.value = "all";
+  allOpt.textContent = "All Loans";
+  sel.appendChild(allOpt);
+  allLoans.forEach(loan => {
+    const o = document.createElement("option");
+    o.value = loan.id;
+    o.textContent = loan.name;
+    sel.appendChild(o);
+  });
+  if (selectedLoanId && !allLoans.some(l => l.id === selectedLoanId)) selectedLoanId = null;
+  sel.value = selectedLoanId || "all";
+}
+
+function renderLoanBars(projections) {
+  const loans = selectedLoansSet();
+  const included = loans.filter(l => !projections[l.id].negativeAmortization);
+  const excludedCount = loans.length - included.length;
+
+  const totalBalance = round2(included.reduce((s, l) => s + l.balance, 0));
+  const totalPayments = round2(included.reduce((s, l) => s + projections[l.id].totalPayments, 0));
+  const totalInterest = round2(included.reduce((s, l) => s + projections[l.id].totalInterest, 0));
+
+  const maxCompare = Math.max(totalBalance, totalPayments, 1);
+  el("loanBarBalanceFill").style.width = `${Math.min(100, (totalBalance / maxCompare) * 100)}%`;
+  el("loanBarPaymentsFill").style.width = `${Math.min(100, (totalPayments / maxCompare) * 100)}%`;
+  el("loanBarBalanceValue").textContent = formatNumber(totalBalance);
+  el("loanBarPaymentsValue").textContent = formatNumber(totalPayments);
+
+  const interestPct = totalPayments > 0 ? Math.min(100, (totalInterest / totalPayments) * 100) : 0;
+  el("loanBarInterestFill").style.width = `${interestPct}%`;
+  el("loanBarInterestValue").textContent = formatNumber(totalInterest);
+
+  if (excludedCount > 0) {
+    setNotice("loansExcludedNote",
+      `${excludedCount} loan${excludedCount > 1 ? "s" : ""} excluded from these totals &mdash; ${excludedCount > 1 ? "their payments don't" : "its payment doesn't"} cover ${excludedCount > 1 ? "their" : "its"} interest; edit ${excludedCount > 1 ? "them" : "it"} to fix this.`,
+      false);
+  } else {
+    setNotice("loansExcludedNote", "", false);
+  }
+}
+
+function renderLoanChart(projections) {
+  const loans = selectedLoansSet();
+  const included = loans.filter(l => !projections[l.id].negativeAmortization);
+
+  if (loanChart) { loanChart.destroy(); loanChart = null; }
+
+  if (included.length === 0) {
+    show("loanChartEmpty");
+    hide("loanChartWrap");
+    return;
+  }
+  hide("loanChartEmpty");
+  show("loanChartWrap");
+
+  const maxMonths = Math.max(...included.map(l => projections[l.id].months));
+  const labels = [];
+  const balanceData = [];
+  const interestData = [];
+  for (let m = 0; m <= maxMonths; m++) {
+    let balSum = 0, intSum = 0;
+    included.forEach(l => {
+      const sched = projections[l.id].schedule;
+      const point = sched[m] || sched[sched.length - 1]; // loan already paid off — holds at 0 balance / final interest
+      balSum += point.balance;
+      intSum += point.cumulativeInterest;
+    });
+    labels.push(m === 0 ? "Today" : `Month ${m}`);
+    balanceData.push(round2(balSum));
+    interestData.push(round2(intSum));
+  }
+
+  const theme = getChartThemeColors();
+  loanChart = new Chart(el("loanChart").getContext("2d"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Remaining balance", data: balanceData, borderColor: theme.loan, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 },
+        { label: "Cumulative interest paid", data: interestData, borderColor: theme.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatNumber(v) }, grid: { color: theme.grid } },
+        x: { ticks: { color: theme.text, maxTicksLimit: 12 }, grid: { display: false } }
+      },
+      plugins: { legend: { position: "bottom", labels: { color: theme.heading } } }
+    }
+  });
+}
+
+/* ---- Loans — add/edit/delete modal ---- */
+function hideLoanFormErrors() {
+  hide("loanBalanceError"); hide("loanPaymentError"); hide("loanPaymentDayError"); hide("loanRateError"); hide("loanFormError");
+}
+
+function updateLoanNegAmortWarning() {
+  const balance = parseFloat(el("loanBalance").value);
+  const payment = parseFloat(el("loanPayment").value);
+  const rate = parseFloat(el("loanRate").value);
+  if (!isFinite(balance) || !isFinite(payment) || !isFinite(rate) || balance <= 0) {
+    hide("loanNegAmortWarning");
+    return;
+  }
+  const i = rate / 100 / 12;
+  el("loanNegAmortWarning").classList.toggle("hidden", payment > balance * i);
+}
+
+function openLoanModalForAdd() {
+  el("loanForm").reset();
+  el("loanId").value = "";
+  el("loanModalTitle").textContent = "Add Loan";
+  el("btnSaveLoan").textContent = "Save";
+  el("loanPaymentDay").value = new Date().getDate();
+  hideLoanFormErrors();
+  hide("loanNegAmortWarning");
+  show("loanModalOverlay");
+}
+
+function openLoanModalForEdit(id) {
+  const loan = allLoans.find(l => l.id === id);
+  if (!loan) return;
+  el("loanForm").reset();
+  el("loanId").value = loan.id;
+  el("loanModalTitle").textContent = "Edit Loan";
+  el("btnSaveLoan").textContent = "Save Changes";
+  el("loanName").value = loan.name;
+  el("loanBalance").value = loan.balance;
+  el("loanPayment").value = loan.payment;
+  el("loanPaymentDay").value = loan.paymentDay;
+  el("loanRate").value = loan.rate;
+  el("loanNotes").value = loan.notes;
+  hideLoanFormErrors();
+  updateLoanNegAmortWarning();
+  show("loanModalOverlay");
+}
+
+async function handleLoanSubmit(e) {
+  e.preventDefault();
+  hideLoanFormErrors();
+
+  const id = el("loanId").value;
+  const name = el("loanName").value.trim();
+  const balance = parseFloat(el("loanBalance").value);
+  const payment = parseFloat(el("loanPayment").value);
+  const paymentDay = parseInt(el("loanPaymentDay").value, 10);
+  const rate = parseFloat(el("loanRate").value);
+  const notes = el("loanNotes").value.trim();
+
+  let hasError = false;
+  if (!name) { el("loanFormError").textContent = "Please enter a name."; show("loanFormError"); hasError = true; }
+  if (isNaN(balance) || balance <= 0) { show("loanBalanceError"); hasError = true; }
+  if (isNaN(payment) || payment <= 0) { show("loanPaymentError"); hasError = true; }
+  if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31) { show("loanPaymentDayError"); hasError = true; }
+  if (isNaN(rate) || rate < 0) { show("loanRateError"); hasError = true; }
+  if (hasError) return;
+
+  const btn = el("btnSaveLoan");
+  btn.disabled = true;
+  let ok;
+  if (id) {
+    ok = await updateLoan(id, { name, balance: round2(balance), payment: round2(payment), paymentDay, rate, notes });
+  } else {
+    const loan = { id: generateLoanId(), name, balance: round2(balance), payment: round2(payment), paymentDay, rate, lastUpdated: todayISO(), notes };
+    ok = await appendLoan(loan);
+  }
+  btn.disabled = false;
+  if (ok) closeModal("loanModalOverlay");
+}
+
+async function handleDeleteLoan(id) {
+  const loan = allLoans.find(l => l.id === id);
+  if (!loan) return;
+  if (!window.confirm(`Delete "${loan.name}"? This can't be undone.`)) return;
+  await deleteLoan(id);
+}
+
+function wireLoanEvents() {
+  el("btnAddLoan").addEventListener("click", openLoanModalForAdd);
+  el("btnCancelLoan").addEventListener("click", () => closeModal("loanModalOverlay"));
+  el("loanForm").addEventListener("submit", handleLoanSubmit);
+  ["loanBalance", "loanPayment", "loanRate"].forEach(id => el(id).addEventListener("input", updateLoanNegAmortWarning));
+
+  el("loanSelector").addEventListener("change", () => {
+    selectedLoanId = el("loanSelector").value === "all" ? null : el("loanSelector").value;
+    const projections = computeAllLoanProjections();
+    renderLoanBars(projections);
+    renderLoanChart(projections);
+  });
+
+  el("loansList").addEventListener("click", (e) => {
+    const row = e.target.closest(".loan-row");
+    if (!row) return;
+    const id = row.dataset.loanId;
+    const btn = e.target.closest(".icon-btn");
+    if (btn) {
+      e.stopPropagation();
+      if (btn.dataset.action === "edit") openLoanModalForEdit(id);
+      else if (btn.dataset.action === "delete") handleDeleteLoan(id);
+      return;
+    }
+    selectedLoanId = id;
+    el("loanSelector").value = id;
+    const projections = computeAllLoanProjections();
+    renderLoanBars(projections);
+    renderLoanChart(projections);
+  });
 }
 
 /* ============================================================
