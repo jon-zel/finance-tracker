@@ -6,11 +6,26 @@
   "use strict";
 
   const CURRENCY_SYMBOLS = { EUR: "€", USD: "$", JPY: "¥", GBP: "£" };
-  const CHART_TINTS = [
-    getVar("--chart-tint-1"), getVar("--chart-tint-2"), getVar("--chart-tint-3"),
-    getVar("--chart-tint-4"), getVar("--chart-tint-5"),
-  ];
   const HIGHLIGHT = getVar("--chart-highlight");
+
+  // A distinct, stable color per category (assigned once from appConfig.categories'
+  // order, not from whatever happens to have data in the current filter) so a
+  // category reads as the same color everywhere — chart, legend, donut — no
+  // matter which time range or trip is active.
+  const CATEGORY_PALETTE = [
+    "#130e30", "#e261e5", "#59e25d", "#3b6fd6", "#e2833b", "#8a3bd6", "#2f9e8f",
+    "#d63b64", "#5f5c6e", "#c9a13b", "#3bb3d6", "#8fae3b", "#d63b3b", "#8a5a2b",
+  ];
+  let categoryColorMap = {};
+
+  function categoryColor(cat) {
+    if (categoryColorMap[cat]) return categoryColorMap[cat];
+    // Fallback for a category not in appConfig.categories (e.g. a stray value
+    // in the file) — deterministic so it stays the same color across renders.
+    let hash = 0;
+    for (let i = 0; i < cat.length; i++) hash = (hash * 31 + cat.charCodeAt(i)) | 0;
+    return CATEGORY_PALETTE[Math.abs(hash) % CATEGORY_PALETTE.length];
+  }
 
   function getVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -23,6 +38,7 @@
   let currentRangeKey = "all";
   let charts = { byCategory: null, total: null, donut: null };
   let categoryVisibility = {}; // category -> bool (shown in the by-category chart)
+  let pinnedCategories = [];   // user-chosen categories shown as dashboard gauges
 
   const el = (id) => document.getElementById(id);
 
@@ -77,10 +93,30 @@
 
   async function init() {
     appConfig = await getConfig();
+    categoryColorMap = {};
+    appConfig.categories.forEach((cat, i) => {
+      categoryColorMap[cat] = CATEGORY_PALETTE[i % CATEGORY_PALETTE.length];
+    });
+    pinnedCategories = loadPinnedCategories();
     populateCategorySelect();
     populateCurrencySelect();
     wireStaticEvents();
     await refreshTripList();
+  }
+
+  function loadPinnedCategories() {
+    const raw = localStorage.getItem("travel_expenses_pinned_categories");
+    if (raw === null) return [...appConfig.monitored_categories]; // first run: use config.py's default
+    try {
+      const stored = JSON.parse(raw);
+      if (Array.isArray(stored)) return stored.filter((c) => appConfig.categories.includes(c));
+    } catch (e) { /* fall through */ }
+    return [...appConfig.monitored_categories];
+  }
+
+  function savePinnedCategories(list) {
+    pinnedCategories = list;
+    localStorage.setItem("travel_expenses_pinned_categories", JSON.stringify(list));
   }
 
   function populateCategorySelect() {
@@ -146,7 +182,9 @@
     el("trip-select").value = name;
     allExpenses = (await getExpenses(name)).expenses;
     categoryVisibility = {};
-    for (const cat of appConfig.categories) categoryVisibility[cat] = true;
+    const allCats = new Set(appConfig.categories);
+    allExpenses.forEach((e) => allCats.add(e.category));
+    for (const cat of allCats) categoryVisibility[cat] = true;
     el("dashboard").hidden = false;
     renderAll();
   }
@@ -230,11 +268,44 @@
   // ---- Rendering ----
 
   function renderAll() {
-    const expenses = filteredExpenses();
-    renderSummary(expenses);
-    renderGauges(expenses);
-    renderCharts(expenses);
-    renderTable(expenses);
+    const dateFiltered = filteredExpenses();
+    const visible = dateFiltered.filter((e) => categoryVisibility[e.category] !== false);
+    renderCategoryFilterPills(el("legend-by-category"));
+    renderCategoryFilterPills(el("table-category-filter"));
+    renderSummary(visible);
+    renderGauges(visible);
+    renderCharts(dateFiltered, visible);
+    renderTable(visible);
+  }
+
+  // Every category the trip has ever used (config order first, then any
+  // stray values found in the file) — stable regardless of the current time
+  // range, so a category never disappears from the filter just because it
+  // has no rows in the selected window.
+  function categoryFilterList() {
+    const extras = Object.keys(categoryVisibility)
+      .filter((c) => !appConfig.categories.includes(c))
+      .sort();
+    return [...appConfig.categories, ...extras];
+  }
+
+  // Shared by both the chart legend and the expense-table filter row — they
+  // toggle the same categoryVisibility state, so acting on either stays in
+  // sync with the other and re-renders the whole dashboard (table, totals,
+  // donut, gauges), not just the one chart.
+  function renderCategoryFilterPills(container) {
+    container.innerHTML = "";
+    categoryFilterList().forEach((cat) => {
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "legend-badge" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      badge.innerHTML = `<span class="swatch" style="background:${categoryColor(cat)}"></span>${escapeHtml(cat)}`;
+      badge.addEventListener("click", () => {
+        categoryVisibility[cat] = categoryVisibility[cat] === false ? true : false;
+        renderAll();
+      });
+      container.appendChild(badge);
+    });
   }
 
   function renderSummary(expenses) {
@@ -248,14 +319,20 @@
   function renderGauges(expenses) {
     const grid = el("gauges-grid");
     grid.innerHTML = "";
+
+    if (pinnedCategories.length === 0) {
+      grid.innerHTML = `<div class="gauges-empty">No categories pinned yet — click "Pin categories" to choose some.</div>`;
+      return;
+    }
+
     const rangeTotals = totalsByCategory(expenses);
     const allTimeTotals = totalsByCategory(allExpenses);
 
-    for (const cat of appConfig.monitored_categories) {
+    for (const cat of pinnedCategories) {
       const value = rangeTotals[cat] || 0;
       const max = Math.max(
         allTimeTotals[cat] || 0,
-        ...appConfig.monitored_categories.map((c) => allTimeTotals[c] || 0)
+        ...pinnedCategories.map((c) => allTimeTotals[c] || 0)
       ) || 1;
       const pct = Math.min(100, (value / max) * 100);
 
@@ -273,10 +350,14 @@
     if (charts[key]) { charts[key].destroy(); charts[key] = null; }
   }
 
-  function renderCharts(expenses) {
-    renderByCategoryChart(expenses);
-    renderTotalChart(expenses);
-    renderDonutChart(expenses);
+  // dateFiltered: date-range-only, used for the by-category chart so every
+  // category with data in the current range keeps a toggleable line (Chart.js
+  // `hidden` handles show/hide). visible: date range + category filter
+  // applied, used for everything that should actually react to the filter.
+  function renderCharts(dateFiltered, visible) {
+    renderByCategoryChart(dateFiltered);
+    renderTotalChart(visible);
+    renderDonutChart(visible);
   }
 
   function renderByCategoryChart(expenses) {
@@ -289,37 +370,19 @@
       type: "line",
       data: {
         labels: dates,
-        datasets: categories.map((cat, i) => ({
+        datasets: categories.map((cat) => ({
           label: cat,
           data: series[cat],
-          borderColor: CHART_TINTS[i % CHART_TINTS.length],
+          borderColor: categoryColor(cat),
           backgroundColor: "transparent",
           hoverBorderColor: HIGHLIGHT,
           borderWidth: 2,
           pointRadius: 2,
           tension: 0.25,
-          hidden: !categoryVisibility[cat],
+          hidden: categoryVisibility[cat] === false,
         })),
       },
       options: baseChartOptions(),
-    });
-
-    renderCategoryLegend(categories);
-  }
-
-  function renderCategoryLegend(categories) {
-    const wrap = el("legend-by-category");
-    wrap.innerHTML = "";
-    categories.forEach((cat, i) => {
-      const badge = document.createElement("button");
-      badge.type = "button";
-      badge.className = "legend-badge" + (categoryVisibility[cat] ? "" : " disabled");
-      badge.innerHTML = `<span class="swatch" style="background:${CHART_TINTS[i % CHART_TINTS.length]}"></span>${escapeHtml(cat)}`;
-      badge.addEventListener("click", () => {
-        categoryVisibility[cat] = !categoryVisibility[cat];
-        renderCharts(filteredExpenses());
-      });
-      wrap.appendChild(badge);
     });
   }
 
@@ -337,7 +400,7 @@
           label: "Total",
           data: totals,
           borderColor: HIGHLIGHT,
-          backgroundColor: "rgba(0, 0, 0, 0.08)",
+          backgroundColor: "rgba(255, 226, 40, 0.35)",
           fill: true,
           borderWidth: 2,
           pointRadius: 2,
@@ -346,6 +409,31 @@
       },
       options: baseChartOptions(),
     });
+  }
+
+  // Draws the center "total" text directly on the canvas at Chart.js's own
+  // computed chartArea center — unlike an absolutely-positioned HTML overlay,
+  // this is always exactly centered on the ring no matter the card's aspect
+  // ratio (narrow mobile widths made the old HTML overlay drift off-center).
+  function makeDonutCenterPlugin(amountText, captionText) {
+    return {
+      id: "donutCenterText",
+      afterDraw(chart) {
+        const { ctx, chartArea } = chart;
+        const cx = (chartArea.left + chartArea.right) / 2;
+        const cy = (chartArea.top + chartArea.bottom) / 2;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = getVar("--color-deep-ink");
+        ctx.font = `700 20px ${getVar("--font-display")}`;
+        ctx.fillText(amountText, cx, cy - 10);
+        ctx.fillStyle = getVar("--color-slate");
+        ctx.font = `400 11px ${getVar("--font-sans")}`;
+        ctx.fillText(captionText, cx, cy + 14);
+        ctx.restore();
+      },
+    };
   }
 
   function renderDonutChart(expenses) {
@@ -362,42 +450,51 @@
         labels: categories,
         datasets: [{
           data: values,
-          backgroundColor: categories.map((_, i) => CHART_TINTS[i % CHART_TINTS.length]),
+          backgroundColor: categories.map((cat) => categoryColor(cat)),
           hoverBackgroundColor: HIGHLIGHT,
           borderWidth: 0,
         }],
       },
       options: {
         cutout: "65%",
-        plugins: {
-          legend: {
-            position: "bottom",
-            labels: {
-              color: getVar("--color-slate"),
-              generateLabels(chart) {
-                return chart.data.labels.map((label, i) => {
-                  const value = chart.data.datasets[0].data[i];
-                  const pct = grandTotal ? ((value / grandTotal) * 100).toFixed(1) : "0.0";
-                  return {
-                    text: `${label} — ${formatBase(value)} (${pct}%)`,
-                    fillStyle: chart.data.datasets[0].backgroundColor[i],
-                    strokeStyle: "transparent",
-                  };
-                });
-              },
-            },
-          },
-        },
+        animation: false,
+        plugins: { legend: { display: false } },
       },
+      plugins: [makeDonutCenterPlugin(formatBase(grandTotal), "total")],
     });
 
-    el("donut-total").textContent = formatBase(grandTotal);
+    // Rendered as plain HTML below the canvas (not Chart.js's built-in
+    // legend) so the number of visible categories never changes the
+    // canvas's own layout — the ring stays a fixed size no matter how many
+    // categories are toggled, instead of resizing/"popping" on every toggle.
+    // Each row is also a filter toggle, same categoryVisibility state as the
+    // other two filter rows, so filtering works from here too.
+    const legendEl = el("donut-legend");
+    legendEl.innerHTML = "";
+    categoryFilterList().forEach((cat) => {
+      const value = totals[cat] || 0;
+      const pct = grandTotal ? ((value / grandTotal) * 100).toFixed(1) : "0.0";
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "donut-legend-row" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      row.innerHTML = `
+        <span class="swatch" style="background:${categoryColor(cat)}"></span>
+        <span class="donut-legend-label">${escapeHtml(cat)}</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(value)} (${pct}%)</span>
+      `;
+      row.addEventListener("click", () => {
+        categoryVisibility[cat] = categoryVisibility[cat] === false ? true : false;
+        renderAll();
+      });
+      legendEl.appendChild(row);
+    });
   }
 
   function baseChartOptions() {
     return {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       interaction: { mode: "nearest", intersect: false },
       scales: {
         x: { ticks: { color: getVar("--color-slate") }, grid: { color: "rgba(0,0,0,0.08)" } },
@@ -508,6 +605,35 @@
       });
       openModal("rate-history-modal");
     });
+
+    // Pin categories
+    el("pin-categories-btn").addEventListener("click", openPinCategoriesModal);
+    el("save-pinned-categories-btn").addEventListener("click", onSavePinnedCategories);
+  }
+
+  function openPinCategoriesModal() {
+    const list = el("pin-categories-list");
+    list.innerHTML = "";
+    for (const cat of appConfig.categories) {
+      const id = `pin-cat-${cat.replace(/\W+/g, "-")}`;
+      const label = document.createElement("label");
+      label.className = "checkbox-pill";
+      label.htmlFor = id;
+      label.innerHTML = `
+        <input type="checkbox" id="${id}" value="${escapeHtml(cat)}" ${pinnedCategories.includes(cat) ? "checked" : ""}>
+        <span class="swatch" style="background:${categoryColor(cat)}"></span>
+        ${escapeHtml(cat)}
+      `;
+      list.appendChild(label);
+    }
+    openModal("pin-categories-modal");
+  }
+
+  function onSavePinnedCategories() {
+    const checked = Array.from(el("pin-categories-list").querySelectorAll("input:checked")).map((cb) => cb.value);
+    savePinnedCategories(checked);
+    closeModal("pin-categories-modal");
+    renderAll();
   }
 
   async function onCreateTrip() {
