@@ -983,7 +983,8 @@ function getChartThemeColors() {
     grid: pick("--border", "#e2e6ea"),
     surface: pick("--panel", "#ffffff"),
     loan: pick("--loan", "#c0392b"),
-    accent: pick("--accent", "#2f6fa8")
+    accent: pick("--accent", "#2f6fa8"),
+    income: pick("--income", "#1a9c6b")
   };
 }
 
@@ -2218,17 +2219,20 @@ function renderLoanChart(projections) {
   const labels = [];
   const balanceData = [];
   const interestData = [];
+  const noInterestData = [];
   for (let m = 0; m <= maxMonths; m++) {
-    let balSum = 0, intSum = 0;
+    let balSum = 0, intSum = 0, noInterestSum = 0;
     included.forEach(l => {
       const sched = projections[l.id].schedule;
       const point = sched[m] || sched[sched.length - 1]; // loan already paid off — holds at 0 balance / final interest
       balSum += point.balance;
       intSum += point.cumulativeInterest;
+      noInterestSum += Math.max(0, l.balance - l.payment * m); // hypothetical: same payment, 0% interest
     });
     labels.push(m === 0 ? "Today" : `Month ${m}`);
     balanceData.push(round2(balSum));
     interestData.push(round2(intSum));
+    noInterestData.push(round2(noInterestSum));
   }
 
   const theme = getChartThemeColors();
@@ -2238,7 +2242,8 @@ function renderLoanChart(projections) {
       labels,
       datasets: [
         { label: "Remaining balance", data: balanceData, borderColor: theme.loan, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 },
-        { label: "Cumulative interest paid", data: interestData, borderColor: theme.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 }
+        { label: "Cumulative interest paid", data: interestData, borderColor: theme.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 },
+        { label: "Balance if 0% interest", data: noInterestData, borderColor: theme.income, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 }
       ]
     },
     options: {
