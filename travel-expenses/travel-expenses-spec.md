@@ -134,45 +134,6 @@ That's the whole schema. No `Type` column, no `Classification` column, no `Curre
 column — this is deliberate, to match the user's existing files exactly and enable
 one-click migration.
 
-### 5.3 Migration from the user's existing Excel files
-
-The user's current files have Hebrew category values (e.g. `ארוחות`, `מלון`, `הוצאות חובה`).
-The application UI is English (§8), so category values must be English in the file too.
-
-Provide a **one-time migration script** at `scripts/migrate_categories.py` that:
-- Takes an input `.xlsx` path and an output path.
-- Reads the file, translates known Hebrew category values to their English equivalents
-  using a hard-coded mapping table at the top of the script (list below).
-- Preserves everything else exactly — `Date`, `Amount`, `Notes` (Notes stays in Hebrew!),
-  formatting, extra columns.
-- Any unknown category value is left as-is and printed as a warning at the end, so the user
-  can fix it manually.
-- **Only the `Category` column is translated. Nothing else.**
-
-**Hebrew → English category mapping** (the visible categories in the user's data — extend
-this list if the user's actual files contain more):
-
-| Hebrew | English |
-|---|---|
-| ארוחות | Meals |
-| מלון | Lodging |
-| תחבורה | Transport |
-| טיסות | Flights |
-| הוצאות חובה | Essentials |
-| פנאי | Leisure |
-| בגדים לעצמי | Clothing |
-| בגדים | Clothing |
-| משיכת מזומן | Cash Withdrawal |
-| מתנות לאחרים | Gifts for Others |
-| מתנות לעצמי | Gifts for Self |
-| פאן | Fun |
-| מאי | Category MAI |
-| UNKNOWN | Uncategorized |
-
-*(The last three appeared in the sample data. "פאן" / "מאי" seem to be trip-specific
-labels; keep them exactly as the user wants them named in English — this table is a
-starting point, easy to edit at the top of the migration script.)*
-
 ---
 
 ## 6. Categories
@@ -259,7 +220,7 @@ the trip file. Store rate history in `./config/rates_history.json`:
 ## 8. Language & internationalization
 
 - **UI language: English.** All labels, buttons, headings, tooltips, aria-labels.
-- **Categories: English** (§6.1) — matches the migrated Excel files.
+- **Categories: English** (§6.1) — matches the user's Excel files.
 - **The `Notes` column supports any language, especially Hebrew.** Rendering must handle
   RTL text correctly inside notes cells and tooltips: use `dir="auto"` on the notes
   container so mixed LTR/RTL notes display naturally. Do not force a global `dir` on the
@@ -517,38 +478,35 @@ Expose these as clearly named constants:
    "+ New trip" button.
 2. **New trip:** creating "Greece 2026" produces `./trips/Greece 2026.xlsx` with just the
    four locked headers `Date, Amount, Category, Notes` and switches to it.
-3. **Migration script:** running `python scripts/migrate_categories.py <old>.xlsx <new>.xlsx`
-   on a real user file produces an output file where Hebrew categories are English,
-   Notes are unchanged (still Hebrew), and the exact column order is preserved. Any
-   unknown category prints a warning at the end and is left untouched.
-4. **Drop-in migration:** placing a migrated `.xlsx` into `./trips/` makes it appear in
-   the selector; opening it loads all rows and renders all charts correctly.
-5. **Add expense in base currency:** amount 100, category Meals, saved → row appears in
+3. **Drop-in file:** placing a valid `.xlsx` (matching the locked schema, §5.2) into
+   `./trips/` makes it appear in the selector; opening it loads all rows and renders all
+   charts correctly.
+4. **Add expense in base currency:** amount 100, category Meals, saved → row appears in
    the Excel file exactly as `<today>, 100, Meals, ""` (blank notes) and the dashboard
    updates.
-6. **Add expense with conversion:** amount 50 EUR at rate 3.90 → live UI shows `€ 50.00 →
+5. **Add expense with conversion:** amount 50 EUR at rate 3.90 → live UI shows `€ 50.00 →
    ₪ 195.00`; on save, the file gets `<today>, 195, Meals, ""` — no currency stored per row.
-7. **Divide helper:** total 2000 ÷ 4 → Amount becomes 500 → saved as 500.
-8. **Golden Rule preserved:** opening an existing file with an extra unknown column (e.g.
+6. **Divide helper:** total 2000 ÷ 4 → Amount becomes 500 → saved as 500.
+7. **Golden Rule preserved:** opening an existing file with an extra unknown column (e.g.
    `Tag`) still loads; adding a row via the API preserves that `Tag` column and any values
    already in it.
-9. **Monitored categories:** with `MONITORED_CATEGORIES = ["Fun", "Category MAI"]`, the
+8. **Monitored categories:** with `MONITORED_CATEGORIES = ["Fun", "Category MAI"]`, the
    dashboard shows a dedicated gauge for each in the top-right area, matching the design
    system's amber-accent treatment; changing the config and restarting reflects the change.
-10. **Notes RTL:** a row whose Notes is Hebrew (e.g. `מלון עם בר`) displays right-aligned
-    inside the notes cell without affecting the surrounding LTR layout.
-11. **Rate history:** editing `EXCHANGE_RATES["EUR"]` from 3.90 to 3.95 and restarting
+9. **Notes RTL:** a row whose Notes is Hebrew (e.g. `מלון עם בר`) displays right-aligned
+   inside the notes cell without affecting the surrounding LTR layout.
+10. **Rate history:** editing `EXCHANGE_RATES["EUR"]` from 3.90 to 3.95 and restarting
     appends a new entry to `rates_history.json` with today's date; the trip files are
     unchanged; the footer link's modal shows both entries.
-12. **Charts:** the three charts (spend-over-time by category, total spend over time,
+11. **Charts:** the three charts (spend-over-time by category, total spend over time,
     category donut) all use only palette colors and amber for accent, and correctly
     refresh when the time range or trip changes.
-13. **Design fidelity:** the running app matches §13 — neutral gray surface system, cards
+12. **Design fidelity:** the running app matches §13 — neutral gray surface system, cards
     with a soft shadow + 1px border at ~14px radius, system sans throughout, amber used
     only for accents, both light and dark themes render cleanly. No new brand colors
     introduced.
-14. **Web-migration readiness:** grepping the frontend finds zero occurrences of
+13. **Web-migration readiness:** grepping the frontend finds zero occurrences of
     `localhost`; every `/api/*` route in the backend has `require_auth` applied; flipping
     the body of `require_auth` to raise 401 blocks all API calls.
-15. **Language:** every UI string is English; the categories are English; only the Notes
+14. **Language:** every UI string is English; the categories are English; only the Notes
     field and its rendered values contain non-English text.

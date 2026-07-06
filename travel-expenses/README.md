@@ -27,20 +27,6 @@ files straight into `./trips/` and they'll show up in the trip selector.
 The app only ever appends new rows; it never edits or deletes existing ones. If you need
 to fix a row, edit the Excel file directly.
 
-## Migrating your existing files
-
-Your current files have Hebrew category values (`ארוחות`, `מלון`, etc.) — the app's UI
-and category list are English, so categories need to be translated first. Run:
-
-```
-python scripts/migrate_categories.py "path/to/your/old-file.xlsx" "trips/Your Trip Name.xlsx"
-```
-
-This only touches the `Category` column — `Date`, `Amount`, and `Notes` (Notes stays in
-Hebrew) are left exactly as they were. Any category value it doesn't recognize is left
-untouched and printed as a warning at the end, so you can fix it manually or add it to
-the `CATEGORY_MAP` table at the top of the script.
-
 ## Configuration
 
 Everything editable lives in `config.py` at the project root:
