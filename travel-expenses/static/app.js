@@ -6,7 +6,7 @@
   "use strict";
 
   const CURRENCY_SYMBOLS = { EUR: "€", USD: "$", JPY: "¥", GBP: "£" };
-  const HIGHLIGHT = getVar("--chart-highlight");
+  const THEME_STORAGE_KEY = "travel_expenses_theme"; // must match the inline script in index.html's <head>
 
   // A distinct, stable color per category (assigned once from appConfig.categories'
   // order, not from whatever happens to have data in the current filter) so a
@@ -92,6 +92,7 @@
   // ---- Init ----
 
   async function init() {
+    initTheme();
     appConfig = await getConfig();
     categoryColorMap = {};
     appConfig.categories.forEach((cat, i) => {
@@ -102,6 +103,52 @@
     populateCurrencySelect();
     wireStaticEvents();
     await refreshTripList();
+  }
+
+  // ---- Theme (light / dark) — preference lives in localStorage only,
+  // never in the Excel file (Golden Rule). ----
+
+  function systemPrefersDark() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+
+  function getStoredTheme() {
+    try { return localStorage.getItem(THEME_STORAGE_KEY); } catch (e) { return null; }
+  }
+
+  function storeTheme(theme) {
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* ignore */ }
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+
+  function initTheme() {
+    const stored = getStoredTheme();
+    applyTheme(stored || (systemPrefersDark() ? "dark" : "light"));
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+        if (getStoredTheme()) return; // user made an explicit choice — OS changes no longer apply
+        applyTheme(e.matches ? "dark" : "light");
+        rerenderChartsForTheme();
+      });
+    }
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    storeTheme(next);
+    rerenderChartsForTheme();
+  }
+
+  // Chart.js bakes computed CSS colors into each dataset at creation time, so
+  // a theme flip needs the charts torn down and redrawn to pick up the new
+  // palette — cheap here since renderAll() re-reads state already in memory.
+  function rerenderChartsForTheme() {
+    if (activeTrip && !el("dashboard").hidden) renderAll();
   }
 
   function loadPinnedCategories() {
@@ -186,7 +233,34 @@
     allExpenses.forEach((e) => allCats.add(e.category));
     for (const cat of allCats) categoryVisibility[cat] = true;
     el("dashboard").hidden = false;
+    loadTripNote(name);
     renderAll();
+  }
+
+  // ---- Trip note (one free-text note per trip) — lives in localStorage
+  // only, same as theme and pinned categories, never in the Excel file. ----
+
+  function noteStorageKey(tripName) {
+    return `travel_expenses_note_${tripName}`;
+  }
+
+  function loadTripNote(tripName) {
+    el("trip-note-input").value = localStorage.getItem(noteStorageKey(tripName)) || "";
+  }
+
+  let noteSaveTimer = null;
+  let noteHintTimer = null;
+
+  function scheduleSaveTripNote() {
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer = setTimeout(() => {
+      if (!activeTrip) return;
+      localStorage.setItem(noteStorageKey(activeTrip), el("trip-note-input").value);
+      const hint = el("note-saved-hint");
+      hint.classList.add("visible");
+      clearTimeout(noteHintTimer);
+      noteHintTimer = setTimeout(() => hint.classList.remove("visible"), 1200);
+    }, 400);
   }
 
   // ---- Time range ----
@@ -299,12 +373,40 @@
       const badge = document.createElement("button");
       badge.type = "button";
       badge.className = "legend-badge" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      badge.title = "Click to toggle · double-click to show only this category";
       badge.innerHTML = `<span class="swatch" style="background:${categoryColor(cat)}"></span>${escapeHtml(cat)}`;
-      badge.addEventListener("click", () => {
+      attachCategoryToggle(badge, cat);
+      container.appendChild(badge);
+    });
+  }
+
+  // Shows only `cat` (hides every other category); double-clicking the
+  // already-isolated category again restores all of them, so solo mode is
+  // never a dead end — you don't have to re-enable every category by hand.
+  function soloCategory(cat) {
+    const isolated = categoryFilterList().every((c) => (categoryVisibility[c] !== false) === (c === cat));
+    categoryFilterList().forEach((c) => { categoryVisibility[c] = isolated ? true : c === cat; });
+    renderAll();
+  }
+
+  // A single click toggles just this category. A double-click should solo
+  // it instead — but the browser fires two "click" events before "dblclick",
+  // so a plain click listener would flip this category on/off/on again first.
+  // Defer the single-click action briefly; a second click within the window
+  // cancels it and lets the dblclick handler take over.
+  function attachCategoryToggle(element, cat) {
+    let pending = null;
+    element.addEventListener("click", () => {
+      if (pending) { clearTimeout(pending); pending = null; return; }
+      pending = setTimeout(() => {
+        pending = null;
         categoryVisibility[cat] = categoryVisibility[cat] === false ? true : false;
         renderAll();
-      });
-      container.appendChild(badge);
+      }, 250);
+    });
+    element.addEventListener("dblclick", () => {
+      if (pending) { clearTimeout(pending); pending = null; }
+      soloCategory(cat);
     });
   }
 
@@ -346,8 +448,19 @@
     }
   }
 
-  function destroyChart(key) {
-    if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+  // Re-applies the theme-dependent (CSS-variable-driven) colors on an
+  // existing chart's scales. Needed because updating a chart in place
+  // (see below) reuses the options object set at creation — without this,
+  // a light/dark toggle would leave stale tick/grid colors until the next
+  // full page reload.
+  function refreshChartThemeColors(chart) {
+    const scales = chart.options.scales;
+    if (!scales) return;
+    if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
+    if (scales.y) {
+      if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
+      if (scales.y.grid) scales.y.grid.color = getVar("--border");
+    }
   }
 
   // dateFiltered: date-range-only, used for the by-category chart so every
@@ -360,28 +473,45 @@
     renderDonutChart(visible);
   }
 
+  // Every render* chart function below updates an existing Chart.js instance
+  // in place (mutate data/options, then chart.update()) rather than
+  // destroying and recreating it. destroy() clears the canvas immediately,
+  // and the freshly-constructed chart then replays its full grow-in
+  // animation — that blank-frame-then-regrow is what read as a "flicker" on
+  // every category toggle, range change, or filter click (renderAll() runs
+  // on all of those). Updating in place instead lets Chart.js animate a
+  // smooth transition between the old and new values, with no blank frame.
+
   function renderByCategoryChart(expenses) {
     const { dates, series } = dailyTotalsByCategory(expenses);
-    const categories = Object.keys(series);
+    const categories = categoryFilterList().filter((cat) => cat in series);
+    const highlight = getVar("--amber");
 
-    destroyChart("byCategory");
+    const datasets = categories.map((cat) => ({
+      label: cat,
+      data: series[cat],
+      borderColor: categoryColor(cat),
+      backgroundColor: "transparent",
+      hoverBorderColor: highlight,
+      borderWidth: 2,
+      pointRadius: 2,
+      tension: 0.25,
+      hidden: categoryVisibility[cat] === false,
+    }));
+
+    if (charts.byCategory) {
+      const chart = charts.byCategory;
+      chart.data.labels = dates;
+      chart.data.datasets = datasets;
+      refreshChartThemeColors(chart);
+      chart.update();
+      return;
+    }
+
     const ctx = el("chart-by-category").getContext("2d");
     charts.byCategory = new Chart(ctx, {
       type: "line",
-      data: {
-        labels: dates,
-        datasets: categories.map((cat) => ({
-          label: cat,
-          data: series[cat],
-          borderColor: categoryColor(cat),
-          backgroundColor: "transparent",
-          hoverBorderColor: HIGHLIGHT,
-          borderWidth: 2,
-          pointRadius: 2,
-          tension: 0.25,
-          hidden: categoryVisibility[cat] === false,
-        })),
-      },
+      data: { labels: dates, datasets },
       options: baseChartOptions(),
     });
   }
@@ -390,7 +520,17 @@
     const dates = Array.from(new Set(expenses.map((e) => e.date))).sort();
     const totals = dates.map((d) => expenses.filter((e) => e.date === d).reduce((s, e) => s + e.amount, 0));
 
-    destroyChart("total");
+    if (charts.total) {
+      const chart = charts.total;
+      chart.data.labels = dates;
+      chart.data.datasets[0].data = totals;
+      chart.data.datasets[0].borderColor = getVar("--spend");
+      chart.data.datasets[0].backgroundColor = getVar("--spend-bg");
+      refreshChartThemeColors(chart);
+      chart.update();
+      return;
+    }
+
     const ctx = el("chart-total").getContext("2d");
     charts.total = new Chart(ctx, {
       type: "line",
@@ -399,8 +539,8 @@
         datasets: [{
           label: "Total",
           data: totals,
-          borderColor: HIGHLIGHT,
-          backgroundColor: "rgba(255, 226, 40, 0.35)",
+          borderColor: getVar("--spend"),
+          backgroundColor: getVar("--spend-bg"),
           fill: true,
           borderWidth: 2,
           pointRadius: 2,
@@ -415,7 +555,11 @@
   // computed chartArea center — unlike an absolutely-positioned HTML overlay,
   // this is always exactly centered on the ring no matter the card's aspect
   // ratio (narrow mobile widths made the old HTML overlay drift off-center).
-  function makeDonutCenterPlugin(amountText, captionText) {
+  // Reads `centerText` (a mutable object, not fixed strings) each draw, so
+  // an in-place chart.update() can change the displayed total just by
+  // mutating centerText.amount before calling update() — no need to
+  // recreate the chart (and its plugin closure) just to change the label.
+  function makeDonutCenterPlugin(centerText) {
     return {
       id: "donutCenterText",
       afterDraw(chart) {
@@ -425,12 +569,12 @@
         ctx.save();
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillStyle = getVar("--color-deep-ink");
-        ctx.font = `700 20px ${getVar("--font-display")}`;
-        ctx.fillText(amountText, cx, cy - 10);
-        ctx.fillStyle = getVar("--color-slate");
+        ctx.fillStyle = getVar("--text");
+        ctx.font = `700 20px ${getVar("--font-sans")}`;
+        ctx.fillText(centerText.amount, cx, cy - 10);
+        ctx.fillStyle = getVar("--text-muted");
         ctx.font = `400 11px ${getVar("--font-sans")}`;
-        ctx.fillText(captionText, cx, cy + 14);
+        ctx.fillText(centerText.caption, cx, cy + 14);
         ctx.restore();
       },
     };
@@ -438,67 +582,103 @@
 
   function renderDonutChart(expenses) {
     const totals = totalsByCategory(expenses);
-    const categories = Object.keys(totals);
+    // Fixed, canonical order (not object-key insertion order, which follows
+    // whichever category's expense happens to appear first in the filtered
+    // list) — otherwise toggling a category reshuffles everyone else's slice
+    // position instead of just growing/shrinking in place.
+    const categories = categoryFilterList().filter((cat) => cat in totals);
     const values = categories.map((c) => totals[c]);
     const grandTotal = values.reduce((a, b) => a + b, 0);
 
-    destroyChart("donut");
-    const ctx = el("chart-donut").getContext("2d");
-    charts.donut = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: categories,
-        datasets: [{
-          data: values,
-          backgroundColor: categories.map((cat) => categoryColor(cat)),
-          hoverBackgroundColor: HIGHLIGHT,
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        cutout: "65%",
-        animation: false,
-        plugins: { legend: { display: false } },
-      },
-      plugins: [makeDonutCenterPlugin(formatBase(grandTotal), "total")],
-    });
+    if (charts.donut) {
+      const chart = charts.donut;
+      chart.data.labels = categories;
+      chart.data.datasets[0].data = values;
+      chart.data.datasets[0].backgroundColor = categories.map((cat) => categoryColor(cat));
+      chart.$centerText.amount = formatBase(grandTotal);
+      chart.update();
+    } else {
+      const ctx = el("chart-donut").getContext("2d");
+      const centerText = { amount: formatBase(grandTotal), caption: "total" };
+      charts.donut = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: categories,
+          datasets: [{
+            data: values,
+            backgroundColor: categories.map((cat) => categoryColor(cat)),
+            hoverBackgroundColor: getVar("--amber"),
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          cutout: "65%",
+          animation: { duration: 350, easing: "easeOutQuart" },
+          plugins: { legend: { display: false } },
+        },
+        plugins: [makeDonutCenterPlugin(centerText)],
+      });
+      charts.donut.$centerText = centerText;
+    }
 
     // Rendered as plain HTML below the canvas (not Chart.js's built-in
     // legend) so the number of visible categories never changes the
     // canvas's own layout — the ring stays a fixed size no matter how many
     // categories are toggled, instead of resizing/"popping" on every toggle.
     // Each row is also a filter toggle, same categoryVisibility state as the
-    // other two filter rows, so filtering works from here too.
+    // other two filter rows, so filtering works from here too. Capped to the
+    // biggest few categories (zero-value ones dropped entirely) — the full
+    // list is still available, uncapped, via the chart legend badges above
+    // and the table's filter row.
+    const DONUT_LEGEND_LIMIT = 6;
+    const ranked = categoryFilterList()
+      .filter((cat) => Math.abs(totals[cat] || 0) > 0)
+      .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
+    const shown = ranked.slice(0, DONUT_LEGEND_LIMIT);
+    const rest = ranked.slice(DONUT_LEGEND_LIMIT);
+
     const legendEl = el("donut-legend");
     legendEl.innerHTML = "";
-    categoryFilterList().forEach((cat) => {
+    shown.forEach((cat) => {
       const value = totals[cat] || 0;
       const pct = grandTotal ? ((value / grandTotal) * 100).toFixed(1) : "0.0";
       const row = document.createElement("button");
       row.type = "button";
       row.className = "donut-legend-row" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      row.title = "Click to toggle · double-click to show only this category";
       row.innerHTML = `
         <span class="swatch" style="background:${categoryColor(cat)}"></span>
         <span class="donut-legend-label">${escapeHtml(cat)}</span>
         <span class="donut-legend-value tabular-nums">${formatBase(value)} (${pct}%)</span>
       `;
-      row.addEventListener("click", () => {
-        categoryVisibility[cat] = categoryVisibility[cat] === false ? true : false;
-        renderAll();
-      });
+      attachCategoryToggle(row, cat);
       legendEl.appendChild(row);
     });
+
+    if (rest.length > 0) {
+      const restTotal = rest.reduce((sum, cat) => sum + (totals[cat] || 0), 0);
+      const pct = grandTotal ? ((restTotal / grandTotal) * 100).toFixed(1) : "0.0";
+      const row = document.createElement("div");
+      row.className = "donut-legend-row donut-legend-other";
+      row.title = rest.join(", ");
+      row.innerHTML = `
+        <span class="swatch" style="background:var(--text-muted)"></span>
+        <span class="donut-legend-label">Other (${rest.length})</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(restTotal)} (${pct}%)</span>
+      `;
+      legendEl.appendChild(row);
+    }
   }
 
   function baseChartOptions() {
     return {
       responsive: true,
       maintainAspectRatio: false,
-      animation: false,
+      animation: { duration: 350, easing: "easeOutQuart" },
       interaction: { mode: "nearest", intersect: false },
       scales: {
-        x: { ticks: { color: getVar("--color-slate") }, grid: { color: "rgba(0,0,0,0.08)" } },
-        y: { ticks: { color: getVar("--color-slate") }, grid: { color: "rgba(0,0,0,0.08)" } },
+        x: { ticks: { color: getVar("--text-muted") }, grid: { display: false } },
+        y: { ticks: { color: getVar("--text-muted") }, grid: { color: getVar("--border") } },
       },
       plugins: { legend: { display: false } },
     };
@@ -535,6 +715,8 @@
   function closeModal(id) { el(id).hidden = true; }
 
   function wireStaticEvents() {
+    el("btnThemeToggle").addEventListener("click", toggleTheme);
+
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {
       btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
     });
@@ -609,6 +791,9 @@
     // Pin categories
     el("pin-categories-btn").addEventListener("click", openPinCategoriesModal);
     el("save-pinned-categories-btn").addEventListener("click", onSavePinnedCategories);
+
+    // Trip note
+    el("trip-note-input").addEventListener("input", scheduleSaveTripNote);
   }
 
   function openPinCategoriesModal() {

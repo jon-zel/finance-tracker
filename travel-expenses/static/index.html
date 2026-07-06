@@ -4,10 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Travel Expenses</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
+<script>
+// Applies the saved/OS theme before first paint to avoid a light-mode flash.
+// Mirrors THEME_STORAGE_KEY in app.js — keep the two in sync.
+(function () {
+  try {
+    var stored = localStorage.getItem("travel_expenses_theme");
+    var theme = stored || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
+})();
+</script>
 </head>
 <body>
 
@@ -19,6 +27,10 @@
       <div class="trip-selector-wrap">
         <select id="trip-select" aria-label="Active trip"></select>
       </div>
+      <button class="theme-toggle" id="btnThemeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
       <button id="add-expense-btn" class="btn btn-primary" hidden>+ Add Expense</button>
     </div>
   </header>
@@ -68,6 +80,13 @@
         </div>
         <div id="gauges-grid" class="gauges-grid"></div>
       </div>
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title">Note</div>
+          <span id="note-saved-hint" class="note-saved-hint">Saved</span>
+        </div>
+        <textarea id="trip-note-input" class="trip-note-input" dir="auto" placeholder="Write a note for this trip…"></textarea>
+      </div>
     </section>
 
     <section class="section charts-grid">
@@ -82,10 +101,12 @@
       </div>
       <div class="card">
         <div class="card-title">Spend by category</div>
-        <div class="chart-canvas-wrap">
-          <canvas id="chart-donut"></canvas>
+        <div class="donut-layout">
+          <div class="chart-canvas-wrap donut">
+            <canvas id="chart-donut"></canvas>
+          </div>
+          <div id="donut-legend" class="donut-legend-list"></div>
         </div>
-        <div id="donut-legend" class="donut-legend-list"></div>
       </div>
     </section>
 
