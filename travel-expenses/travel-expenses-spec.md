@@ -9,8 +9,8 @@ existing personal finance tracker, but this one is different in several delibera
 - **Multiple trips** — one Excel file per trip. The user picks the active trip from a list.
 - **A single fixed base currency plus a live conversion rate** — the user can enter an
   expense in another currency, and it's converted to base and stored converted.
-- **A visual design given up front** — the "Felt" style tokens (attached as
-  `DESIGN-travel-mode.md`) define the entire look and feel. Follow it strictly.
+- **A visual design given up front** — see §13. The look and feel is defined directly by
+  `static/styles.css`, which is the source of truth (no separate design-token file).
 - **A drop-in replacement for the user's current Excel-based workflow** — the DB schema
   matches their existing Excel files exactly, so their existing files migrate in one click.
 - **Built as a small local server from day one**, in anticipation of hosting this on the
@@ -27,7 +27,7 @@ existing personal finance tracker, but this one is different in several delibera
 - Data lives in per-trip `.xlsx` files in a `trips/` folder next to the code.
 - The `.xlsx` schema is **identical to the user's existing Excel files** so migration is
   literally "drop the file into the `trips/` folder".
-- The visual language follows the Felt design system attached in `DESIGN-travel-mode.md`.
+- The visual language follows the "calm modern fintech" system defined in `static/styles.css` (see §13).
 
 ---
 
@@ -269,13 +269,12 @@ the trip file. Store rate history in `./config/rates_history.json`:
 
 ## 9. UI — screen layout
 
-Single page. Follows the Felt design system in `DESIGN-travel-mode.md` (§13). Top to
-bottom:
+Single page. Follows the design system in §13. Top to bottom:
 
 ### 9.1 Header
-- App wordmark on the left (GT Alpina Standard serif, `--color-bone-white`).
-- On the right: the **active trip selector** (§9.2) and the "+ Add Expense" button (amber
-  compass CTA styling per the design system).
+- App wordmark on the left (system sans, bold).
+- On the right: the **active trip selector** (§9.2), the light/dark theme toggle, and the
+  "+ Add Expense" button (the one amber CTA per the design system, §13).
 
 ### 9.2 Active trip selector
 - A dropdown listing every `.xlsx` file in `./trips/` (by name, sans extension).
@@ -422,48 +421,51 @@ GET  /api/rates/history
 
 ---
 
-## 13. Visual design — the Felt style
+## 13. Visual design — "calm modern fintech"
 
-**Follow `DESIGN-travel-mode.md` strictly.** That file is the source of truth for every
-color, font, radius, spacing value, and component pattern. Do not invent new tokens or
-introduce colors outside its palette. Concretely:
+**`static/styles.css` is the source of truth** for every color, font, radius, spacing
+value, and component pattern — there is no separate design-token file. The direction is
+the same neutral-dominant, low-key system used by the personal finance tracker
+(`index.html`, pre-"Slash" era): a proper neutral gray scale carries the page, and color
+only appears where it's semantically meaningful. Concretely:
 
-### 13.1 What to import from the design file (verbatim)
-- **Colors** — inject all CSS custom properties from the "Quick Start → CSS Custom
-  Properties" block into `:root` at the top of the stylesheet.
-- **Typography scale, weights, spacing, radii, shadow** — all as CSS variables.
+### 13.1 Tokens
+- **Neutral surface system:** `--bg` / `--panel` / `--surface-alt` / `--border` /
+  `--border-strong` / `--text` / `--text-muted` / `--text-faint`, light and dark
+  (`:root[data-theme="dark"]`) variants. Dark mode is a deep neutral slate (`#12161c`),
+  never black.
+- **Palette identity — kept from this app's original direction:** green (`--spend` /
+  `--spend-bg`) is the semantic accent for spend/data (chart lines, totals); amber
+  (`--amber` / `--amber-bg`) is the single warm highlight, used sparingly.
+- **Typography:** system sans stack only (no serif, no web font). Card titles are muted,
+  uppercase, letter-spaced small-caps-style labels; key figures (Total spent, monitored
+  gauges) are large, bold, tabular-numeral.
+- **Radius:** ~14px cards/modals, ~8–10px inputs/buttons/tags — not full-pill.
+- **Shadow:** a single soft, low, quiet shadow token (`--shadow` / `--shadow-hover`) plus a
+  1px border — not color-stepping alone.
+- **Motion:** 150–250ms transitions on hover/focus/theme toggle; card hover gets a subtle
+  shadow lift; modals fade + slide in (~200ms); gauge/bar fills animate width on a
+  `cubic-bezier(.16,1,.3,1)` ease. Nothing bouncy.
 
 ### 13.2 How to apply them here
-- **Page canvas:** `--color-moss-canvas`. Never black.
-- **Cards / elevated panels:** `--color-fern` for primary cards, `--color-lichen` only for
-  subtle borders/dividers. **Elevation via color-stepping, not shadow stacks** — the
-  design file is emphatic about this.
-- **Card radius: 6px.** Buttons pill-radius 20px. Nothing above 6px on cards/images.
-- **Serif for hero/section headings:** GT Alpina Standard, weight 300, tight line-height
-  (< 1.0), negative letter-spacing per the type scale. Substitutes if the font isn't
-  available: Fraunces / Tiempos Headline / Playfair Display.
-- **Sans for everything else:** Atlas Grotesk (substitutes: Inter / Söhne / Helvetica
-  Neue), weight 400 for body, weight 500 for buttons and small caps navigation labels.
-- **Amber (`--color-amber-compass`) is the only accent.** Use it for: the primary CTA
-  ("+ Add Expense"), the map-marker-style highlight on the currently active trip in the
-  selector, and the filled portion of monitored-category gauges. **Never** for body
-  backgrounds, chart fills at high opacity, or as a page-scale color wash.
+- **Amber is the only accent**, used for: the primary CTA ("+ Add Expense"), the
+  active-trip marker dot in the trip selector, and the filled portion of monitored-category
+  gauges. Never for body backgrounds or page-scale color washes.
+- **Green marks spend/data:** the total-spend-over-time chart line/fill. The per-category
+  chart/donut/legend keep their existing distinct, deterministic per-category colors
+  (functionality, not part of the accent discipline) — the hovered/highlighted series
+  across all charts uses amber.
+- **Light/dark toggle** in the header: defaults to `prefers-color-scheme`, remembered in
+  `localStorage` only (§2 — never in the Excel file), same behavior as the finance tracker.
 - **Numbers** in tabular-figures for alignment in the summary and the list.
-- **Layout:** centered, magazine-style, `--page-max-width: 1200px`, `--section-gap: 80px`.
-- **Chart styling:** apply the palette meaningfully. Category lines can use tints of green
-  from the palette (`--color-fern`, `--color-lichen`) with **amber** used for the currently
-  hovered/highlighted line only. The total-spend area chart uses a low-opacity amber fill.
-  The donut is single-color-per-slice using palette tints, with the currently hovered
-  slice tinted amber. No introducing new hues.
 - **Do not** create pies; the donut per §9.6 is the correct form here.
 
-### 13.3 Do's and Don'ts (from the design file — reproduced for emphasis)
-- Do use elevation-by-color-stepping, not shadow stacks.
-- Do use amber exclusively for accent moments.
-- Don't use `#000000` as page background.
-- Don't apply multiple shadow layers.
-- Don't use border-radius above 6px on cards.
-- Don't introduce new accent hues — the palette is green monochrome + one amber.
+### 13.3 Do's and Don'ts
+- Do keep the neutral gray scale dominant; color only where it's meaningful.
+- Do use amber exclusively for accent moments (one CTA per viewport).
+- Don't use pure black as a surface — dark mode is a neutral slate.
+- Don't introduce new brand hues beyond the neutral scale + green + amber (the
+  per-category chart palette is an existing, separate functional exception).
 
 ---
 
@@ -541,10 +543,10 @@ Expose these as clearly named constants:
 12. **Charts:** the three charts (spend-over-time by category, total spend over time,
     category donut) all use only palette colors and amber for accent, and correctly
     refresh when the time range or trip changes.
-13. **Design fidelity:** the running app matches `DESIGN-travel-mode.md` — Moss Canvas
-    background, Fern cards, no shadow stacks, no radius > 6px on cards, GT Alpina Standard
-    (or substitute) serif for hero/section headings, amber used only for accents. No new
-    colors introduced.
+13. **Design fidelity:** the running app matches §13 — neutral gray surface system, cards
+    with a soft shadow + 1px border at ~14px radius, system sans throughout, amber used
+    only for accents, both light and dark themes render cleanly. No new brand colors
+    introduced.
 14. **Web-migration readiness:** grepping the frontend finds zero occurrences of
     `localhost`; every `/api/*` route in the backend has `require_auth` applied; flipping
     the body of `require_auth` to raise 401 blocks all API calls.
