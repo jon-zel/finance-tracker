@@ -240,6 +240,15 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .type-Income{color:var(--income);font-weight:600;}
 .type-Expense{color:var(--expense);font-weight:600;}
 .table-scroll{overflow-x:auto;}
+.history-toggle-btn{
+  display:inline-flex;align-items:center;gap:6px;margin-top:14px;
+  background:transparent;border:1px solid var(--border);border-radius:var(--radius-pill);
+  padding:8px 16px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease;
+}
+.history-toggle-btn:hover{background:var(--surface-alt);border-color:var(--border-strong);color:var(--text);}
+.history-toggle-chevron{width:14px;height:14px;flex:none;transition:transform .2s ease;}
+.history-toggle-btn[aria-expanded="true"] .history-toggle-chevron{transform:rotate(180deg);}
 .table-note{color:var(--text-muted);font-size:13px;margin-top:12px;}
 
 /* ---- Layout: main column + savings side panel ---- */
@@ -535,7 +544,10 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <tbody id="historyTableBody"></tbody>
         </table>
       </div>
-      <button type="button" class="btn-link hidden" id="btnShowAllHistory"></button>
+      <button type="button" class="history-toggle-btn hidden" id="btnShowAllHistory" aria-expanded="false">
+        <span id="btnShowAllHistoryLabel"></span>
+        <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
       <div class="table-note">To edit or delete an entry, open the Excel file directly.</div>
     </div>
 
@@ -909,7 +921,7 @@ let allRows = [];               // normalized rows from the workbook
 let usingFallback = false;      // true once we're in import/download mode
 let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
-const HISTORY_ROW_LIMIT = 20;
+const HISTORY_ROW_LIMIT = 15;
 let historyShowAll = false; // reset to false whenever the time range changes
 
 // ---- Loans module state ----
@@ -1569,7 +1581,7 @@ function wireStaticEvents() {
   el("customTo").addEventListener("change", () => setRange("Custom"));
 
   el("btnShowAllHistory").addEventListener("click", () => {
-    historyShowAll = true;
+    historyShowAll = !historyShowAll;
     refreshDashboard();
   });
 
@@ -2275,8 +2287,9 @@ function renderHistoryTable(rangeRows) {
   const hasMore = sorted.length > HISTORY_ROW_LIMIT;
   const visible = (historyShowAll || !hasMore) ? sorted : sorted.slice(0, HISTORY_ROW_LIMIT);
   const btnShowAll = el("btnShowAllHistory");
-  if (hasMore && !historyShowAll) {
-    btnShowAll.textContent = `Show all ${sorted.length} transactions`;
+  if (hasMore) {
+    el("btnShowAllHistoryLabel").textContent = historyShowAll ? "Show fewer" : `Show all ${sorted.length} transactions`;
+    btnShowAll.setAttribute("aria-expanded", historyShowAll ? "true" : "false");
     show("btnShowAllHistory");
   } else {
     hide("btnShowAllHistory");
