@@ -715,6 +715,10 @@
   function closeModal(id) { el(id).hidden = true; }
 
   function wireStaticEvents() {
+    attachDatePicker("custom-from");
+    attachDatePicker("custom-to");
+    attachDatePicker("expense-date");
+
     el("btnThemeToggle").addEventListener("click", toggleTheme);
 
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {

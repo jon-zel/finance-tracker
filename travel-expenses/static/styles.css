@@ -164,7 +164,7 @@ h1, h2, h3 { margin: 0; color: var(--text); }
 .btn-ghost { border-color: transparent; background: transparent; box-shadow: none; padding: 8px 12px; }
 .btn-ghost:hover { background: var(--surface-alt); box-shadow: none; }
 
-select, input[type="date"], input[type="number"], input[type="text"] {
+select, input[type="number"], input[type="text"] {
   font-family: var(--font-sans);
   font-size: 15px;
   color: var(--text);
@@ -244,6 +244,83 @@ label {
   margin-top: 16px;
 }
 .custom-range-fields.visible { display: flex; }
+
+/* ---------- Date picker ----------
+   Replaces native <input type="date">: Chromium renders that control's
+   placeholder and month names in the browser's own UI language, ignoring
+   this page's lang="en" — so on a Hebrew-language browser it showed the
+   month segment as "מ"מ". This widget is self-drawn so the format is
+   always English, regardless of visitor locale. */
+
+.date-picker { position: relative; display: inline-block; }
+
+.date-picker-display { width: 100%; }
+
+.date-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 150;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hover);
+  padding: 12px;
+  width: 240px;
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.date-picker-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.date-picker-nav {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+.date-picker-nav:hover { background: var(--surface-alt); }
+
+.date-picker-weekdays,
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-picker-weekdays span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.date-picker-day {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 0;
+  text-align: center;
+}
+.date-picker-day:hover { background: var(--surface-alt); }
+.date-picker-day.today { font-weight: 700; color: var(--amber); }
+.date-picker-day.selected { background: var(--text); color: var(--panel); }
 
 /* ---------- Cards ---------- */
 
