@@ -919,10 +919,24 @@ let sourceLoanHeader = LOAN_COLUMNS.slice();
 let selectedLoanId = null;      // null = "All Loans"
 let loanChart = null;
 
-const CATEGORY_COLORS = [
-  "#2f6fa8", "#1a9c6b", "#d68a2f", "#8659c9", "#d64545",
-  "#2fa8a0", "#c9a13b", "#5b6472", "#a84f9b", "#4f7fd6", "#8a8f37"
+// Categorical palette for the category donuts (8 fixed hues, assigned in order —
+// never cycled by rank). Each mode is its own validated instance (lightness/chroma
+// stepped for that surface), not an automatic light->dark flip. Validated with
+// scripts/validate_palette.js from the dataviz skill against this app's actual
+// card surfaces (#ffffff light / #121317 dark): lightness band, chroma floor, and
+// CVD separation (--pairs all, since donut slices can sit next to any other slice)
+// all pass — CVD sits in the legal 8-12 "floor" band, which requires the chart to
+// also carry a text legend/tooltip and not rely on color alone; this app's donuts
+// already show both.
+const CATEGORY_COLORS_LIGHT = [
+  "#2f6fa8", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#a83a82", "#eb6834"
 ];
+const CATEGORY_COLORS_DARK = [
+  "#4a8ccb", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#c94a9e", "#d95926"
+];
+function getCategoryColors() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? CATEGORY_COLORS_DARK : CATEGORY_COLORS_LIGHT;
+}
 
 /* ============================================================
    CHART SETUP — a small plugin that draws a clean total label in
@@ -2219,7 +2233,8 @@ function renderDonut(canvasId, wrapId, emptyId, existingChart, sumsByCategory, s
   const theme = getChartThemeColors();
   const labels = entries.map(([k]) => k);
   const data = entries.map(([, v]) => v);
-  const colors = labels.map((_, i) => CATEGORY_COLORS[i % CATEGORY_COLORS.length]);
+  const categoryColors = getCategoryColors();
+  const colors = labels.map((_, i) => categoryColors[i % categoryColors.length]);
   const chart = new Chart(el(canvasId).getContext("2d"), {
     type: "doughnut",
     data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: theme.surface || "#fff", borderWidth: 2, hoverOffset: 6 }] },
