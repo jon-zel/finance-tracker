@@ -921,7 +921,7 @@ let allRows = [];               // normalized rows from the workbook
 let usingFallback = false;      // true once we're in import/download mode
 let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
-const HISTORY_ROW_LIMIT = 15;
+const HISTORY_ROW_LIMIT = 10;
 let historyShowAll = false; // reset to false whenever the time range changes
 
 // ---- Loans module state ----
