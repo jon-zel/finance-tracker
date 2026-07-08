@@ -8,6 +8,7 @@ Golden Rule (spec §2): the .xlsx files are a permanent contract.
 """
 import glob
 import os
+import threading
 from datetime import date, datetime
 
 import openpyxl
@@ -15,6 +16,15 @@ import openpyxl
 import config
 
 REQUIRED_HEADERS = ["Date", "Amount", "Category", "Notes"]
+
+# FastAPI runs these sync route handlers in a thread pool, so two requests
+# (e.g. two browser tabs, or a rapid double-submit) can genuinely race here:
+# both threads can load_workbook() before either calls save(), and whichever
+# save() lands second silently discards the first thread's new row/trip —
+# a smaller-scale case of the same "stale snapshot overwrites disk" data-loss
+# class found in the finance-tracker app. One process-wide lock serializes all
+# trip-file writes; this app is single-user/local so throughput isn't a concern.
+_write_lock = threading.Lock()
 
 
 class TripNotFoundError(Exception):
@@ -45,13 +55,14 @@ def trip_exists(name: str) -> bool:
 
 
 def create_trip(name: str) -> None:
-    if trip_exists(name):
-        raise TripAlreadyExistsError(name)
-    os.makedirs(config.TRIPS_DIR, exist_ok=True)
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.append(REQUIRED_HEADERS)
-    wb.save(_trip_path(name))
+    with _write_lock:
+        if trip_exists(name):
+            raise TripAlreadyExistsError(name)
+        os.makedirs(config.TRIPS_DIR, exist_ok=True)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(REQUIRED_HEADERS)
+        wb.save(_trip_path(name))
 
 
 def _header_column_map(ws) -> dict[str, int]:
@@ -116,20 +127,24 @@ def read_expenses(name: str) -> list[dict]:
 
 def append_expense(name: str, expense_date: date, amount: float, category: str, notes: str) -> None:
     path = _trip_path(name)
-    if not os.path.exists(path):
-        raise TripNotFoundError(name)
+    # Holding the lock across the whole load-modify-save cycle (not just the
+    # save) is what actually prevents the race: without it, two threads could
+    # both load_workbook() the same pre-append content before either saves.
+    with _write_lock:
+        if not os.path.exists(path):
+            raise TripNotFoundError(name)
 
-    wb = openpyxl.load_workbook(path)
-    ws = wb.worksheets[0]
-    headers = _header_column_map(ws)
-    _require_headers(headers, name)
+        wb = openpyxl.load_workbook(path)
+        ws = wb.worksheets[0]
+        headers = _header_column_map(ws)
+        _require_headers(headers, name)
 
-    new_row = ws.max_row + 1
-    # Only ever write into the four known columns, wherever they happen to
-    # live in this particular file — any other columns on this new row are
-    # simply left blank, and every existing row/column is untouched.
-    ws.cell(row=new_row, column=headers["Date"], value=expense_date)
-    ws.cell(row=new_row, column=headers["Amount"], value=amount)
-    ws.cell(row=new_row, column=headers["Category"], value=category)
-    ws.cell(row=new_row, column=headers["Notes"], value=notes)
-    wb.save(path)
+        new_row = ws.max_row + 1
+        # Only ever write into the four known columns, wherever they happen to
+        # live in this particular file — any other columns on this new row are
+        # simply left blank, and every existing row/column is untouched.
+        ws.cell(row=new_row, column=headers["Date"], value=expense_date)
+        ws.cell(row=new_row, column=headers["Amount"], value=amount)
+        ws.cell(row=new_row, column=headers["Category"], value=category)
+        ws.cell(row=new_row, column=headers["Notes"], value=notes)
+        wb.save(path)

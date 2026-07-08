@@ -392,6 +392,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
   </div>
 
   <div id="browserNotice"></div>
+  <div id="dataSafetyNotice"></div>
+  <div id="concurrencyNotice"></div>
   <div id="statusNotice"></div>
 
   <!-- ============================================================
@@ -1155,22 +1157,69 @@ function computeFinalHeader(headerOrder, rows, knownColumns) {
 
 function parseSheetFromWorkbook(wb, sheetName, defaultColumns, fallbackToFirstSheet) {
   let ws = wb.Sheets[sheetName];
+  const found = !!ws;
   if (!ws && fallbackToFirstSheet) ws = wb.Sheets[wb.SheetNames[0]];
-  if (!ws) return { header: defaultColumns.slice(), rows: [] };
+  if (!ws) return { header: defaultColumns.slice(), rows: [], found: false };
   const headerAoa = XLSX.utils.sheet_to_json(ws, { header: 1 })[0];
   const header = (headerAoa && headerAoa.length) ? headerAoa.map(h => String(h)) : defaultColumns.slice();
   const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-  return { header, rows };
+  return { header, rows, found };
 }
 
 // Reads both worksheets from one buffer. The Loans sheet is looked up by exact
 // name only (it's brand new — there's no legacy file to fall back from); the
 // Transactions sheet keeps its original fallback-to-first-sheet behavior.
+// `loanSheetFound` is surfaced separately from `loanRows` so callers can tell
+// "this file genuinely has no Loans sheet yet" apart from "the sheet exists but
+// happens to be empty" — the two must not be treated as interchangeable, see
+// warnIfLoansUnexpectedlyGone() and saveWithFreshMerge() below (§DATA-SAFETY).
 function parseWorkbookBuffer(buf) {
   const wb = XLSX.read(buf, { type: "array" });
   const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, true);
   const loans = parseSheetFromWorkbook(wb, LOANS_SHEET_NAME, LOAN_COLUMNS, false);
-  return { txHeader: tx.header, txRows: tx.rows, loanHeader: loans.header, loanRows: loans.rows };
+  return { txHeader: tx.header, txRows: tx.rows, loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found };
+}
+
+/* ============================================================
+   DATA-SAFETY NET (§DATA-SAFETY)
+   ------------------------------------------------------------
+   Added after an incident where a stale browser tab silently
+   overwrote finances.xlsx with an empty Loans sheet, permanently
+   deleting loan records the user had already saved from another
+   session. Two independent layers guard against a repeat:
+
+   1. warnIfLoansUnexpectedlyGone() — a localStorage breadcrumb
+      remembers whether this browser has ever seen loan records for
+      this app. If a fresh read ever comes back with zero loans after
+      previously having some, that is treated as suspicious and
+      surfaced loudly, instead of silently rendering an empty module.
+
+   2. saveWithFreshMerge() — every single save (add/edit/delete of a
+      transaction OR a loan) re-reads finances.xlsx from disk
+      immediately beforehand and applies just that one change on top
+      of the freshest possible state, then adopts the merged result as
+      the new in-memory truth. A stale tab's outdated in-memory arrays
+      are never again written to disk wholesale. If the Loans sheet
+      can't be found on a save where this session believes loans
+      exist, the save is refused outright rather than risking a wipe.
+   ============================================================ */
+const HAD_LOANS_KEY = "finance_tracker_had_loans_flag"; // breadcrumb only — never a source of truth for loan data itself
+
+function noteLoansPresence(loanCount) {
+  try { if (loanCount > 0) localStorage.setItem(HAD_LOANS_KEY, "1"); } catch (e) { /* ignore */ }
+}
+
+function warnIfLoansUnexpectedlyGone(loanCount, sheetFound) {
+  if (loanCount > 0) { setNotice("dataSafetyNotice", "", false); return; }
+  let hadLoansBefore = false;
+  try { hadLoansBefore = localStorage.getItem(HAD_LOANS_KEY) === "1"; } catch (e) { /* ignore */ }
+  if (!hadLoansBefore) return;
+  setNotice("dataSafetyNotice",
+    "⚠️ This browser previously had loan records saved for this file, but none were found just now" +
+    (sheetFound ? "" : " — the “Loans” sheet itself wasn't found in finances.xlsx") +
+    ". If you didn't delete them yourself, STOP: don't add or change anything yet. Close this tab, check whether " +
+    "finances.xlsx was replaced/edited elsewhere, and restore from a backup copy (see the finances.backup-*.xlsx " +
+    "files in your data folder) before continuing.", true);
 }
 
 async function readWorkbookRows(handle) {
@@ -1179,6 +1228,7 @@ async function readWorkbookRows(handle) {
     rawRows = []; sourceHeader = COLUMNS.slice();
     rawLoanRows = []; sourceLoanHeader = LOAN_COLUMNS.slice();
     allLoans = [];
+    warnIfLoansUnexpectedlyGone(0, false);
     return [];
   }
   const buf = await file.arrayBuffer();
@@ -1188,7 +1238,32 @@ async function readWorkbookRows(handle) {
   sourceLoanHeader = parsed.loanHeader;
   rawLoanRows = parsed.loanRows;
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
+  warnIfLoansUnexpectedlyGone(allLoans.length, parsed.loanSheetFound);
+  noteLoansPresence(allLoans.length);
   return rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+}
+
+// Reads the CURRENT on-disk file fresh, independent of whatever is currently
+// sitting in the rawRows/rawLoanRows globals. This is the read half of the
+// read-modify-write pattern every save now goes through — see
+// saveWithFreshMerge() (§DATA-SAFETY). Returns raw bytes too, so a pre-write
+// backup snapshot can be taken from the exact content about to be replaced.
+async function peekFreshWorkbookState() {
+  const file = await fileHandle.getFile();
+  if (file.size === 0) {
+    return {
+      rawRows: [], sourceHeader: COLUMNS.slice(),
+      rawLoanRows: [], sourceLoanHeader: LOAN_COLUMNS.slice(),
+      loanSheetFound: false, bytes: null
+    };
+  }
+  const buf = await file.arrayBuffer();
+  const parsed = parseWorkbookBuffer(buf);
+  return {
+    rawRows: parsed.txRows, sourceHeader: parsed.txHeader,
+    rawLoanRows: parsed.loanRows, sourceLoanHeader: parsed.loanHeader,
+    loanSheetFound: parsed.loanSheetFound, bytes: buf
+  };
 }
 
 function rowsToWorksheet(rows, headerOrder) {
@@ -1197,14 +1272,17 @@ function rowsToWorksheet(rows, headerOrder) {
 }
 
 // Both sheets are always written together so neither one is ever left stale —
-// the Transactions sheet from rawRows/sourceHeader (append-only), the Loans
-// sheet from rawLoanRows/sourceLoanHeader (mutable), completely independent of
-// each other's content but sharing one physical .xlsx file.
-function buildWorkbookBytes() {
+// the Transactions sheet (append-only), the Loans sheet (mutable), completely
+// independent of each other's content but sharing one physical .xlsx file.
+function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader) {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(rawRows, sourceHeader), SHEET_NAME);
-  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(rawLoanRows, sourceLoanHeader), LOANS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(txRows, txHeader), SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(loanRows, loanHeader), LOANS_SHEET_NAME);
   return XLSX.write(wb, { bookType: "xlsx", type: "array" });
+}
+
+function buildWorkbookBytes() {
+  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader);
 }
 
 async function writeWorkbookToHandle(handle) {
@@ -1214,8 +1292,13 @@ async function writeWorkbookToHandle(handle) {
   await writable.close();
 }
 
-function downloadWorkbook() {
-  const bytes = buildWorkbookBytes();
+async function writeBytesToHandle(handle, bytes) {
+  const writable = await handle.createWritable();
+  await writable.write(bytes);
+  await writable.close();
+}
+
+function downloadWorkbook(bytes) {
   const blob = new Blob([bytes], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1227,16 +1310,87 @@ function downloadWorkbook() {
   URL.revokeObjectURL(url);
 }
 
-// Persists both sheets to disk (or triggers a download in fallback mode),
-// recomputing each sheet's header from its own known columns first.
-async function persistWorkbook() {
-  sourceHeader = computeFinalHeader(sourceHeader, rawRows, COLUMNS);
-  sourceLoanHeader = computeFinalHeader(sourceLoanHeader, rawLoanRows, LOAN_COLUMNS);
+/* ---- Rolling backups (§DATA-SAFETY) ----
+   One recovery snapshot per calendar day, taken from the exact on-disk bytes
+   about to be overwritten — so any future bug, bad merge, or external file
+   corruption is always at most one day away from being undoable. Pruned after
+   BACKUP_RETENTION_DAYS so the data folder doesn't grow forever. Best-effort:
+   a backup failure is logged but never blocks the actual save. */
+const BACKUP_PREFIX = "finances.backup-";
+const BACKUP_RETENTION_DAYS = 14;
+
+function backupFileName(date) {
+  return `${BACKUP_PREFIX}${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}.xlsx`;
+}
+
+async function pruneOldBackups() {
+  const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  try {
+    for await (const name of dirHandle.keys()) {
+      if (!name.startsWith(BACKUP_PREFIX) || !name.endsWith(".xlsx")) continue;
+      const d = new Date(name.slice(BACKUP_PREFIX.length, -5));
+      if (!isNaN(d) && d.getTime() < cutoff) await dirHandle.removeEntry(name);
+    }
+  } catch (e) { console.error("Backup pruning failed (non-fatal):", e); }
+}
+
+async function maybeBackupBeforeOverwrite(currentBytes) {
+  if (!currentBytes) return; // nothing on disk yet — nothing to lose
+  const name = backupFileName(new Date());
+  try {
+    await dirHandle.getFileHandle(name); // throws NotFoundError if today's backup doesn't exist yet
+    return;
+  } catch (e) { /* doesn't exist yet — fall through and create it */ }
+  try {
+    const backupHandle = await dirHandle.getFileHandle(name, { create: true });
+    await writeBytesToHandle(backupHandle, currentBytes);
+    await pruneOldBackups();
+  } catch (e) { console.error("Backup failed (continuing with save):", e); }
+}
+
+// The single save primitive every mutation (append/update/delete, for both
+// transactions and loans) now goes through. `mutate(state)` receives the
+// FRESHEST possible on-disk snapshot (re-read right here, not whatever stale
+// data this tab happened to load at startup) and should modify it in place.
+// Only on a successful write do the in-memory globals adopt the merged result
+// — a failed save leaves them untouched, and a save from a stale tab can never
+// again blow away rows another session already persisted. See §DATA-SAFETY.
+async function saveWithFreshMerge(mutate) {
+  let state;
   if (usingFallback) {
-    downloadWorkbook();
+    // No shared file handle to race against in fallback mode (Safari/Firefox)
+    // — the in-memory arrays are the only copy that exists until re-imported.
+    state = { rawRows: rawRows.slice(), sourceHeader: sourceHeader.slice(), rawLoanRows: rawLoanRows.slice(), sourceLoanHeader: sourceLoanHeader.slice(), bytes: null };
   } else {
-    await writeWorkbookToHandle(fileHandle);
+    state = await peekFreshWorkbookState();
+    if (!state.loanSheetFound && allLoans.length > 0) {
+      setNotice("statusNotice",
+        "Couldn't save — the “Loans” sheet is missing from finances.xlsx right now, but this session has loan " +
+        "records. Nothing was changed. Reconnect to the right data folder (or restore finances.xlsx from a backup) before saving again.", true);
+      throw new Error("LOANS_SHEET_MISSING");
+    }
   }
+
+  mutate(state);
+
+  state.sourceHeader = computeFinalHeader(state.sourceHeader, state.rawRows, COLUMNS);
+  state.sourceLoanHeader = computeFinalHeader(state.sourceLoanHeader, state.rawLoanRows, LOAN_COLUMNS);
+  const newBytes = buildWorkbookBytesFrom(state.rawRows, state.sourceHeader, state.rawLoanRows, state.sourceLoanHeader);
+
+  if (usingFallback) {
+    downloadWorkbook(newBytes);
+  } else {
+    await maybeBackupBeforeOverwrite(state.bytes);
+    await writeBytesToHandle(fileHandle, newBytes);
+  }
+
+  rawRows = state.rawRows;
+  sourceHeader = state.sourceHeader;
+  rawLoanRows = state.rawLoanRows;
+  sourceLoanHeader = state.sourceLoanHeader;
+  allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+  allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
+  noteLoansPresence(allLoans.length);
 }
 
 /* ============================================================
@@ -1284,6 +1438,23 @@ async function init() {
   }
 }
 
+// Best-effort courtesy heads-up (not a lock) that another tab/window in this
+// same browser also has the app open. saveWithFreshMerge() is what actually
+// keeps concurrent tabs safe (§DATA-SAFETY); this just helps the user notice
+// the situation so they're not confused by another tab's changes appearing.
+let bcChannel = null;
+function initCrossTabNotice() {
+  if (bcChannel || typeof BroadcastChannel === "undefined") return;
+  bcChannel = new BroadcastChannel("finance_tracker_session_" + DATA_FILENAME);
+  bcChannel.onmessage = (e) => {
+    if (e.data === "hello") bcChannel.postMessage("ack");
+    setNotice("concurrencyNotice",
+      "This app is also open in another tab or window. That's safe — every save re-reads the latest file first — " +
+      "but for the clearest view, keep just one tab active and refresh the others after making changes.", false);
+  };
+  bcChannel.postMessage("hello");
+}
+
 async function openDataFile() {
   fileHandle = await dirHandle.getFileHandle(DATA_FILENAME, { create: true });
   const file = await fileHandle.getFile();
@@ -1305,6 +1476,7 @@ async function openDataFile() {
   show("dashboard");
   show("loansModule");
   setNotice("statusNotice", "", false);
+  initCrossTabNotice();
   refreshDashboard();
   refreshLoansModule();
 }
@@ -1427,6 +1599,8 @@ async function handleImportFile(e) {
     sourceLoanHeader = parsed.loanHeader;
     rawLoanRows = parsed.loanRows;
     allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
+    warnIfLoansUnexpectedlyGone(allLoans.length, parsed.loanSheetFound);
+    noteLoansPresence(allLoans.length);
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
@@ -1445,17 +1619,16 @@ async function handleImportFile(e) {
    SAVING A NEW ROW
    ============================================================ */
 async function appendRow(row) {
-  allRows.push(row);
-  rawRows.push(row); // a freshly-created row only ever has our own known columns
   try {
-    await persistWorkbook();
+    // a freshly-created row only ever has our own known columns
+    await saveWithFreshMerge(state => { state.rawRows.push(row); });
     refreshDashboard();
     return true;
   } catch (err) {
     console.error(err);
-    allRows.pop();
-    rawRows.pop();
-    setNotice("statusNotice", "Couldn't save your entry &mdash; click “Open data folder” to reconnect and try again.", true);
+    if (err.message !== "LOANS_SHEET_MISSING") {
+      setNotice("statusNotice", "Couldn't save your entry &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
     return false;
   }
 }
@@ -1500,70 +1673,70 @@ function loanToRawRow(loan) {
   };
 }
 
-function findRawLoanIndex(id) {
-  return rawLoanRows.findIndex(r => String(r["Loan ID"] || "").trim() === id);
+function findRawLoanIndex(rows, id) {
+  return rows.findIndex(r => String(r["Loan ID"] || "").trim() === id);
 }
 
 async function appendLoan(loan) {
-  allLoans.push(loan);
-  rawLoanRows.push(loanToRawRow(loan));
   try {
-    await persistWorkbook();
+    await saveWithFreshMerge(state => { state.rawLoanRows.push(loanToRawRow(loan)); });
     refreshLoansModule();
     return true;
   } catch (err) {
     console.error(err);
-    allLoans.pop();
-    rawLoanRows.pop();
-    setNotice("statusNotice", "Couldn't save your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    if (err.message !== "LOANS_SHEET_MISSING") {
+      setNotice("statusNotice", "Couldn't save your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
     return false;
   }
 }
 
 // Loans are matched by their stable Loan ID — never by array position or name —
 // since the raw sheet rows and the normalized list can diverge in order/length
-// (e.g. a malformed row present in the sheet but filtered out of allLoans).
+// (e.g. a malformed row present in the sheet but filtered out of allLoans). The
+// match now happens against the freshest on-disk rows (see saveWithFreshMerge),
+// not this tab's possibly-stale in-memory copy, so a loan added or edited from
+// another session in the meantime is never silently clobbered.
 async function updateLoan(id, fields) {
-  const rawIdx = findRawLoanIndex(id);
-  const loanIdx = allLoans.findIndex(l => l.id === id);
-  if (rawIdx === -1 || loanIdx === -1) return false;
-  const prevRaw = rawLoanRows[rawIdx];
-  const prevLoan = allLoans[loanIdx];
-  const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
-  const updatedRaw = Object.assign({}, prevRaw, loanToRawRow(updatedLoan));
-  rawLoanRows[rawIdx] = updatedRaw;
-  allLoans[loanIdx] = updatedLoan;
+  let found = true;
   try {
-    await persistWorkbook();
+    await saveWithFreshMerge(state => {
+      const rawIdx = findRawLoanIndex(state.rawLoanRows, id);
+      if (rawIdx === -1) { found = false; return; }
+      const prevLoan = normalizeLoanRow(state.rawLoanRows[rawIdx]);
+      const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
+      state.rawLoanRows[rawIdx] = Object.assign({}, state.rawLoanRows[rawIdx], loanToRawRow(updatedLoan));
+    });
+    if (!found) {
+      setNotice("statusNotice", "That loan no longer exists &mdash; it may have been deleted from another session. The list has been refreshed.", true);
+    }
     refreshLoansModule();
-    return true;
+    return found;
   } catch (err) {
     console.error(err);
-    rawLoanRows[rawIdx] = prevRaw;
-    allLoans[loanIdx] = prevLoan;
-    setNotice("statusNotice", "Couldn't update your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    if (err.message !== "LOANS_SHEET_MISSING") {
+      setNotice("statusNotice", "Couldn't update your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
     return false;
   }
 }
 
 async function deleteLoan(id) {
-  const rawIdx = findRawLoanIndex(id);
-  const loanIdx = allLoans.findIndex(l => l.id === id);
-  if (rawIdx === -1 || loanIdx === -1) return false;
-  const prevRaw = rawLoanRows[rawIdx];
-  const prevLoan = allLoans[loanIdx];
-  rawLoanRows.splice(rawIdx, 1);
-  allLoans.splice(loanIdx, 1);
+  let found = true;
   try {
-    await persistWorkbook();
+    await saveWithFreshMerge(state => {
+      const rawIdx = findRawLoanIndex(state.rawLoanRows, id);
+      if (rawIdx === -1) { found = false; return; }
+      state.rawLoanRows.splice(rawIdx, 1);
+    });
     if (selectedLoanId === id) selectedLoanId = null; // §27: reset to "All Loans"
     refreshLoansModule();
-    return true;
+    return found;
   } catch (err) {
     console.error(err);
-    rawLoanRows.splice(rawIdx, 0, prevRaw);
-    allLoans.splice(loanIdx, 0, prevLoan);
-    setNotice("statusNotice", "Couldn't delete your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    if (err.message !== "LOANS_SHEET_MISSING") {
+      setNotice("statusNotice", "Couldn't delete your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
     return false;
   }
 }
