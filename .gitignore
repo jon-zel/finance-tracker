@@ -1,3 +1,4 @@
 .claude/
 .playwright-mcp/
 budget_data.xlsx
+node_modules/
