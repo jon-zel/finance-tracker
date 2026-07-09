@@ -9,25 +9,27 @@
    ============================================================ */
 
 :root {
-  /* Neutral surface system */
-  --bg: #f4f6f8;
+  /* Warm "travel journal" surface system — sand/cream page, pure-white cards
+     lifted with a soft blurry shadow instead of a hard border, deep warm-navy
+     ink. Replaces the earlier cool-gray neutral system. */
+  --bg: #fdfbf7;
   --panel: #ffffff;
-  --surface-alt: #f7f9fb;
-  --border: #e2e6ea;
-  --border-strong: #d7dce2;
-  --text: #1f2937;
-  --text-muted: #6b7280;
-  --text-faint: #9aa3af;
+  --surface-alt: #f7f3ec;
+  --border: #eae4d8;
+  --border-strong: #ded5c2;
+  --text: #1e2530;
+  --text-muted: #6b6459;
+  --text-faint: #9a9186;
   --overlay: rgba(17, 24, 39, .5);
 
   /* Travel-app palette identity, translated into the neutral system:
-     green is the semantic accent for spend/data, amber is the single
+     green is the semantic accent for spend/data, amber/gold is the single
      warm highlight, used sparingly. */
   --spend: #1a9c6b;
   --spend-bg: #e6f7f0;
-  --amber: #ffe228;
-  --amber-bg: rgba(255, 226, 40, .18);
-  --on-amber: #1f2937; /* always-dark ink for text sitting on the amber fill, in either theme */
+  --amber: #fad02c;
+  --amber-bg: rgba(250, 208, 44, .18);
+  --on-amber: #1e2530; /* always-dark ink for text sitting on the amber fill, in either theme */
   --danger: #d64545;
   --danger-bg: #fdeaea;
 
@@ -35,8 +37,8 @@
 
   --radius: 14px;
   --radius-sm: 10px;
-  --shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .04);
-  --shadow-hover: 0 8px 24px rgba(16, 24, 40, .12), 0 2px 6px rgba(16, 24, 40, .06);
+  --shadow: 0 4px 20px rgba(0, 0, 0, .03);
+  --shadow-hover: 0 8px 32px rgba(0, 0, 0, .06);
 }
 
 :root[data-theme="dark"] {
@@ -53,9 +55,9 @@
 
   --spend: #3ecf8e;
   --spend-bg: rgba(62, 207, 142, .14);
-  --amber: #ffe228;
-  --amber-bg: rgba(255, 226, 40, .14);
-  --on-amber: #1f2937;
+  --amber: #fad02c;
+  --amber-bg: rgba(250, 208, 44, .14);
+  --on-amber: #1e2530;
   --danger: #f0716c;
   --danger-bg: rgba(240, 113, 108, .14);
 
@@ -75,6 +77,23 @@ body {
   font-size: 15px;
   line-height: 1.5;
   transition: background-color .2s ease, color .2s ease;
+}
+
+/* Same subtle world-map/flight-path backdrop in both themes — a matching
+   cream version for light mode, the navy version for dark. Cards sit on
+   their own opaque --panel fill in either case, so this never affects
+   legibility; it's just ambience in the gutters and page margins. A soft
+   wash in the theme's own --bg tone sits between the flat color and the
+   image so the photo never has to carry contrast on its own. */
+:root body {
+  background-image: linear-gradient(rgba(253, 251, 247, .6), rgba(253, 251, 247, .78)), url("/bg-light-map.png");
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+:root[data-theme="dark"] body {
+  background-image: linear-gradient(rgba(18, 22, 28, .55), rgba(18, 22, 28, .72)), url("/bg-dark-map.jpg");
 }
 
 img, svg { display: block; max-width: 100%; }

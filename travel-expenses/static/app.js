@@ -12,19 +12,44 @@
   // order, not from whatever happens to have data in the current filter) so a
   // category reads as the same color everywhere — chart, legend, donut — no
   // matter which time range or trip is active.
-  const CATEGORY_PALETTE = [
-    "#130e30", "#e261e5", "#59e25d", "#3b6fd6", "#e2833b", "#8a3bd6", "#2f9e8f",
-    "#d63b64", "#5f5c6e", "#c9a13b", "#3bb3d6", "#8fae3b", "#d63b3b", "#8a5a2b",
+  //
+  // Same 8-hue categorical palette as the finance tracker (ported deliberately,
+  // per DESIGN.md's "one family" rule), each mode its own validated instance —
+  // not a flat set of colors reused unchanged on a dark surface. Derived and
+  // checked with the dataviz skill's scripts/validate_palette.js against this
+  // app's actual card surfaces (#ffffff light, #1a1f28 dark): lightness band,
+  // chroma floor, and colorblind-safety (--pairs all) all pass.
+  const CATEGORY_COLORS_LIGHT = [
+    "#2f6fa8", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948", "#a83a82", "#eb6834",
   ];
-  let categoryColorMap = {};
+  const CATEGORY_COLORS_DARK = [
+    "#4a8ccb", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#c94a9e", "#d95926",
+  ];
+  let categoryColorMapLight = {};
+  let categoryColorMapDark = {};
+
+  function currentThemeName() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
 
   function categoryColor(cat) {
-    if (categoryColorMap[cat]) return categoryColorMap[cat];
+    const dark = currentThemeName() === "dark";
+    const map = dark ? categoryColorMapDark : categoryColorMapLight;
+    if (map[cat]) return map[cat];
     // Fallback for a category not in appConfig.categories (e.g. a stray value
     // in the file) — deterministic so it stays the same color across renders.
+    const palette = dark ? CATEGORY_COLORS_DARK : CATEGORY_COLORS_LIGHT;
     let hash = 0;
     for (let i = 0; i < cat.length; i++) hash = (hash * 31 + cat.charCodeAt(i)) | 0;
-    return CATEGORY_PALETTE[Math.abs(hash) % CATEGORY_PALETTE.length];
+    return palette[Math.abs(hash) % palette.length];
+  }
+
+  function hexToRgba(hex, alpha) {
+    const h = (hex || "#000000").replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const n = parseInt(full, 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   function getVar(name) {
@@ -94,9 +119,11 @@
   async function init() {
     initTheme();
     appConfig = await getConfig();
-    categoryColorMap = {};
+    categoryColorMapLight = {};
+    categoryColorMapDark = {};
     appConfig.categories.forEach((cat, i) => {
-      categoryColorMap[cat] = CATEGORY_PALETTE[i % CATEGORY_PALETTE.length];
+      categoryColorMapLight[cat] = CATEGORY_COLORS_LIGHT[i % CATEGORY_COLORS_LIGHT.length];
+      categoryColorMapDark[cat] = CATEGORY_COLORS_DARK[i % CATEGORY_COLORS_DARK.length];
     });
     pinnedCategories = loadPinnedCategories();
     populateCategorySelect();
@@ -331,10 +358,16 @@
     const dates = Array.from(new Set(expenses.map((e) => e.date))).sort();
     const categories = Array.from(new Set(expenses.map((e) => e.category)));
     const series = {};
-    for (const cat of categories) series[cat] = dates.map(() => 0);
+    // null (not 0) for a day a category wasn't spent on — with spanGaps this
+    // draws a smooth line straight between actual data points instead of a
+    // sharp dive-to-zero-and-back on every gap day. Zero-filling every
+    // category for every date *any* category had an expense was what made
+    // this chart read as a jagged seismograph — a data-shape problem, not a
+    // color one.
+    for (const cat of categories) series[cat] = dates.map(() => null);
     expenses.forEach((e) => {
       const idx = dates.indexOf(e.date);
-      series[e.category][idx] += e.amount;
+      series[e.category][idx] = (series[e.category][idx] || 0) + e.amount;
     });
     return { dates, series };
   }
@@ -455,11 +488,22 @@
   // full page reload.
   function refreshChartThemeColors(chart) {
     const scales = chart.options.scales;
-    if (!scales) return;
-    if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
-    if (scales.y) {
-      if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
-      if (scales.y.grid) scales.y.grid.color = getVar("--border");
+    if (scales) {
+      if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
+      if (scales.y) {
+        if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
+        if (scales.y.grid) scales.y.grid.color = hexToRgba(getVar("--border-strong"), 0.5);
+      }
+    }
+    // Tooltip colors are read from CSS vars at chart *creation* time only —
+    // charts are updated in place on a theme flip (not torn down), so without
+    // this the tooltip keeps rendering in the old theme's colors.
+    const tooltip = chart.options.plugins && chart.options.plugins.tooltip;
+    if (tooltip) {
+      tooltip.backgroundColor = getVar("--panel");
+      tooltip.borderColor = hexToRgba(getVar("--border-strong"), 0.6);
+      tooltip.titleColor = getVar("--text-muted");
+      tooltip.bodyColor = getVar("--text");
     }
   }
 
@@ -493,8 +537,13 @@
       borderColor: categoryColor(cat),
       backgroundColor: "transparent",
       hoverBorderColor: highlight,
+      hoverBorderWidth: 3,
       borderWidth: 2,
-      pointRadius: 2,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: getVar("--panel"),
+      pointHoverBorderColor: highlight,
+      pointHoverBorderWidth: 2,
       tension: 0.25,
       hidden: categoryVisibility[cat] === false,
     }));
@@ -596,6 +645,7 @@
       chart.data.datasets[0].data = values;
       chart.data.datasets[0].backgroundColor = categories.map((cat) => categoryColor(cat));
       chart.$centerText.amount = formatBase(grandTotal);
+      refreshChartThemeColors(chart);
       chart.update();
     } else {
       const ctx = el("chart-donut").getContext("2d");
@@ -609,12 +659,20 @@
             backgroundColor: categories.map((cat) => categoryColor(cat)),
             hoverBackgroundColor: getVar("--amber"),
             borderWidth: 0,
+            hoverOffset: 6,
           }],
         },
         options: {
           cutout: "65%",
           animation: { duration: 350, easing: "easeOutQuart" },
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+              titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+              displayColors: true, boxPadding: 4,
+            },
+          },
         },
         plugins: [makeDonutCenterPlugin(centerText)],
       });
@@ -671,16 +729,30 @@
   }
 
   function baseChartOptions() {
+    // intersect: true — the by-category chart can have up to a dozen-plus
+    // overlapping lines at once; "nearest, intersect: false" showed every
+    // visible category's value at that date in one giant default tooltip,
+    // which is what actually read as "ugly" (not the line colors). Hovering
+    // must now land on the specific line, matching the existing per-line
+    // hoverBorderColor highlight, which already assumed a one-line-at-a-time
+    // hover model.
     return {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 350, easing: "easeOutQuart" },
-      interaction: { mode: "nearest", intersect: false },
+      interaction: { mode: "nearest", intersect: true },
       scales: {
         x: { ticks: { color: getVar("--text-muted") }, grid: { display: false } },
-        y: { ticks: { color: getVar("--text-muted") }, grid: { color: getVar("--border") } },
+        y: { ticks: { color: getVar("--text-muted") }, grid: { color: hexToRgba(getVar("--border-strong"), 0.5) } },
       },
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+          titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+        },
+      },
     };
   }
 
