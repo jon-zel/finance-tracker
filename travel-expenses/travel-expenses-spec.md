@@ -9,8 +9,9 @@ existing personal finance tracker, but this one is different in several delibera
 - **Multiple trips** — one Excel file per trip. The user picks the active trip from a list.
 - **A single fixed base currency plus a live conversion rate** — the user can enter an
   expense in another currency, and it's converted to base and stored converted.
-- **A visual design given up front** — see §13. The look and feel is defined directly by
-  `static/styles.css`, which is the source of truth (no separate design-token file).
+- **No fixed visual spec here.** `static/styles.css` is the living source of truth for
+  look and feel — it's revised freely as the product evolves, not locked to a written
+  spec section.
 - **A drop-in replacement for the user's current Excel-based workflow** — the DB schema
   matches their existing Excel files exactly, so their existing files migrate in one click.
 - **Built as a small local server from day one**, in anticipation of hosting this on the
@@ -27,7 +28,6 @@ existing personal finance tracker, but this one is different in several delibera
 - Data lives in per-trip `.xlsx` files in a `trips/` folder next to the code.
 - The `.xlsx` schema is **identical to the user's existing Excel files** so migration is
   literally "drop the file into the `trips/` folder".
-- The visual language follows the "calm modern fintech" system defined in `static/styles.css` (see §13).
 
 ---
 
@@ -265,20 +265,15 @@ Single page. Follows the design system in §13. Top to bottom:
   design system's "single warm accent" discipline.
 
 ### 9.6 Charts
-Three charts, styled per §13 (dark Moss Canvas backgrounds, light content on `--color-fern`
-cards where appropriate, amber accent used only as a highlight):
+Three charts:
 
-- **Spend over time by category** — one line per category, x-axis = date. This is the main
-  chart from the reference screenshot. Legend is a wrapping row of small badges; clicking a
-  legend entry toggles that category on/off.
-- **Total spend over time** — single line, total across all categories per day. This is the
-  bottom-left chart from the reference. Filled area under the line in amber at low opacity
-  for visual weight.
-- **Spend by category — donut** — a donut chart of the range totals by category, with a
-  clear legend showing category, absolute amount, and percentage. Mirrors the reference
-  screenshot's pie on the bottom right, but rendered as a **donut** (see §13.2 — no true
-  pie shapes, to align with the design system's editorial rhythm and readable center label
-  showing the range total).
+- **Spend over time by category** — one series per category, x-axis = time, auto-scaled
+  granularity so the axis stays legible across both a short trip and a long one. Legend is
+  a wrapping row of small badges; clicking a legend entry toggles that category on/off.
+- **Total spend over time** — total across all categories per time bucket (same granularity
+  as above).
+- **Spend by category** — a chart of the range totals by category, with a clear legend
+  showing category, absolute amount, and percentage, plus a readable total for the range.
 
 ### 9.7 Expense list
 - Table of expenses in the selected range, newest first.
@@ -382,51 +377,10 @@ GET  /api/rates/history
 
 ---
 
-## 13. Visual design — "calm modern fintech"
+## 13. Reserved
 
-**`static/styles.css` is the source of truth** for every color, font, radius, spacing
-value, and component pattern — there is no separate design-token file. The direction is
-the same neutral-dominant, low-key system used by the personal finance tracker
-(`index.html`, pre-"Slash" era): a proper neutral gray scale carries the page, and color
-only appears where it's semantically meaningful. Concretely:
-
-### 13.1 Tokens
-- **Neutral surface system:** `--bg` / `--panel` / `--surface-alt` / `--border` /
-  `--border-strong` / `--text` / `--text-muted` / `--text-faint`, light and dark
-  (`:root[data-theme="dark"]`) variants. Dark mode is a deep neutral slate (`#12161c`),
-  never black.
-- **Palette identity — kept from this app's original direction:** green (`--spend` /
-  `--spend-bg`) is the semantic accent for spend/data (chart lines, totals); amber
-  (`--amber` / `--amber-bg`) is the single warm highlight, used sparingly.
-- **Typography:** system sans stack only (no serif, no web font). Card titles are muted,
-  uppercase, letter-spaced small-caps-style labels; key figures (Total spent, monitored
-  gauges) are large, bold, tabular-numeral.
-- **Radius:** ~14px cards/modals, ~8–10px inputs/buttons/tags — not full-pill.
-- **Shadow:** a single soft, low, quiet shadow token (`--shadow` / `--shadow-hover`) plus a
-  1px border — not color-stepping alone.
-- **Motion:** 150–250ms transitions on hover/focus/theme toggle; card hover gets a subtle
-  shadow lift; modals fade + slide in (~200ms); gauge/bar fills animate width on a
-  `cubic-bezier(.16,1,.3,1)` ease. Nothing bouncy.
-
-### 13.2 How to apply them here
-- **Amber is the only accent**, used for: the primary CTA ("+ Add Expense"), the
-  active-trip marker dot in the trip selector, and the filled portion of monitored-category
-  gauges. Never for body backgrounds or page-scale color washes.
-- **Green marks spend/data:** the total-spend-over-time chart line/fill. The per-category
-  chart/donut/legend keep their existing distinct, deterministic per-category colors
-  (functionality, not part of the accent discipline) — the hovered/highlighted series
-  across all charts uses amber.
-- **Light/dark toggle** in the header: defaults to `prefers-color-scheme`, remembered in
-  `localStorage` only (§2 — never in the Excel file), same behavior as the finance tracker.
-- **Numbers** in tabular-figures for alignment in the summary and the list.
-- **Do not** create pies; the donut per §9.6 is the correct form here.
-
-### 13.3 Do's and Don'ts
-- Do keep the neutral gray scale dominant; color only where it's meaningful.
-- Do use amber exclusively for accent moments (one CTA per viewport).
-- Don't use pure black as a surface — dark mode is a neutral slate.
-- Don't introduce new brand hues beyond the neutral scale + green + amber (the
-  per-category chart palette is an existing, separate functional exception).
+(No fixed visual-design spec is kept here by design — see §0 and §9.6. Visual direction
+lives in `static/styles.css` and evolves independently of this functional spec.)
 
 ---
 
@@ -491,22 +445,18 @@ Expose these as clearly named constants:
    `Tag`) still loads; adding a row via the API preserves that `Tag` column and any values
    already in it.
 8. **Monitored categories:** with `MONITORED_CATEGORIES = ["Fun", "Category MAI"]`, the
-   dashboard shows a dedicated gauge for each in the top-right area, matching the design
-   system's amber-accent treatment; changing the config and restarting reflects the change.
+   dashboard shows a dedicated gauge for each; changing the config and restarting reflects
+   the change.
 9. **Notes RTL:** a row whose Notes is Hebrew (e.g. `מלון עם בר`) displays right-aligned
    inside the notes cell without affecting the surrounding LTR layout.
 10. **Rate history:** editing `EXCHANGE_RATES["EUR"]` from 3.90 to 3.95 and restarting
     appends a new entry to `rates_history.json` with today's date; the trip files are
     unchanged; the footer link's modal shows both entries.
 11. **Charts:** the three charts (spend-over-time by category, total spend over time,
-    category donut) all use only palette colors and amber for accent, and correctly
-    refresh when the time range or trip changes.
-12. **Design fidelity:** the running app matches §13 — neutral gray surface system, cards
-    with a soft shadow + 1px border at ~14px radius, system sans throughout, amber used
-    only for accents, both light and dark themes render cleanly. No new brand colors
-    introduced.
-13. **Web-migration readiness:** grepping the frontend finds zero occurrences of
+    category breakdown) correctly refresh when the time range, trip, or category filter
+    changes, and remain legible in both light and dark themes.
+12. **Web-migration readiness:** grepping the frontend finds zero occurrences of
     `localhost`; every `/api/*` route in the backend has `require_auth` applied; flipping
     the body of `require_auth` to raise 401 blocks all API calls.
-14. **Language:** every UI string is English; the categories are English; only the Notes
+13. **Language:** every UI string is English; the categories are English; only the Notes
     field and its rendered values contain non-English text.

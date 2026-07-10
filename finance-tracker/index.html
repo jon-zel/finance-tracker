@@ -221,6 +221,19 @@ svg{display:block;}
 .charts-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-bottom:20px;}
 .chart-wrap{position:relative;height:280px;}
 
+/* ---- Category legend / filter badges (donut legends + history table filter) ---- */
+.legend-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.legend-badge{
+  display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);
+  border-radius:var(--radius-pill);padding:6px 12px;font-size:12px;font-weight:600;color:var(--text);
+  cursor:pointer;transition:background-color .15s ease,border-color .15s ease,opacity .15s ease;
+}
+.legend-badge:hover{background:var(--surface-alt);border-color:var(--border-strong);}
+.legend-badge.disabled{opacity:.45;}
+.legend-badge .swatch{width:8px;height:8px;border-radius:100%;flex:none;}
+.table-category-filter-wrap{margin-top:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:14px;}
+.table-category-filter-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
+
 /* ---- Table ---- */
 table{width:100%;border-collapse:collapse;font-size:14px;}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);transition:border-color .2s ease;}
@@ -522,17 +535,29 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <h2>Expenses by Category</h2>
         <div id="expenseDonutEmpty" class="empty-state hidden">No expenses in this range yet.</div>
         <div class="chart-wrap" id="expenseDonutWrap"><canvas id="expenseDonutChart"></canvas></div>
+        <div id="expenseDonutLegend" class="legend-badges"></div>
       </div>
       <div class="panel">
         <h2>Income by Category</h2>
         <div id="incomeDonutEmpty" class="empty-state hidden">No income in this range yet.</div>
         <div class="chart-wrap" id="incomeDonutWrap"><canvas id="incomeDonutChart"></canvas></div>
+        <div id="incomeDonutLegend" class="legend-badges"></div>
       </div>
     </div>
 
     <!-- History table -->
     <div class="panel">
       <h2>Transaction History</h2>
+      <div class="table-category-filter-wrap">
+        <div class="table-category-filter-group">
+          <div class="table-category-filter-label">Filter by expense category</div>
+          <div id="tableCategoryFilterExpense" class="legend-badges"></div>
+        </div>
+        <div class="table-category-filter-group">
+          <div class="table-category-filter-label">Filter by income category</div>
+          <div id="tableCategoryFilterIncome" class="legend-badges"></div>
+        </div>
+      </div>
       <div id="historyEmpty" class="empty-state hidden">No transactions yet — add your first one above.</div>
       <div class="table-scroll">
         <table id="historyTable">
@@ -924,6 +949,17 @@ let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
 const HISTORY_ROW_LIMIT = 10;
 let historyShowAll = false; // reset to false whenever the time range changes
 
+// Category visibility for the donut legends and the history table filter —
+// three independent maps (not one shared map) so isolating a category on one
+// chart can never blank out the other chart or the table, which use disjoint
+// category domains (Expense vs. Income) or a combined one (table). Keyed by
+// category name for the donuts, and "Type::Category" for the table so the
+// "Other" category (present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES)
+// never collides between an expense row and an income row.
+let expenseCategoryVisibility = {};
+let incomeCategoryVisibility = {};
+let tableCategoryVisibility = {};
+
 // ---- Loans module state ----
 let allLoans = [];              // normalized loan records
 let rawLoanRows = [];           // raw sheet rows for the Loans sheet (Golden-Rule-style preservation)
@@ -948,6 +984,68 @@ const CATEGORY_COLORS_DARK = [
 ];
 function getCategoryColors() {
   return document.documentElement.getAttribute("data-theme") === "dark" ? CATEGORY_COLORS_DARK : CATEGORY_COLORS_LIGHT;
+}
+
+// Every category the app has ever recorded for this Type — config order
+// first, then any stray values found in the file — stable regardless of the
+// current time range, so a category never disappears from a legend/filter
+// just because it has no rows in the selected window.
+function categoryListForType(type) {
+  const config = type === "Expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const extras = Array.from(new Set(allRows.filter(r => r.Type === type).map(r => r.Category)))
+    .filter(c => !config.includes(c))
+    .sort();
+  return [...config, ...extras];
+}
+
+// A distinct, stable color per category assigned once from its Type's
+// category order (not from chart rank, which shifts as data/visibility
+// changes) — so a category reads as the same color in the chart, its legend,
+// and everywhere else it's shown.
+function categoryColorForType(type, category) {
+  const list = categoryListForType(type);
+  const colors = getCategoryColors();
+  const idx = list.indexOf(category);
+  if (idx >= 0) return colors[idx % colors.length];
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) | 0;
+  return colors[Math.abs(hash) % colors.length];
+}
+
+// All categories shown by the Transaction History filter row, tagged by
+// Type so "Other" (present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES)
+// never collides between an expense entry and an income entry.
+function tableCategoryList() {
+  return [
+    ...categoryListForType("Expense").map(category => ({ type: "Expense", category })),
+    ...categoryListForType("Income").map(category => ({ type: "Income", category })),
+  ];
+}
+
+// Shared by the donut legends and the table filter: a single click toggles
+// just this category; double-clicking it instead solos it (hides every other
+// category), and double-clicking an already-isolated category again restores
+// everyone — solo mode is never a dead end. A plain click listener would fire
+// twice before "dblclick" and flip the category on/off/on again first, so the
+// single-click action is deferred briefly and a second click within the
+// window cancels it, letting the dblclick handler take over.
+function attachCategoryToggle(element, key, visibility, listFn, rerender) {
+  let pending = null;
+  element.addEventListener("click", () => {
+    if (pending) { clearTimeout(pending); pending = null; return; }
+    pending = setTimeout(() => {
+      pending = null;
+      visibility[key] = visibility[key] === false ? true : false;
+      rerender();
+    }, 250);
+  });
+  element.addEventListener("dblclick", () => {
+    if (pending) { clearTimeout(pending); pending = null; }
+    const list = listFn();
+    const isolated = list.every(k => (visibility[k] !== false) === (k === key));
+    list.forEach(k => { visibility[k] = isolated ? true : k === key; });
+    rerender();
+  });
 }
 
 /* ============================================================
@@ -2096,9 +2194,11 @@ function refreshDashboard() {
   renderClassificationPanel(expenseRows);
   renderSavingsPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
-  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", expenseDonutChart, groupSumByCategory(expenseRows), (c) => (expenseDonutChart = c));
-  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", incomeDonutChart, groupSumByCategory(incomeRows), (c) => (incomeDonutChart = c));
-  renderHistoryTable(rangeRows);
+  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, expenseCategoryVisibility, (c) => (expenseDonutChart = c));
+  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, incomeCategoryVisibility, (c) => (incomeDonutChart = c));
+  renderTableCategoryFilter();
+  const tableRows = rangeRows.filter(r => tableCategoryVisibility[`${r.Type}::${r.Category}`] !== false);
+  renderHistoryTable(tableRows, rangeRows.length > 0);
 }
 
 function renderSummaryCards(incomeRows, expenseRows) {
@@ -2231,22 +2331,32 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function renderDonut(canvasId, wrapId, emptyId, existingChart, sumsByCategory, setChartRef) {
-  const entries = Object.entries(sumsByCategory).filter(([, v]) => v > 0);
+// `rows` is the range-filtered (but not category-visibility-filtered) set for
+// this Type, so the chart's own slices reflect only the visible categories
+// while `categoryListForType` still yields every configured category —
+// keeping every category's legend badge present (and toggleable back on)
+// even after it's been hidden or has no data in the current range.
+function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, rows, visibility, setChartRef) {
   if (existingChart) existingChart.destroy();
-  if (entries.length === 0) {
+  if (rows.length === 0) {
     show(emptyId);
     hide(wrapId);
+    el(legendId).innerHTML = "";
     setChartRef(null);
     return;
   }
   hide(emptyId);
   show(wrapId);
+
+  const categories = categoryListForType(type);
+  const visibleRows = rows.filter(r => visibility[r.Category] !== false);
+  const chartSums = groupSumByCategory(visibleRows);
+  const chartEntries = categories.map(cat => [cat, chartSums[cat] || 0]).filter(([, v]) => v > 0);
+
   const theme = getChartThemeColors();
-  const labels = entries.map(([k]) => k);
-  const data = entries.map(([, v]) => v);
-  const categoryColors = getCategoryColors();
-  const colors = labels.map((_, i) => categoryColors[i % categoryColors.length]);
+  const labels = chartEntries.map(([k]) => k);
+  const data = chartEntries.map(([, v]) => v);
+  const colors = labels.map(cat => categoryColorForType(type, cat));
   const chart = new Chart(el(canvasId).getContext("2d"), {
     type: "doughnut",
     data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: theme.surface || "#fff", borderWidth: 2, hoverOffset: 6 }] },
@@ -2255,7 +2365,11 @@ function renderDonut(canvasId, wrapId, emptyId, existingChart, sumsByCategory, s
       maintainAspectRatio: false,
       cutout: "68%",
       plugins: {
-        legend: { position: "bottom", labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 } },
+        // Custom HTML badges below the canvas (renderDonutLegend) replace
+        // Chart.js's built-in legend — they support double-click "solo" the
+        // built-in legend doesn't, and their category list stays stable
+        // instead of shrinking/growing with whichever slices have data.
+        legend: { display: false },
         tooltip: {
           backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
           titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
@@ -2267,12 +2381,60 @@ function renderDonut(canvasId, wrapId, emptyId, existingChart, sumsByCategory, s
     }
   });
   setChartRef(chart);
+
+  renderDonutLegend(legendId, type, categories, visibility);
 }
 
-function renderHistoryTable(rangeRows) {
+// Click a badge to toggle that category on/off in the chart above; double-click
+// to solo it (hide every other category) — same interaction as the second
+// application's chart legends.
+function renderDonutLegend(containerId, type, categories, visibility) {
+  const container = el(containerId);
+  container.innerHTML = "";
+  categories.forEach(cat => {
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = "legend-badge" + (visibility[cat] !== false ? "" : " disabled");
+    badge.title = "Click to toggle · double-click to show only this category";
+    badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
+    attachCategoryToggle(badge, cat, visibility, () => categories, refreshDashboard);
+    container.appendChild(badge);
+  });
+}
+
+// The two filter rows above the Transaction History table (one per Type, so
+// "Other" — present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES — never
+// collides between an expense entry and an income entry). Same click/double-
+// click toggle as the donut legends, but scoped to its own visibility map so
+// filtering the table never touches the donuts or summary cards.
+function renderTableCategoryFilter() {
+  renderGroup("tableCategoryFilterExpense", "Expense");
+  renderGroup("tableCategoryFilterIncome", "Income");
+
+  function renderGroup(containerId, type) {
+    const container = el(containerId);
+    container.innerHTML = "";
+    const allKeys = tableCategoryList().map(c => `${c.type}::${c.category}`);
+    categoryListForType(type).forEach(cat => {
+      const key = `${type}::${cat}`;
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "legend-badge" + (tableCategoryVisibility[key] !== false ? "" : " disabled");
+      badge.title = "Click to toggle · double-click to show only this category";
+      badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
+      attachCategoryToggle(badge, key, tableCategoryVisibility, () => allKeys, refreshDashboard);
+      container.appendChild(badge);
+    });
+  }
+}
+
+function renderHistoryTable(rangeRows, hasRowsInRange) {
   const body = el("historyTableBody");
   body.innerHTML = "";
   if (rangeRows.length === 0) {
+    el("historyEmpty").textContent = hasRowsInRange
+      ? "No transactions match the selected category filters."
+      : "No transactions yet — add your first one above.";
     show("historyEmpty");
     body.parentElement.parentElement.classList.add("hidden");
     hide("btnShowAllHistory");

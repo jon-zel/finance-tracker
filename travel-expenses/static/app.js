@@ -12,24 +12,91 @@
   // order, not from whatever happens to have data in the current filter) so a
   // category reads as the same color everywhere — chart, legend, donut — no
   // matter which time range or trip is active.
-  const CATEGORY_PALETTE = [
-    "#130e30", "#e261e5", "#59e25d", "#3b6fd6", "#e2833b", "#8a3bd6", "#2f9e8f",
-    "#d63b64", "#5f5c6e", "#c9a13b", "#3bb3d6", "#8fae3b", "#d63b3b", "#8a5a2b",
+  //
+  // 14 hues, one per entry in config.py's CATEGORIES (not 8-with-wraparound) —
+  // an 8-hue palette modulo-wrapped onto 14 real categories put "Flights" and
+  // "Category MAI" at the exact same hex (index 3 and index 11, 11 % 8 === 3),
+  // an actual color collision caught by testing this live against the real
+  // trip data, not a hypothetical. Each mode validated with the dataviz
+  // skill's scripts/validate_palette.js against this app's actual "Warm
+  // Travel Journal" card surfaces (#fffdf9 light, #231e17 dark): lightness
+  // band and chroma floor pass for all 14 in both modes; CVD separation's
+  // worst adjacent pair sits in the 8-12 "legal with a visible label" floor
+  // band (unavoidable once a palette this size shares a hue family with
+  // itself) — every use of these colors in this app is always paired with a
+  // text label (legend pill, tooltip line, table cell), never color alone,
+  // which is exactly the condition that makes that floor band legal.
+  const CATEGORY_COLORS_LIGHT = [
+    "#2f6fa8", "#0f9d68", "#c98a00", "#008300", "#4a3aa7", "#e34948", "#a83a82", "#eb6834",
+    "#0090a8", "#8a4a14", "#d1567a", "#7a8a1f", "#3f4fb0", "#d97a5c",
   ];
-  let categoryColorMap = {};
+  const CATEGORY_COLORS_DARK = [
+    "#4a8ccb", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#c94a9e", "#d95926",
+    "#1a9aad", "#c47a3a", "#d1698a", "#849c26", "#6b7ce0", "#c97650",
+  ];
+  let categoryColorMapLight = {};
+  let categoryColorMapDark = {};
+
+  function currentThemeName() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
 
   function categoryColor(cat) {
-    if (categoryColorMap[cat]) return categoryColorMap[cat];
+    const dark = currentThemeName() === "dark";
+    const map = dark ? categoryColorMapDark : categoryColorMapLight;
+    if (map[cat]) return map[cat];
     // Fallback for a category not in appConfig.categories (e.g. a stray value
     // in the file) — deterministic so it stays the same color across renders.
+    const palette = dark ? CATEGORY_COLORS_DARK : CATEGORY_COLORS_LIGHT;
     let hash = 0;
     for (let i = 0; i < cat.length; i++) hash = (hash * 31 + cat.charCodeAt(i)) | 0;
-    return CATEGORY_PALETTE[Math.abs(hash) % CATEGORY_PALETTE.length];
+    return palette[Math.abs(hash) % palette.length];
+  }
+
+  function hexToRgba(hex, alpha) {
+    const h = (hex || "#000000").replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const n = parseInt(full, 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   function getVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
+
+  // Two animation speeds, used consistently across all three charts: a
+  // chart being created for the first time (new trip, first load) gets the
+  // slower, more deliberate grow-in — there's nothing on screen yet, so it
+  // reads as an entrance. A chart reacting to something the user just did
+  // (toggled a category, changed the range) gets the snappier one — it's
+  // already visible, and a slow animation there reads as lag, not polish.
+  const ENTRANCE_ANIMATION_MS = 500;
+  const UPDATE_ANIMATION_MS = 350;
+
+  // A thin dashed vertical rule at whichever bucket the tooltip is currently
+  // anchored to — without it, "index" hover mode (any of a dozen-plus lines,
+  // or a bar, near the cursor) leaves no visual confirmation of *which*
+  // bucket the shared tooltip is describing. Shared by both time charts;
+  // the donut has no x-axis, so it has no use for this.
+  const crosshairPlugin = {
+    id: "crosshair",
+    afterDraw(chart) {
+      const active = chart.tooltip && chart.tooltip.opacity > 0 ? chart.tooltip.getActiveElements() : [];
+      if (!active || !active.length) return;
+      const { ctx, chartArea } = chart;
+      const x = active[0].element.x;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = hexToRgba(getVar("--border-strong"), 0.9);
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    },
+  };
 
   // ---- Global state ----
   let appConfig = null;       // GET /api/config response
@@ -94,9 +161,11 @@
   async function init() {
     initTheme();
     appConfig = await getConfig();
-    categoryColorMap = {};
+    categoryColorMapLight = {};
+    categoryColorMapDark = {};
     appConfig.categories.forEach((cat, i) => {
-      categoryColorMap[cat] = CATEGORY_PALETTE[i % CATEGORY_PALETTE.length];
+      categoryColorMapLight[cat] = CATEGORY_COLORS_LIGHT[i % CATEGORY_COLORS_LIGHT.length];
+      categoryColorMapDark[cat] = CATEGORY_COLORS_DARK[i % CATEGORY_COLORS_DARK.length];
     });
     pinnedCategories = loadPinnedCategories();
     populateCategorySelect();
@@ -327,16 +396,128 @@
     return totals;
   }
 
-  function dailyTotalsByCategory(expenses) {
-    const dates = Array.from(new Set(expenses.map((e) => e.date))).sort();
+  // ---- Time bucketing (ported from finance-tracker's trend chart) ----
+  //
+  // The chart's x-axis must cover every day (or month/year, for a long trip)
+  // in the range — not just the dates that happen to have an expense. A
+  // labels-from-distinct-expense-dates axis draws equal spacing between a
+  // 1-day gap and a 20-day gap, which is what made a burst of receipts look
+  // like a crowded zigzag and a quiet stretch collapse to nothing. Zero-fill
+  // (not null) for an empty bucket, since every bucket in the range now
+  // genuinely exists — there's no "gap" left to bridge.
+  function dateFromISO(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function isoFromParts(y, m, d) {
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  // Auto-granularity fallback — not currently used by either time chart
+  // (both now force a fixed resolution, see bucketedTotalsByCategory/
+  // bucketedTotals below), kept here in case a future chart wants it.
+  function determineGranularity(fromISO, toISO) {
+    const spanDays = Math.round((dateFromISO(toISO) - dateFromISO(fromISO)) / 86400000) + 1;
+    if (spanDays <= 45) return "daily";
+    if (spanDays <= 180) return "weekly";
+    if (spanDays <= 730) return "monthly";
+    return "yearly";
+  }
+
+  function buildBuckets(fromISO, toISO, granularity) {
+    const buckets = [];
+    if (granularity === "daily") {
+      let d = dateFromISO(fromISO);
+      const end = dateFromISO(toISO);
+      while (d <= end) {
+        const iso = isoFromParts(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        buckets.push({ key: iso, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      }
+    } else if (granularity === "weekly") {
+      // Trip-relative 7-day chunks starting at `from`, not calendar weeks —
+      // a trip doesn't care that a week "should" start on Monday, and this
+      // avoids a lopsided partial first/last calendar week.
+      let d = dateFromISO(fromISO);
+      const end = dateFromISO(toISO);
+      let i = 0;
+      while (d <= end) {
+        buckets.push({ key: `w${i}`, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+        i++;
+      }
+    } else if (granularity === "monthly") {
+      let [fy, fm] = fromISO.split("-").map(Number);
+      const [ty, tm] = toISO.split("-").map(Number);
+      while (fy < ty || (fy === ty && fm <= tm)) {
+        const key = `${fy}-${String(fm).padStart(2, "0")}`;
+        const label = new Date(fy, fm - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        buckets.push({ key, label });
+        fm++; if (fm > 12) { fm = 1; fy++; }
+      }
+    } else {
+      let fy = parseInt(fromISO.split("-")[0], 10);
+      const ty = parseInt(toISO.split("-")[0], 10);
+      while (fy <= ty) { buckets.push({ key: String(fy), label: String(fy) }); fy++; }
+    }
+    return buckets;
+  }
+
+  function bucketKeyForDate(dateISO, granularity, fromISO) {
+    if (granularity === "daily") return dateISO;
+    if (granularity === "weekly") {
+      const days = Math.round((dateFromISO(dateISO) - dateFromISO(fromISO)) / 86400000);
+      return `w${Math.floor(days / 7)}`;
+    }
+    if (granularity === "monthly") return dateISO.slice(0, 7);
+    return dateISO.slice(0, 4);
+  }
+
+  // `forcedGranularity` overrides the auto-selection below — the two time
+  // charts intentionally show the *same* range at two different fixed
+  // resolutions (by-category always daily, total always weekly), not
+  // whatever the trip's own length would auto-pick. Auto-selection is still
+  // here as the fallback for a hypothetical future chart that wants it.
+  function computeBuckets(expenses, forcedGranularity) {
+    if (expenses.length === 0) return { labels: [], buckets: [], indexByKey: new Map(), granularity: "daily", from: null };
+    const isoDates = expenses.map((e) => e.date);
+    const from = isoDates.reduce((a, b) => (a < b ? a : b));
+    const to = isoDates.reduce((a, b) => (a > b ? a : b));
+    const granularity = forcedGranularity || determineGranularity(from, to);
+    const buckets = buildBuckets(from, to, granularity);
+    const labels = buckets.map((b) => b.label);
+    const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
+    return { labels, buckets, indexByKey, granularity, from };
+  }
+
+  // Always daily, regardless of trip length — the per-category trend is
+  // the one place day-to-day texture actually matters (spotting exactly
+  // which day a category spiked), so this chart never auto-collapses to
+  // weekly/monthly the way the total chart does.
+  function bucketedTotalsByCategory(expenses) {
+    const { labels, buckets, indexByKey, granularity, from } = computeBuckets(expenses, "daily");
     const categories = Array.from(new Set(expenses.map((e) => e.category)));
     const series = {};
-    for (const cat of categories) series[cat] = dates.map(() => 0);
+    for (const cat of categories) series[cat] = buckets.map(() => 0);
     expenses.forEach((e) => {
-      const idx = dates.indexOf(e.date);
-      series[e.category][idx] += e.amount;
+      const idx = indexByKey.get(bucketKeyForDate(e.date, granularity, from));
+      if (idx !== undefined) series[e.category][idx] += e.amount;
     });
-    return { dates, series };
+    return { labels, series };
+  }
+
+  // Always weekly — one level coarser than the by-category chart on
+  // purpose, since this one is read as an overall trend line, not a
+  // day-by-day drilldown.
+  function bucketedTotals(expenses) {
+    const { labels, buckets, indexByKey, granularity, from } = computeBuckets(expenses, "weekly");
+    const totals = buckets.map(() => 0);
+    expenses.forEach((e) => {
+      const idx = indexByKey.get(bucketKeyForDate(e.date, granularity, from));
+      if (idx !== undefined) totals[idx] += e.amount;
+    });
+    return { labels, totals };
   }
 
   // ---- Rendering ----
@@ -455,11 +636,22 @@
   // full page reload.
   function refreshChartThemeColors(chart) {
     const scales = chart.options.scales;
-    if (!scales) return;
-    if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
-    if (scales.y) {
-      if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
-      if (scales.y.grid) scales.y.grid.color = getVar("--border");
+    if (scales) {
+      if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
+      if (scales.y) {
+        if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
+        if (scales.y.grid) scales.y.grid.color = hexToRgba(getVar("--border-strong"), 0.5);
+      }
+    }
+    // Tooltip colors are read from CSS vars at chart *creation* time only —
+    // charts are updated in place on a theme flip (not torn down), so without
+    // this the tooltip keeps rendering in the old theme's colors.
+    const tooltip = chart.options.plugins && chart.options.plugins.tooltip;
+    if (tooltip) {
+      tooltip.backgroundColor = getVar("--panel");
+      tooltip.borderColor = hexToRgba(getVar("--border-strong"), 0.6);
+      tooltip.titleColor = getVar("--text-muted");
+      tooltip.bodyColor = getVar("--text");
     }
   }
 
@@ -483,26 +675,33 @@
   // smooth transition between the old and new values, with no blank frame.
 
   function renderByCategoryChart(expenses) {
-    const { dates, series } = dailyTotalsByCategory(expenses);
+    const { labels, series } = bucketedTotalsByCategory(expenses);
     const categories = categoryFilterList().filter((cat) => cat in series);
-    const highlight = getVar("--amber");
 
+    // Hover mode is index+intersect:false (below, in timeChartOptions) — one
+    // shared tooltip for whichever bucket the cursor is nearest, not "land
+    // exactly on this 2px line". That trades away a per-line highlight color
+    // (which only makes sense when exactly one line is "active" at a time),
+    // so there's no hoverBorderColor override here — every visible category's
+    // line just keeps its own color on hover, and the shared tooltip callback
+    // (timeChartOptions) does the work of calling out which one you're near.
     const datasets = categories.map((cat) => ({
       label: cat,
       data: series[cat],
       borderColor: categoryColor(cat),
       backgroundColor: "transparent",
-      hoverBorderColor: highlight,
       borderWidth: 2,
-      pointRadius: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
       tension: 0.25,
       hidden: categoryVisibility[cat] === false,
     }));
 
     if (charts.byCategory) {
       const chart = charts.byCategory;
-      chart.data.labels = dates;
+      chart.data.labels = labels;
       chart.data.datasets = datasets;
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
       refreshChartThemeColors(chart);
       chart.update();
       return;
@@ -511,21 +710,27 @@
     const ctx = el("chart-by-category").getContext("2d");
     charts.byCategory = new Chart(ctx, {
       type: "line",
-      data: { labels: dates, datasets },
-      options: baseChartOptions(),
+      data: { labels, datasets },
+      options: timeChartOptions(),
+      plugins: [crosshairPlugin],
     });
   }
 
+  // A filled line, one level coarser (weekly) than the by-category chart's
+  // daily buckets — this one is read as an overall trend, not a day-by-day
+  // drilldown, so a smoothed line over ~10-25 weekly points is the right
+  // encoding here (unlike forcing the same smoothing over sparse
+  // month/year buckets, which is what previously made a line read "flat").
   function renderTotalChart(expenses) {
-    const dates = Array.from(new Set(expenses.map((e) => e.date))).sort();
-    const totals = dates.map((d) => expenses.filter((e) => e.date === d).reduce((s, e) => s + e.amount, 0));
+    const { labels, totals } = bucketedTotals(expenses);
 
     if (charts.total) {
       const chart = charts.total;
-      chart.data.labels = dates;
+      chart.data.labels = labels;
       chart.data.datasets[0].data = totals;
       chart.data.datasets[0].borderColor = getVar("--spend");
       chart.data.datasets[0].backgroundColor = getVar("--spend-bg");
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
       refreshChartThemeColors(chart);
       chart.update();
       return;
@@ -535,7 +740,7 @@
     charts.total = new Chart(ctx, {
       type: "line",
       data: {
-        labels: dates,
+        labels,
         datasets: [{
           label: "Total",
           data: totals,
@@ -544,10 +749,12 @@
           fill: true,
           borderWidth: 2,
           pointRadius: 2,
+          pointHoverRadius: 5,
           tension: 0.25,
         }],
       },
-      options: baseChartOptions(),
+      options: timeChartOptions(),
+      plugins: [crosshairPlugin],
     });
   }
 
@@ -570,11 +777,15 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = getVar("--text");
-        ctx.font = `700 20px ${getVar("--font-sans")}`;
-        ctx.fillText(centerText.amount, cx, cy - 10);
+        // Sized to leave real margin inside the ring's hole, not to fill
+        // it — measured against this chart's actual hole diameter (a
+        // longer total than this trip's would get closer to the edge, but
+        // never past ~80% of the hole).
+        ctx.font = `700 23px ${getVar("--font-sans")}`;
+        ctx.fillText(centerText.amount, cx, cy - 12);
         ctx.fillStyle = getVar("--text-muted");
-        ctx.font = `400 11px ${getVar("--font-sans")}`;
-        ctx.fillText(centerText.caption, cx, cy + 14);
+        ctx.font = `600 11px ${getVar("--font-sans")}`;
+        ctx.fillText(centerText.caption.toUpperCase(), cx, cy + 15);
         ctx.restore();
       },
     };
@@ -595,7 +806,17 @@
       chart.data.labels = categories;
       chart.data.datasets[0].data = values;
       chart.data.datasets[0].backgroundColor = categories.map((cat) => categoryColor(cat));
+      // The slice-separator border color is theme-dependent (it's meant to
+      // match the card surface) but was only ever set at chart *creation*
+      // time — a chart created in dark mode and never destroyed afterward
+      // (in-place update, by design, to avoid flicker) kept its dark border
+      // color forever, showing up as a stray near-black ring outline once
+      // the user switched to light mode. Every render must re-set it.
+      chart.data.datasets[0].borderColor = getVar("--panel");
+      chart.data.datasets[0].hoverBorderColor = getVar("--panel");
       chart.$centerText.amount = formatBase(grandTotal);
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
+      refreshChartThemeColors(chart);
       chart.update();
     } else {
       const ctx = el("chart-donut").getContext("2d");
@@ -607,14 +828,38 @@
           datasets: [{
             data: values,
             backgroundColor: categories.map((cat) => categoryColor(cat)),
+            // A slice border in the card's own surface color is what makes
+            // adjacent slices read as distinct wedges instead of one banded
+            // ring — the same treatment finance-tracker's donuts use.
+            borderColor: getVar("--panel"),
+            borderWidth: 2,
             hoverBackgroundColor: getVar("--amber"),
-            borderWidth: 0,
+            hoverBorderColor: getVar("--panel"),
+            hoverOffset: 8,
           }],
         },
         options: {
-          cutout: "65%",
-          animation: { duration: 350, easing: "easeOutQuart" },
-          plugins: { legend: { display: false } },
+          // A smaller cutout (thicker ring) and less reserved padding both
+          // grow the ring itself within the same fixed canvas box — the
+          // ring was reading as small and thin next to the bold center
+          // total. Re-checked live that this still leaves enough margin
+          // for the tooltip to flip into near the canvas edges (below).
+          cutout: "62%",
+          // Chart.js draws the tooltip on this same canvas, so it can only
+          // flip to stay in view if there's canvas space to flip into. The
+          // ring used to sit flush against the canvas edges, leaving no room
+          // near top/bottom/sides and clipping the tooltip box there — this
+          // layout padding reserves a margin around the ring for that.
+          layout: { padding: 16 },
+          animation: { duration: ENTRANCE_ANIMATION_MS, easing: "easeOutQuart" },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+              titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+              displayColors: true, boxPadding: 4,
+            },
+          },
         },
         plugins: [makeDonutCenterPlugin(centerText)],
       });
@@ -625,12 +870,15 @@
     // legend) so the number of visible categories never changes the
     // canvas's own layout — the ring stays a fixed size no matter how many
     // categories are toggled, instead of resizing/"popping" on every toggle.
-    // Each row is also a filter toggle, same categoryVisibility state as the
-    // other two filter rows, so filtering works from here too. Capped to the
-    // biggest few categories (zero-value ones dropped entirely) — the full
-    // list is still available, uncapped, via the chart legend badges above
-    // and the table's filter row.
-    const DONUT_LEGEND_LIMIT = 6;
+    // Same pill shape as every other filter row in the app (legend-badge),
+    // just with a value appended — one consistent "chip" language across
+    // the by-category legend, the table filter, and this donut, instead of
+    // the donut using its own bespoke full-width list row. Each pill is
+    // also a filter toggle, same categoryVisibility state as the other two
+    // filter rows. Capped to the biggest few categories (zero-value ones
+    // dropped entirely) — the full list is still available, uncapped, via
+    // the chart legend badges above and the table's filter row.
+    const DONUT_LEGEND_LIMIT = 5;
     const ranked = categoryFilterList()
       .filter((cat) => Math.abs(totals[cat] || 0) > 0)
       .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
@@ -644,12 +892,12 @@
       const pct = grandTotal ? ((value / grandTotal) * 100).toFixed(1) : "0.0";
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "donut-legend-row" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      row.className = "legend-badge donut-legend-pill" + (categoryVisibility[cat] !== false ? "" : " disabled");
       row.title = "Click to toggle · double-click to show only this category";
       row.innerHTML = `
         <span class="swatch" style="background:${categoryColor(cat)}"></span>
         <span class="donut-legend-label">${escapeHtml(cat)}</span>
-        <span class="donut-legend-value tabular-nums">${formatBase(value)} (${pct}%)</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(value)}<span class="donut-legend-pct"> · ${pct}%</span></span>
       `;
       attachCategoryToggle(row, cat);
       legendEl.appendChild(row);
@@ -659,28 +907,50 @@
       const restTotal = rest.reduce((sum, cat) => sum + (totals[cat] || 0), 0);
       const pct = grandTotal ? ((restTotal / grandTotal) * 100).toFixed(1) : "0.0";
       const row = document.createElement("div");
-      row.className = "donut-legend-row donut-legend-other";
+      row.className = "legend-badge donut-legend-pill donut-legend-other";
       row.title = rest.join(", ");
       row.innerHTML = `
         <span class="swatch" style="background:var(--text-muted)"></span>
         <span class="donut-legend-label">Other (${rest.length})</span>
-        <span class="donut-legend-value tabular-nums">${formatBase(restTotal)} (${pct}%)</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(restTotal)}<span class="donut-legend-pct"> · ${pct}%</span></span>
       `;
       legendEl.appendChild(row);
     }
   }
 
-  function baseChartOptions() {
+  // Shared by the by-category line chart and the total-spend bar chart —
+  // same bucket labels, same hover behavior, same tooltip treatment.
+  function timeChartOptions() {
+    // index + intersect: false — hovering anywhere near a given bucket shows
+    // its tooltip, rather than requiring the cursor to land exactly on a 2px
+    // line (that stricter "nearest, intersect: true" mode, tried earlier,
+    // read as "hover doesn't work" once a dozen-plus lines overlap near
+    // zero). The by-category chart's real crowding problem was the tooltip
+    // listing every visible category including the ones at 0 for that
+    // bucket — solved below by filtering + sorting tooltip items, not by
+    // making hover harder to trigger.
     return {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 350, easing: "easeOutQuart" },
-      interaction: { mode: "nearest", intersect: false },
+      animation: { duration: ENTRANCE_ANIMATION_MS, easing: "easeOutQuart" },
+      interaction: { mode: "index", intersect: false },
       scales: {
-        x: { ticks: { color: getVar("--text-muted") }, grid: { display: false } },
-        y: { ticks: { color: getVar("--text-muted") }, grid: { color: getVar("--border") } },
+        x: { ticks: { color: getVar("--text-muted"), maxRotation: 0, autoSkip: true, autoSkipPadding: 16 }, grid: { display: false } },
+        // beginAtZero matters most for the bar chart — a bar's height is a
+        // visual claim about magnitude, and that claim is only honest when
+        // it's measured from a true zero baseline.
+        y: { beginAtZero: true, ticks: { color: getVar("--text-muted") }, grid: { color: hexToRgba(getVar("--border-strong"), 0.5) } },
       },
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+          titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          filter: (item) => item.parsed.y !== 0,
+          itemSort: (a, b) => b.parsed.y - a.parsed.y,
+        },
+      },
     };
   }
 
