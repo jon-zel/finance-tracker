@@ -1,115 +1,142 @@
 /* ============================================================
    TRAVEL EXPENSES TRACKER — STYLES
-   "Calm modern fintech" system — neutral gray surfaces, disciplined
-   color: green marks spend/data, a single amber highlight marks the
-   one warm accent (primary CTA, active trip, monitored-gauge fill).
-   Tokens, radii, shadow and timing values are the same ones used by
-   the personal finance tracker (index.html) — ported deliberately,
-   not reinvented, so the two apps feel like one family.
+   "Warm Travel Journal" — a personal ledger, not a SaaS dashboard: warm
+   parchment/paper surfaces, one deliberate gold accent, a muted forest
+   green for spend data. Every token below was chosen and contrast-checked
+   from scratch for this file (dataviz skill's validate_palette.js +
+   direct WCAG contrast checks) — nothing here is inherited from an
+   earlier system. static/styles.css is the living source of truth for
+   visual design; there is no separate spec to keep in sync.
    ============================================================ */
 
 :root {
-  /* Warm "travel journal" surface system — sand/cream page, pure-white cards
-     lifted with a soft blurry shadow instead of a hard border, deep warm-navy
-     ink. Replaces the earlier cool-gray neutral system. */
-  --bg: #fdfbf7;
-  --panel: #ffffff;
-  --surface-alt: #f7f3ec;
-  --border: #eae4d8;
-  --border-strong: #ded5c2;
-  --text: #1e2530;
-  --text-muted: #6b6459;
-  --text-faint: #9a9186;
-  --overlay: rgba(17, 24, 39, .5);
+  /* Warm paper surface system. Page and card are two close, warm-white
+     steps (not "white card on a tinted page" bolted onto a cool gray
+     underneath) — the whole stack is warm, top to bottom. */
+  --bg: #faf6ec;
+  --panel: #fffdf9;
+  --surface-alt: #f3ecdd;
+  --border: #ece3d2;
+  --border-strong: #ddd0b8;
+  --text: #241f1a;
+  --text-muted: #736a5c;
+  --text-faint: #9c9285;
+  --overlay: rgba(36, 31, 26, .45);
 
-  /* Travel-app palette identity, translated into the neutral system:
-     green is the semantic accent for spend/data, amber/gold is the single
-     warm highlight, used sparingly. */
-  --spend: #1a9c6b;
-  --spend-bg: #e6f7f0;
-  --amber: #fad02c;
-  --amber-bg: rgba(250, 208, 44, .18);
-  --on-amber: #1e2530; /* always-dark ink for text sitting on the amber fill, in either theme */
-  --danger: #d64545;
-  --danger-bg: #fdeaea;
+  /* Semantic accents — a deep gold (passport-stamp ink, not caution tape)
+     as the single warm highlight, a muted forest-olive green for spend
+     data (postage-ink, not bright fintech mint). */
+  --amber: #c08a1f;
+  --amber-bg: rgba(192, 138, 31, .14);
+  --on-amber: #241f1a;
+  --spend: #3f7d5c;
+  --spend-bg: rgba(63, 125, 92, .12);
+  --danger: #c0392b;
+  --danger-bg: rgba(192, 57, 43, .10);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-  --radius: 14px;
-  --radius-sm: 10px;
-  --shadow: 0 4px 20px rgba(0, 0, 0, .03);
-  --shadow-hover: 0 8px 32px rgba(0, 0, 0, .06);
+  /* One 4px-based spacing scale, used everywhere below instead of ad hoc
+     paddings. */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px;
+  --sp-9: 48px; --sp-10: 64px;
+
+  /* One type scale. Card labels/eyebrows sit at --fs-xs; body defaults to
+     --fs-base; the two large-figure sizes get a touch of negative
+     tracking so big tabular numerals don't look loose. */
+  --fs-xs: 12px;  --fs-sm: 13px;  --fs-base: 15px; --fs-md: 17px;
+  --fs-lg: 20px;  --fs-xl: 24px;  --fs-stat: 32px;
+
+  --radius: 16px;      /* cards, modals — a soft paper-corner, not a hard SaaS rect */
+  --radius-md: 10px;   /* buttons, inputs, badges — one consistent rounded-rect, not full-pill */
+  --radius-sm: 8px;    /* small inline controls */
+
+  /* Shadows tinted toward the ink color, not neutral black — a paper
+     surface should look like it's lit by warm light. */
+  --shadow: 0 1px 2px rgba(90, 68, 30, .06), 0 4px 18px rgba(90, 68, 30, .05);
+  --shadow-hover: 0 2px 4px rgba(90, 68, 30, .08), 0 10px 32px rgba(90, 68, 30, .10);
+  --shadow-modal: 0 20px 60px rgba(36, 31, 26, .28);
+
+  /* Two animation speeds used consistently everywhere (charts, gauges,
+     row highlight): a slower entrance for anything appearing for the
+     first time, a snappier one for something reacting to user input. */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-entrance: 500ms;
+  --dur-update: 350ms;
+  --dur-fast: 150ms;
 }
 
 :root[data-theme="dark"] {
-  /* Deep neutral slate — never pure black */
-  --bg: #12161c;
-  --panel: #1a1f28;
-  --surface-alt: #20262f;
-  --border: #2a323d;
-  --border-strong: #3a4451;
-  --text: #e6e9ee;
-  --text-muted: #9aa4b2;
-  --text-faint: #6b7480;
+  /* Warm charcoal — a few degrees off pure neutral so dark mode still
+     reads as "the same journal, lit differently," not a different app. */
+  --bg: #1b1712;
+  --panel: #231e17;
+  --surface-alt: #2b241b;
+  --border: #362e22;
+  --border-strong: #4a3f2f;
+  --text: #ede7dc;
+  --text-muted: #a89d8c;
+  --text-faint: #7d7466;
   --overlay: rgba(0, 0, 0, .6);
 
-  --spend: #3ecf8e;
-  --spend-bg: rgba(62, 207, 142, .14);
-  --amber: #fad02c;
-  --amber-bg: rgba(250, 208, 44, .14);
-  --on-amber: #1e2530;
-  --danger: #f0716c;
-  --danger-bg: rgba(240, 113, 108, .14);
+  --amber: #e0ab3d;
+  --amber-bg: rgba(224, 171, 61, .16);
+  --on-amber: #241f1a;
+  --spend: #5fbf95;
+  --spend-bg: rgba(95, 191, 149, .14);
+  --danger: #e0665c;
+  --danger-bg: rgba(224, 102, 92, .14);
 
   --shadow: 0 1px 3px rgba(0, 0, 0, .3), 0 1px 2px rgba(0, 0, 0, .24);
   --shadow-hover: 0 10px 28px rgba(0, 0, 0, .4), 0 2px 8px rgba(0, 0, 0, .3);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, .5);
 }
 
 * { box-sizing: border-box; }
 button { -webkit-tap-highlight-color: transparent; font-family: inherit; }
-
 html, body { margin: 0; padding: 0; }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   transition: background-color .2s ease, color .2s ease;
 }
 
-/* Same subtle world-map/flight-path backdrop in both themes — a matching
-   cream version for light mode, the navy version for dark. Cards sit on
-   their own opaque --panel fill in either case, so this never affects
-   legibility; it's just ambience in the gutters and page margins. A soft
-   wash in the theme's own --bg tone sits between the flat color and the
-   image so the photo never has to carry contrast on its own. */
+/* A faint fixed world-map/flight-path wash behind the page — ambience in
+   the gutters only, cards always sit on their own opaque --panel fill. */
 :root body {
-  background-image: linear-gradient(rgba(253, 251, 247, .6), rgba(253, 251, 247, .78)), url("/bg-light-map.png");
+  background-image: linear-gradient(rgba(250, 246, 236, .65), rgba(250, 246, 236, .82)), url("/bg-light-map.png");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
 :root[data-theme="dark"] body {
-  background-image: linear-gradient(rgba(18, 22, 28, .55), rgba(18, 22, 28, .72)), url("/bg-dark-map.jpg");
+  background-image: linear-gradient(rgba(27, 23, 18, .6), rgba(27, 23, 18, .78)), url("/bg-dark-map.jpg");
 }
 
 img, svg { display: block; max-width: 100%; }
-
 .tabular-nums { font-variant-numeric: tabular-nums; }
 [hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
 
 /* ---------- Layout shell ---------- */
 
 .page {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: var(--sp-6) var(--sp-5) var(--sp-9);
 }
 
-.section { margin-top: 24px; }
+.section { margin-top: var(--sp-6); }
 .section:first-child { margin-top: 0; }
 
 h1, h2, h3 { margin: 0; color: var(--text); }
@@ -120,21 +147,20 @@ h1, h2, h3 { margin: 0; color: var(--text); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--sp-4);
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: var(--sp-5);
 }
 
-.wordmark { font-size: 26px; font-weight: 700; }
+.wordmark { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.01em; }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-3);
   flex-wrap: wrap;
 }
 
-/* Theme toggle — identical geometry/behavior to the finance tracker */
 .theme-toggle {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
@@ -152,10 +178,11 @@ h1, h2, h3 { margin: 0; color: var(--text); }
 /* ---------- Buttons & controls ---------- */
 
 .btn {
-  font-size: 15px;
+  font-size: var(--fs-base);
   font-weight: 600;
-  border-radius: var(--radius-sm);
-  padding: 10px 18px;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-5);
   border: 1px solid var(--border-strong);
   background: var(--panel);
   color: var(--text);
@@ -166,31 +193,26 @@ h1, h2, h3 { margin: 0; color: var(--text); }
 .btn:hover { background: var(--surface-alt); box-shadow: var(--shadow-hover); }
 .btn:active { transform: translateY(1px); }
 
-/* Primary CTA — the one amber highlight. Keep to one per viewport. */
-.btn-primary {
-  background: var(--amber);
-  border-color: var(--amber);
-  color: var(--on-amber);
-}
-.btn-primary:hover { filter: brightness(1.05); box-shadow: var(--shadow-hover); }
+/* Primary CTA — the one gold-accent moment. Keep to one per viewport. */
+.btn-primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+.btn-primary:hover { filter: brightness(1.06); box-shadow: var(--shadow-hover); }
 
-/* Secondary — the strong neutral action (modal Save/Create), so we never
-   show two amber CTAs at once. Inverts cleanly in dark mode since it's
-   built from --text/--panel rather than a fixed color. */
+/* Secondary — the strong neutral action (modal Save/Create), so two gold
+   CTAs never appear on screen at once. */
 .btn-secondary { background: var(--text); border-color: var(--text); color: var(--panel); }
-.btn-secondary:hover { filter: brightness(1.08); box-shadow: var(--shadow-hover); }
+.btn-secondary:hover { filter: brightness(1.1); box-shadow: var(--shadow-hover); }
 
-.btn-ghost { border-color: transparent; background: transparent; box-shadow: none; padding: 8px 12px; }
+.btn-ghost { border-color: transparent; background: transparent; box-shadow: none; padding: var(--sp-2) var(--sp-3); }
 .btn-ghost:hover { background: var(--surface-alt); box-shadow: none; }
 
 select, input[type="number"], input[type="text"] {
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: var(--fs-base);
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-3);
   transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
 
@@ -202,16 +224,17 @@ select:focus, input:focus {
 
 label {
   display: block;
-  font-size: 12px;
-  letter-spacing: .03em;
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
   text-transform: uppercase;
   font-weight: 600;
 }
 
-/* Trip selector: small dot marks there's an active selection — the one
-   other place, besides the primary CTA and gauge fill, that gets amber. */
+/* Trip selector: small gold dot marks there's an active selection — the
+   only other place, besides the primary CTA and gauge fill, that gets
+   the accent. */
 .trip-selector-wrap { position: relative; }
 .trip-selector-wrap::before {
   content: "";
@@ -231,20 +254,21 @@ label {
 .range-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--sp-1);
   width: fit-content;
 }
 
 .range-pill {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 16px;
+  font-family: inherit;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -252,27 +276,24 @@ label {
   transition: background-color .15s ease, color .15s ease;
 }
 .range-pill:hover { color: var(--text); }
-
 .range-pill.active { background: var(--text); color: var(--panel); }
 .range-pill.active:hover { color: var(--panel); }
 
 .custom-range-fields {
   display: none;
   align-items: flex-end;
-  gap: 16px;
-  margin-top: 16px;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  flex-wrap: wrap;
 }
 .custom-range-fields.visible { display: flex; }
 
 /* ---------- Date picker ----------
-   Replaces native <input type="date">: Chromium renders that control's
-   placeholder and month names in the browser's own UI language, ignoring
-   this page's lang="en" — so on a Hebrew-language browser it showed the
-   month segment as "מ"מ". This widget is self-drawn so the format is
-   always English, regardless of visitor locale. */
+   Self-drawn (not native <input type="date">) so the format stays English
+   regardless of the visitor's browser locale — functional requirement,
+   restyled here, logic untouched. */
 
 .date-picker { position: relative; display: inline-block; }
-
 .date-picker-display { width: 100%; }
 
 .date-picker-panel {
@@ -282,9 +303,9 @@ label {
   z-index: 150;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-hover);
-  padding: 12px;
+  padding: var(--sp-3);
   width: 240px;
 }
 
@@ -292,28 +313,24 @@ label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 
-.date-picker-label {
-  font-weight: 600;
-  font-size: 14px;
-}
+.date-picker-label { font-weight: 600; font-size: var(--fs-md); }
 
 .date-picker-nav {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1;
-  padding: 4px 8px;
+  padding: var(--sp-1) var(--sp-2);
 }
 .date-picker-nav:hover { background: var(--surface-alt); }
 
-.date-picker-weekdays,
-.date-picker-grid {
+.date-picker-weekdays, .date-picker-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
@@ -321,20 +338,20 @@ label {
 
 .date-picker-weekdays span {
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-muted);
-  padding: 4px 0;
+  padding: var(--sp-1) 0;
 }
 
 .date-picker-day {
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
-  font-size: 13px;
-  padding: 6px 0;
+  font-size: var(--fs-sm);
+  padding: var(--sp-2) 0;
   text-align: center;
 }
 .date-picker-day:hover { background: var(--surface-alt); }
@@ -347,9 +364,9 @@ label {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: var(--sp-5);
   box-shadow: var(--shadow);
-  transition: background-color .2s ease, border-color .2s ease, box-shadow .18s ease, transform .18s ease;
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .18s ease;
 }
 .card:hover { box-shadow: var(--shadow-hover); }
 
@@ -357,28 +374,27 @@ label {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
 }
 .card-title-row .card-title { margin-bottom: 0; }
 
 .card-title {
   font-weight: 600;
-  font-size: 13px;
-  letter-spacing: .03em;
+  font-size: var(--fs-sm);
+  letter-spacing: .04em;
   text-transform: uppercase;
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-4);
   color: var(--text-muted);
 }
 
-.gauges-empty { color: var(--text-muted); font-size: 14px; }
-
-.modal-hint { color: var(--text-muted); font-size: 14px; margin: 0 0 16px; }
+.gauges-empty { color: var(--text-muted); font-size: var(--fs-base); }
+.modal-hint { color: var(--text-muted); font-size: var(--fs-base); margin: 0 0 var(--sp-4); }
 
 .checkbox-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sp-2);
   max-height: 280px;
   overflow-y: auto;
 }
@@ -386,10 +402,10 @@ label {
 .checkbox-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
+  gap: var(--sp-2);
+  font-size: var(--fs-base);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-md);
   background: var(--surface-alt);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -403,60 +419,64 @@ label {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: 0.8fr 1.3fr 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--sp-4);
 }
+@media (max-width: 960px) { .summary-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .summary-grid { grid-template-columns: 1fr; } }
 
-@media (max-width: 960px) {
-  .summary-grid { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 760px) {
-  .summary-grid { grid-template-columns: 1fr; }
-}
-
+/* The single loudest number on the page — everything else is smaller. */
 .summary-total {
-  font-size: 24px;
+  font-size: clamp(28px, 3vw, var(--fs-stat));
   font-weight: 700;
+  letter-spacing: -.01em;
   color: var(--text);
 }
 
 .summary-sub {
-  margin-top: 8px;
+  margin-top: var(--sp-2);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 
-/* ---------- Trip note ---------- */
+/* ---------- Trip note ----------
+   A diary note fits the journal mood, but it's the least financially
+   important card in this row — deliberately quieter than Total Spent and
+   the gauges (smaller label, no card-level hover lift, muted textarea)
+   so it never competes with the numbers. */
+
+/* Flex column so the textarea can fill whatever height CSS Grid's default
+   row-stretch gives this card (matching the taller "Monitored categories"
+   card next to it) — without this, the textarea sat at its own min-height
+   and the rest of the stretched card below it was just dead space. */
+.note-card { background: var(--surface-alt); box-shadow: none; border-style: dashed; display: flex; flex-direction: column; }
+.note-card:hover { box-shadow: none; }
+.note-card .card-title-row { flex: none; }
 
 .trip-note-input {
   width: 100%;
-  min-height: 96px;
+  flex: 1 1 auto;
+  min-height: 88px;
   resize: vertical;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--surface-alt);
+  background: var(--panel);
   color: var(--text);
   font: inherit;
-  font-size: 14px;
-  padding: 10px 12px;
+  font-size: var(--fs-base);
+  padding: var(--sp-3);
 }
-
-.trip-note-input:focus {
-  outline: none;
-  border-color: var(--amber);
-}
+.trip-note-input:focus { outline: none; border-color: var(--amber); }
 
 .note-saved-hint {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   opacity: 0;
   transition: opacity .3s ease;
 }
-
 .note-saved-hint.visible { opacity: 1; }
 
 /* ---------- Monitored gauges ---------- */
@@ -464,12 +484,12 @@ label {
 .gauges-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+  gap: var(--sp-4);
 }
 
 .gauge-name {
-  font-size: 12px;
-  letter-spacing: .03em;
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
   color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
@@ -477,9 +497,9 @@ label {
 
 .gauge-value {
   font-weight: 700;
-  font-size: 22px;
+  font-size: var(--fs-xl);
   color: var(--text);
-  margin: 8px 0 12px;
+  margin: var(--sp-2) 0 var(--sp-3);
 }
 
 .gauge-track {
@@ -494,7 +514,7 @@ label {
   height: 100%;
   background: var(--amber);
   border-radius: 6px;
-  transition: width .4s cubic-bezier(.16, 1, .3, 1);
+  transition: width var(--dur-update) var(--ease-out);
 }
 
 /* ---------- Charts ---------- */
@@ -502,44 +522,34 @@ label {
 .charts-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: var(--sp-4);
   align-items: start;
 }
-
 .charts-grid .card.wide { grid-column: 1 / -1; }
-
-@media (max-width: 900px) {
-  .charts-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
 
 .chart-canvas-wrap { position: relative; height: 260px; }
+.chart-canvas-wrap.tall { height: 380px; }
 canvas { max-width: 100%; }
 
-.donut-layout {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.chart-canvas-wrap.donut {
-  flex: 0 0 260px;
-  width: 260px;
-  height: 260px;
-}
+/* Ring on the left, pill legend on the right — keeps this card the same
+   height as "Total spend over time" next to it (both use the same 260px
+   wrap height) instead of growing taller to fit a legend stacked below. */
+.donut-layout { display: flex; align-items: center; gap: var(--sp-4); }
+.chart-canvas-wrap.donut { height: 260px; width: 260px; flex: 0 0 260px; }
 
 .legend-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-  margin-bottom: 4px;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  margin-bottom: var(--sp-1);
 }
 
 .legend-badge {
   font-weight: 600;
-  font-size: 12px;
-  padding: 6px 12px;
+  font-size: var(--fs-xs);
+  padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
   border: 1px solid var(--border);
@@ -547,52 +557,42 @@ canvas { max-width: 100%; }
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+  gap: var(--sp-2);
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease, transform .1s ease;
 }
 .legend-badge:hover { background: var(--panel); border-color: var(--border-strong); }
+.legend-badge:active { transform: scale(.97); }
 .legend-badge.disabled { opacity: .45; }
 .legend-badge .swatch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
+/* A vertical column, capped to the ring's own height with overflow — this
+   is what actually guarantees the card never grows taller than its
+   neighbor no matter how many categories the trip has (7 with "Other" is
+   already tight in 260px; a scrollbar beats a taller card). */
 .donut-legend-list {
-  flex: 1 1 220px;
-  min-width: 220px;
-  display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 2px;
+  flex-wrap: nowrap;
+  align-self: stretch;
+  justify-content: center;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 0;
+  margin-bottom: 0;
 }
-
-.donut-legend-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 6px 4px;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  color: var(--text);
-  transition: background-color .15s ease, opacity .15s ease;
-}
-.donut-legend-row:hover { background: var(--surface-alt); }
-.donut-legend-row.donut-legend-other { cursor: default; opacity: .7; }
-.donut-legend-row.donut-legend-other:hover { background: none; }
-.donut-legend-row.disabled { opacity: .45; }
-
-.donut-legend-row .swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.donut-legend-row .donut-legend-label { color: var(--text); }
-.donut-legend-row .donut-legend-value { margin-left: auto; color: var(--text-muted); }
+.donut-legend-pill { width: 100%; justify-content: space-between; flex-shrink: 0; }
+.donut-legend-pill .donut-legend-value { color: var(--text-muted); font-weight: 700; }
+.donut-legend-pill .donut-legend-pct { color: var(--text-faint); font-weight: 500; }
+.donut-legend-pill.donut-legend-other { cursor: default; }
+.donut-legend-pill.donut-legend-other:hover { background: var(--surface-alt); }
 
 /* ---------- Expense table ---------- */
 
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
 
 th, td {
   text-align: left;
-  padding: 10px 12px;
+  padding: var(--sp-3) var(--sp-3);
   border-bottom: 1px solid var(--border);
   transition: border-color .2s ease;
 }
@@ -601,11 +601,13 @@ th {
   color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: .03em;
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
 }
 
 tr:last-child td { border-bottom: none; }
+tbody tr { transition: background-color .12s ease; }
+tbody tr:hover { background: var(--surface-alt); }
 td.amount-col { text-align: right; }
 td.notes-col { color: var(--text); }
 
@@ -624,7 +626,7 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: var(--sp-4);
   z-index: 100;
   animation: overlayFadeIn .18s ease;
 }
@@ -634,13 +636,13 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
   background: var(--panel);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  padding: 24px;
+  padding: var(--sp-6);
   width: 100%;
   max-width: 440px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, .2);
-  animation: modalPanelIn .22s cubic-bezier(.16, 1, .3, 1);
+  box-shadow: var(--shadow-modal);
+  animation: modalPanelIn .22s var(--ease-out);
 }
 
 @keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -653,31 +655,30 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: var(--sp-4);
 }
-.modal-header h3 { font-size: 18px; }
+.modal-header h3 { font-size: var(--fs-lg); }
 
-.modal-field { margin-bottom: 16px; }
-
-.modal-row { display: flex; gap: 16px; }
+.modal-field { margin-bottom: var(--sp-4); }
+.modal-row { display: flex; gap: var(--sp-4); }
 .modal-row > * { flex: 1; }
 
 .conversion-line {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text);
-  margin-top: 8px;
+  margin-top: var(--sp-2);
 }
 
 .divide-toggle {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
-  margin-top: 8px;
+  margin-top: var(--sp-2);
   transition: color .15s ease;
 }
 .divide-toggle:hover { color: var(--text); }
@@ -685,21 +686,21 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
 .divide-panel {
   display: none;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: var(--sp-3);
   transition: background-color .2s ease, border-color .2s ease;
 }
 .divide-panel.visible { display: flex; }
-.divide-panel input { width: 90px; }
+.divide-panel input { width: 112px; min-width: 0; }
 
 .field-error {
   color: var(--danger);
-  font-size: 12px;
-  margin-top: 8px;
+  font-size: var(--fs-xs);
+  margin-top: var(--sp-2);
   display: none;
 }
 .field-error.visible { display: block; }
@@ -707,19 +708,19 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 22px;
+  gap: var(--sp-2);
+  margin-top: var(--sp-6);
 }
 
 /* ---------- Rate history table ---------- */
 
-.rate-history-table td, .rate-history-table th { padding: 8px 10px; }
+.rate-history-table td, .rate-history-table th { padding: var(--sp-2) var(--sp-3); }
 
 /* ---------- Footer ---------- */
 
 .app-footer {
-  margin-top: 40px;
-  padding-top: 20px;
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-5);
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: center;
@@ -730,7 +731,7 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   text-decoration: underline;
   transition: color .15s ease;
@@ -741,17 +742,11 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: var(--sp-10) var(--sp-5);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
-
-.empty-state h2 { font-size: 24px; margin-bottom: 10px; }
-
-.empty-state p {
-  color: var(--text-muted);
-  max-width: 420px;
-  margin: 0 auto 20px;
-}
+.empty-state h2 { font-size: var(--fs-xl); margin-bottom: var(--sp-3); }
+.empty-state p { color: var(--text-muted); max-width: 420px; margin: 0 auto var(--sp-5); }
