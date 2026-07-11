@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — Travel Expenses</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script>
+// Mirrors the inline theme script in static/index.html — keep in sync.
+(function () {
+  try {
+    var stored = localStorage.getItem("travel_expenses_theme");
+    var theme = stored || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
+})();
+</script>
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+    <h1 class="login-wordmark">Travel Expenses</h1>
+
+    <div id="server-error" class="login-error{% if error %} visible{% endif %}">{{ error or "" }}</div>
+    <div id="client-error" class="login-error"></div>
+
+    <form id="login-form" method="post" action="/login" novalidate>
+      <div class="login-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autocomplete="username" maxlength="254">
+      </div>
+      <div class="login-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" minlength="8" maxlength="128">
+      </div>
+      <button type="submit" class="btn btn-primary login-submit">Log in</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // Same rules enforced again server-side (deployment-auth-spec §5.2/§5.3) —
+  // this is a UX filter, not the security boundary.
+  var EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  var PASSWORD_BAD_CHARS_RE = /[\r\n\t\x00]/;
+
+  function isValidEmail(email) {
+    return email.length >= 3 && email.length <= 254 && EMAIL_RE.test(email);
+  }
+  function isValidPassword(password) {
+    return password.length >= 8 && password.length <= 128 && !PASSWORD_BAD_CHARS_RE.test(password);
+  }
+
+  var form = document.getElementById("login-form");
+  var clientError = document.getElementById("client-error");
+  var serverError = document.getElementById("server-error");
+
+  function showError(message) {
+    serverError.classList.remove("visible");
+    clientError.textContent = message;
+    clientError.classList.add("visible");
+  }
+
+  form.addEventListener("submit", function (evt) {
+    var email = document.getElementById("email").value.trim();
+    var password = document.getElementById("password").value;
+
+    if (!email || !isValidEmail(email)) {
+      evt.preventDefault();
+      showError("Please enter a valid email.");
+      return;
+    }
+    if (!password || !isValidPassword(password)) {
+      evt.preventDefault();
+      showError("Password must be at least 8 characters.");
+      return;
+    }
+    clientError.classList.remove("visible");
+  });
+})();
+</script>
+
+</body>
+</html>

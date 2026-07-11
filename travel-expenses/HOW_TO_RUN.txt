@@ -1,0 +1,56 @@
+HOW TO RUN THE TRAVEL EXPENSES APP
+===================================
+
+There are two ways to run it, depending on what you want.
+
+
+OPTION A — Quick local test (no Windows service, just to try it)
+------------------------------------------------------------------
+
+Double-click "start.bat" in the travel-expenses\ folder. It reuses the
+existing .venv, generates a session secret if missing, and starts the
+server in a console window at http://localhost:8000.
+
+USERS starts out empty in config.py, so the first time you run it, it
+will exit immediately with an error. Before that, run:
+
+    .venv\Scripts\python.exe scripts\hash_password.py
+
+Type a password. It prints a line like:
+
+    "your-email@example.com": "$2b$12$...",
+
+Paste that line into the USERS = {...} dict in config.py, save the file,
+then run start.bat again.
+
+This runs in a terminal window — closing the window stops the server.
+Good for trying it out before committing to the full service install.
+
+
+OPTION B — Real deployment (the intended way to run it long-term)
+---------------------------------------------------------------------
+
+Double-click "deploy.bat". It will:
+
+1. Ask for admin rights (a UAC prompt will pop up — accept it).
+2. Set up the venv/dependencies.
+3. If USERS is empty, walk you through creating your first login right
+   there in the console (same hash_password.py step as above, but
+   automated into the flow) — it pauses so you can paste the line into
+   config.py.
+4. Ask "Are you deploying behind HTTPS?" — answer N for now (that's for
+   later, once a reverse proxy is set up).
+5. Download NSSM and install the "TravelExpensesApp" Windows service,
+   set to auto-start on boot.
+6. Print the URL to open: http://localhost:8000 (and a LAN URL like
+   http://192.168.x.x:8000 reachable from your phone/other devices on
+   the same Wi-Fi).
+
+After that it runs permanently in the background — no terminal window,
+survives reboots, restarts itself if it crashes. You don't need to do
+anything again unless you:
+  - change the code       -> run update.bat
+  - change config.py       -> run restart.bat
+  - want to remove it      -> run uninstall.bat (leaves your data intact)
+
+See README.md for more detail (adding family members, viewing logs, etc).

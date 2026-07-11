@@ -134,6 +134,10 @@
 
   async function api(path, options) {
     const res = await fetch(path, options);
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new Error("Not authenticated");
+    }
     let body = null;
     try { body = await res.json(); } catch (e) { /* no body */ }
     if (!res.ok) {
@@ -143,6 +147,7 @@
     return body;
   }
 
+  const getMe = () => api("/api/me");
   const getConfig = () => api("/api/config");
   const getTrips = () => api("/api/trips");
   const createTripApi = (name) =>
@@ -160,6 +165,7 @@
 
   async function init() {
     initTheme();
+    getMe().then((me) => { el("user-email").textContent = me.email; }).catch(() => {});
     appConfig = await getConfig();
     categoryColorMapLight = {};
     categoryColorMapDark = {};
@@ -990,6 +996,7 @@
     attachDatePicker("expense-date");
 
     el("btnThemeToggle").addEventListener("click", toggleTheme);
+    el("logout-btn").addEventListener("click", () => { window.location.href = "/logout"; });
 
     document.querySelectorAll("[data-close-modal]").forEach((btn) => {
       btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));

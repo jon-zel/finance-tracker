@@ -67,11 +67,38 @@ if _unknown_monitored:
 
 DEFAULT_TIME_RANGE = "All trip"
 
-# --- Future auth placeholders (see spec §3, §14) -----------------------------
-# Flipping auth on later means: (1) filling these in, (2) making
-# require_auth() in main.py actually check a session instead of
-# returning True. No route signatures need to change.
-#
-# import json
-# USERS = json.loads(os.environ.get("USERS_JSON", '{"me@example.com": "hunter2"}'))
-# SESSION_SECRET = os.environ["SESSION_SECRET"]
+# --- Auth (deployment-auth-spec §3, §4) --------------------------------------
+
+# Email -> bcrypt hash (never plaintext). Populate via
+# scripts/hash_password.py. The server refuses to start if this is empty
+# (spec §4.4) — that's enforced in app/main.py's startup check, not here.
+USERS: dict[str, str] = {
+    # "owner@example.com":   "$2b$12$...bcrypt hash...",
+    # "partner@example.com": "$2b$12$...bcrypt hash...",
+}
+
+# Signs session cookies (spec §3.3). Generated once by deploy.bat into this
+# file; never committed to source control (.gitignore excludes it). Deleting
+# the file invalidates every existing session.
+SESSION_SECRET_PATH = os.environ.get("SESSION_SECRET_PATH", "./config/.session_secret")
+
+
+def _load_session_secret() -> str:
+    if not os.path.exists(SESSION_SECRET_PATH):
+        raise RuntimeError(
+            f"Session secret not found at '{SESSION_SECRET_PATH}'. "
+            "Run deploy.bat first — it generates this file automatically."
+        )
+    with open(SESSION_SECRET_PATH, "r", encoding="utf-8") as f:
+        secret = f.read().strip()
+    if not secret:
+        raise RuntimeError(f"Session secret file '{SESSION_SECRET_PATH}' is empty.")
+    return secret
+
+
+SESSION_SECRET = _load_session_secret()
+
+# Set to "1" (via NSSM's AppEnvironmentExtra, see deploy.bat) when the app
+# sits behind a reverse proxy terminating HTTPS. Toggles the session
+# cookie's Secure flag (spec §3.2, §10).
+APP_BEHIND_HTTPS = os.environ.get("APP_BEHIND_HTTPS", "0") == "1"
