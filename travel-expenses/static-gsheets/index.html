@@ -1,0 +1,3252 @@
+<!--
+GOOGLE CLOUD SETUP — one-time, before first deploy of this file:
+  1. Go to https://console.cloud.google.com/ and create a project (or reuse one).
+  2. APIs & Services > Library > enable "Google Sheets API" AND "Google Drive API"
+     (Drive API is only used read-only, to find this app's spreadsheet by name after
+     sign-in, with no "choose a sheet" step — see findDefaultSpreadsheet() below).
+  3. APIs & Services > OAuth consent screen: User type "External", Publishing status
+     "Testing", and add your own Google account under "Test users" (Testing-mode apps
+     only let listed test users sign in — that's fine for a personal app).
+  4. APIs & Services > Credentials > Create Credentials > OAuth client ID >
+     Application type "Web application".
+     - Authorized JavaScript origins: add "https://<your-username>.github.io"
+       (and "http://localhost:PORT" for local testing, if you serve this file locally).
+     - No redirect URI needed (this uses the token model, not the code model).
+  5. Copy the generated Client ID into CLIENT_ID below.
+  This is a static site with no server, so there is no client secret involved anywhere.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Travel Expenses</title>
+<script>
+// Applies the saved/OS theme before first paint to avoid a light-mode flash.
+// Mirrors THEME_STORAGE_KEY in the app script below — keep the two in sync.
+(function () {
+  try {
+    var stored = localStorage.getItem("travel_expenses_theme");
+    var theme = stored || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
+})();
+</script>
+<style>
+/* ============================================================
+   TRAVEL EXPENSES TRACKER — STYLES
+   Copied verbatim from static/styles.css (only the two background-image
+   URLs below were changed from root-absolute to relative, since this file
+   ships as a standalone folder rather than a server's static root).
+   ============================================================ */
+
+:root {
+  /* Warm paper surface system. Page and card are two close, warm-white
+     steps (not "white card on a tinted page" bolted onto a cool gray
+     underneath) — the whole stack is warm, top to bottom. */
+  --bg: #faf6ec;
+  --panel: #fffdf9;
+  --surface-alt: #f3ecdd;
+  --border: #ece3d2;
+  --border-strong: #ddd0b8;
+  --text: #241f1a;
+  --text-muted: #736a5c;
+  --text-faint: #9c9285;
+  --overlay: rgba(36, 31, 26, .45);
+
+  /* Semantic accents — a deep gold (passport-stamp ink, not caution tape)
+     as the single warm highlight, a muted forest-olive green for spend
+     data (postage-ink, not bright fintech mint). */
+  --amber: #c08a1f;
+  --amber-bg: rgba(192, 138, 31, .14);
+  --on-amber: #241f1a;
+  --spend: #3f7d5c;
+  --spend-bg: rgba(63, 125, 92, .12);
+  --danger: #c0392b;
+  --danger-bg: rgba(192, 57, 43, .10);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* One 4px-based spacing scale, used everywhere below instead of ad hoc
+     paddings. */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px;
+  --sp-9: 48px; --sp-10: 64px;
+
+  /* One type scale. Card labels/eyebrows sit at --fs-xs; body defaults to
+     --fs-base; the two large-figure sizes get a touch of negative
+     tracking so big tabular numerals don't look loose. */
+  --fs-xs: 12px;  --fs-sm: 13px;  --fs-base: 15px; --fs-md: 17px;
+  --fs-lg: 20px;  --fs-xl: 24px;  --fs-stat: 32px;
+
+  --radius: 16px;      /* cards, modals — a soft paper-corner, not a hard SaaS rect */
+  --radius-md: 10px;   /* buttons, inputs, badges — one consistent rounded-rect, not full-pill */
+  --radius-sm: 8px;    /* small inline controls */
+
+  /* Shadows tinted toward the ink color, not neutral black — a paper
+     surface should look like it's lit by warm light. */
+  --shadow: 0 1px 2px rgba(90, 68, 30, .06), 0 4px 18px rgba(90, 68, 30, .05);
+  --shadow-hover: 0 2px 4px rgba(90, 68, 30, .08), 0 10px 32px rgba(90, 68, 30, .10);
+  --shadow-modal: 0 20px 60px rgba(36, 31, 26, .28);
+
+  /* Two animation speeds used consistently everywhere (charts, gauges,
+     row highlight): a slower entrance for anything appearing for the
+     first time, a snappier one for something reacting to user input. */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-entrance: 500ms;
+  --dur-update: 350ms;
+  --dur-fast: 150ms;
+}
+
+:root[data-theme="dark"] {
+  /* Warm charcoal — a few degrees off pure neutral so dark mode still
+     reads as "the same journal, lit differently," not a different app. */
+  --bg: #1b1712;
+  --panel: #231e17;
+  --surface-alt: #2b241b;
+  --border: #362e22;
+  --border-strong: #4a3f2f;
+  --text: #ede7dc;
+  --text-muted: #a89d8c;
+  --text-faint: #7d7466;
+  --overlay: rgba(0, 0, 0, .6);
+
+  --amber: #e0ab3d;
+  --amber-bg: rgba(224, 171, 61, .16);
+  --on-amber: #241f1a;
+  --spend: #5fbf95;
+  --spend-bg: rgba(95, 191, 149, .14);
+  --danger: #e0665c;
+  --danger-bg: rgba(224, 102, 92, .14);
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, .3), 0 1px 2px rgba(0, 0, 0, .24);
+  --shadow-hover: 0 10px 28px rgba(0, 0, 0, .4), 0 2px 8px rgba(0, 0, 0, .3);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, .5);
+}
+
+* { box-sizing: border-box; }
+button { -webkit-tap-highlight-color: transparent; font-family: inherit; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+/* A faint fixed world-map/flight-path wash behind the page — ambience in
+   the gutters only, cards always sit on their own opaque --panel fill. */
+:root body {
+  background-image: linear-gradient(rgba(250, 246, 236, .65), rgba(250, 246, 236, .82)), url("bg-light-map.png");
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+:root[data-theme="dark"] body {
+  background-image: linear-gradient(rgba(27, 23, 18, .6), rgba(27, 23, 18, .78)), url("bg-dark-map.jpg");
+}
+
+img, svg { display: block; max-width: 100%; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ---------- Layout shell ---------- */
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) var(--sp-9);
+}
+
+.section { margin-top: var(--sp-6); }
+.section:first-child { margin-top: 0; }
+
+h1, h2, h3 { margin: 0; color: var(--text); }
+
+/* ---------- Header ---------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-5);
+}
+
+.wordmark { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.01em; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--panel); cursor: pointer; color: var(--text-muted); padding: 0;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .15s ease, box-shadow .18s ease;
+  box-shadow: var(--shadow);
+}
+.theme-toggle:hover { background: var(--surface-alt); color: var(--text); box-shadow: var(--shadow-hover); }
+.theme-toggle:active { transform: scale(.92); }
+.theme-toggle svg { width: 19px; height: 19px; }
+.theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+/* ---------- Buttons & controls ---------- */
+
+.btn {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-5);
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .18s ease, transform .05s ease, filter .15s ease;
+}
+.btn:hover { background: var(--surface-alt); box-shadow: var(--shadow-hover); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn:disabled:hover { background: var(--panel); box-shadow: var(--shadow); }
+
+/* Primary CTA — the one gold-accent moment. Keep to one per viewport. */
+.btn-primary { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+.btn-primary:hover { filter: brightness(1.06); box-shadow: var(--shadow-hover); }
+
+/* Secondary — the strong neutral action (modal Save/Create), so two gold
+   CTAs never appear on screen at once. */
+.btn-secondary { background: var(--text); border-color: var(--text); color: var(--panel); }
+.btn-secondary:hover { filter: brightness(1.1); box-shadow: var(--shadow-hover); }
+
+.btn-ghost { border-color: transparent; background: transparent; box-shadow: none; padding: var(--sp-2) var(--sp-3); }
+.btn-ghost:hover { background: var(--surface-alt); box-shadow: none; }
+
+select, input[type="number"], input[type="text"] {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-3);
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+
+select:focus, input:focus {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+  border-color: var(--border-strong);
+}
+
+label {
+  display: block;
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Trip selector: small gold dot marks there's an active selection — the
+   only other place, besides the primary CTA and gauge fill, that gets
+   the accent. */
+.trip-selector-wrap { position: relative; }
+.trip-selector-wrap::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 1px solid var(--border-strong);
+}
+
+/* ---------- Range selector ---------- */
+
+.range-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-1);
+  width: fit-content;
+}
+
+.range-pill {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: inherit;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.range-pill:hover { color: var(--text); }
+.range-pill.active { background: var(--text); color: var(--panel); }
+.range-pill.active:hover { color: var(--panel); }
+
+.custom-range-fields {
+  display: none;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  flex-wrap: wrap;
+}
+.custom-range-fields.visible { display: flex; }
+
+/* ---------- Date picker ----------
+   Self-drawn (not native <input type="date">) so the format stays English
+   regardless of the visitor's browser locale — functional requirement,
+   restyled here, logic untouched. */
+
+.date-picker { position: relative; display: inline-block; }
+.date-picker-display { width: 100%; }
+
+.date-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 150;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hover);
+  padding: var(--sp-3);
+  width: 240px;
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+.date-picker-label { font-weight: 600; font-size: var(--fs-md); }
+
+.date-picker-nav {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--fs-md);
+  line-height: 1;
+  padding: var(--sp-1) var(--sp-2);
+}
+.date-picker-nav:hover { background: var(--surface-alt); }
+
+.date-picker-weekdays, .date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-picker-weekdays span {
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: var(--sp-1) 0;
+}
+
+.date-picker-day {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  padding: var(--sp-2) 0;
+  text-align: center;
+}
+.date-picker-day:hover { background: var(--surface-alt); }
+.date-picker-day.today { font-weight: 700; color: var(--amber); }
+.date-picker-day.selected { background: var(--text); color: var(--panel); }
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--sp-5);
+  box-shadow: var(--shadow);
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .18s ease;
+}
+.card:hover { box-shadow: var(--shadow-hover); }
+
+.card-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+.card-title-row .card-title { margin-bottom: 0; }
+
+.card-title {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: var(--sp-4);
+  color: var(--text-muted);
+}
+
+.gauges-empty { color: var(--text-muted); font-size: var(--fs-base); }
+.modal-hint { color: var(--text-muted); font-size: var(--fs-base); margin: 0 0 var(--sp-4); }
+
+.checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.checkbox-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-base);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.checkbox-pill:hover { background: var(--panel); }
+.checkbox-pill input { margin: 0; accent-color: var(--text); }
+.checkbox-pill .swatch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* ---------- Summary ---------- */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+@media (max-width: 960px) { .summary-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .summary-grid { grid-template-columns: 1fr; } }
+
+/* The single loudest number on the page — everything else is smaller. */
+.summary-total {
+  font-size: clamp(28px, 3vw, var(--fs-stat));
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+
+.summary-sub {
+  margin-top: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* ---------- Trip note ----------
+   A diary note fits the journal mood, but it's the least financially
+   important card in this row — deliberately quieter than Total Spent and
+   the gauges (smaller label, no card-level hover lift, muted textarea)
+   so it never competes with the numbers. */
+
+/* Flex column so the textarea can fill whatever height CSS Grid's default
+   row-stretch gives this card (matching the taller "Monitored categories"
+   card next to it) — without this, the textarea sat at its own min-height
+   and the rest of the stretched card below it was just dead space. */
+.note-card { background: var(--surface-alt); box-shadow: none; border-style: dashed; display: flex; flex-direction: column; }
+.note-card:hover { box-shadow: none; }
+.note-card .card-title-row { flex: none; }
+
+.trip-note-input {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-base);
+  padding: var(--sp-3);
+}
+.trip-note-input:focus { outline: none; border-color: var(--amber); }
+
+.note-saved-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.note-saved-hint.visible { opacity: 1; }
+
+/* ---------- Monitored gauges ---------- */
+
+.gauges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-4);
+}
+
+.gauge-name {
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.gauge-value {
+  font-weight: 700;
+  font-size: var(--fs-xl);
+  color: var(--text);
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+
+.gauge-track {
+  height: 8px;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.gauge-fill {
+  height: 100%;
+  background: var(--amber);
+  border-radius: 6px;
+  transition: width var(--dur-update) var(--ease-out);
+}
+
+/* ---------- Charts ---------- */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+.charts-grid .card.wide { grid-column: 1 / -1; }
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+.chart-canvas-wrap { position: relative; height: 260px; }
+.chart-canvas-wrap.tall { height: 380px; }
+canvas { max-width: 100%; }
+
+/* Ring on the left, pill legend on the right — keeps this card the same
+   height as "Total spend over time" next to it (both use the same 260px
+   wrap height) instead of growing taller to fit a legend stacked below. */
+.donut-layout { display: flex; align-items: center; gap: var(--sp-4); }
+.chart-canvas-wrap.donut { height: 260px; width: 260px; flex: 0 0 260px; }
+
+.legend-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  margin-bottom: var(--sp-1);
+}
+
+.legend-badge {
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease, transform .1s ease;
+}
+.legend-badge:hover { background: var(--panel); border-color: var(--border-strong); }
+.legend-badge:active { transform: scale(.97); }
+.legend-badge.disabled { opacity: .45; }
+.legend-badge .swatch { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* A vertical column, capped to the ring's own height with overflow — this
+   is what actually guarantees the card never grows taller than its
+   neighbor no matter how many categories the trip has (7 with "Other" is
+   already tight in 260px; a scrollbar beats a taller card). */
+.donut-legend-list {
+  flex: 1 1 auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-self: stretch;
+  justify-content: center;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.donut-legend-pill { width: 100%; justify-content: space-between; flex-shrink: 0; }
+.donut-legend-pill .donut-legend-value { color: var(--text-muted); font-weight: 700; }
+.donut-legend-pill .donut-legend-pct { color: var(--text-faint); font-weight: 500; }
+.donut-legend-pill.donut-legend-other { cursor: default; }
+.donut-legend-pill.donut-legend-other:hover { background: var(--surface-alt); }
+
+/* ---------- Expense table ---------- */
+
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+
+th, td {
+  text-align: left;
+  padding: var(--sp-3) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  transition: border-color .2s ease;
+}
+
+th {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: var(--fs-xs);
+  letter-spacing: .04em;
+}
+
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background-color .12s ease; }
+tbody tr:hover { background: var(--surface-alt); }
+td.amount-col { text-align: right; }
+td.notes-col { color: var(--text); }
+
+tr.row-new { animation: highlight-row 1.6s ease-out; }
+@keyframes highlight-row {
+  from { background: var(--amber-bg); }
+  to { background: transparent; }
+}
+
+/* ---------- Modals ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  z-index: 100;
+  animation: overlayFadeIn .18s ease;
+}
+.modal-overlay[hidden] { display: none; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: var(--sp-6);
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-modal);
+  animation: modalPanelIn .22s var(--ease-out);
+}
+
+@keyframes overlayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+.modal-header h3 { font-size: var(--fs-lg); }
+
+.modal-field { margin-bottom: var(--sp-4); }
+.modal-row { display: flex; gap: var(--sp-4); }
+.modal-row > * { flex: 1; }
+
+.conversion-line {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text);
+  margin-top: var(--sp-2);
+}
+
+.divide-toggle {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-top: var(--sp-2);
+  transition: color .15s ease;
+}
+.divide-toggle:hover { color: var(--text); }
+
+.divide-panel {
+  display: none;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.divide-panel.visible { display: flex; }
+.divide-panel input { width: 112px; min-width: 0; }
+
+.field-error {
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  margin-top: var(--sp-2);
+  display: none;
+}
+.field-error.visible { display: block; }
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-6);
+}
+
+/* ---------- Rate history table ---------- */
+
+.rate-history-table td, .rate-history-table th { padding: var(--sp-2) var(--sp-3); }
+
+/* ---------- Footer ---------- */
+
+.app-footer {
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  transition: border-color .2s ease;
+}
+
+.footer-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color .15s ease;
+}
+.footer-link:hover { color: var(--text); }
+
+/* ---------- Empty state ---------- */
+
+.empty-state {
+  text-align: center;
+  padding: var(--sp-10) var(--sp-5);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.empty-state h2 { font-size: var(--fs-xl); margin-bottom: var(--sp-3); }
+.empty-state p { color: var(--text-muted); max-width: 420px; margin: 0 auto var(--sp-5); }
+
+/* ============================================================
+   NEW — Google Sheets setup / connection UI. Reuses every token and
+   class above (card, btn, modal-field, field-error) so it reads as part
+   of the same app, not a bolted-on screen.
+   ============================================================ */
+
+.setup-signin-row { display: flex; justify-content: center; }
+#setup-error { text-align: center; }
+
+.connection-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+.connection-banner-text { font-size: var(--fs-sm); color: var(--text); }
+
+.saving-indicator {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.saving-indicator.visible { opacity: 1; }
+.saving-indicator .spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text-muted);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="app-header">
+    <h1 class="wordmark">Travel Expenses</h1>
+    <div class="header-actions">
+      <div class="trip-selector-wrap">
+        <select id="trip-select" aria-label="Active trip"></select>
+      </div>
+      <button class="theme-toggle" id="btnThemeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button id="add-expense-btn" class="btn btn-primary" hidden>+ Add Expense</button>
+    </div>
+  </header>
+
+  <!-- NEW — shown when a Sheets call needs the user's attention: a silent
+       token refresh failed (needs Reconnect), or the saved spreadsheet ID
+       couldn't be loaded (needs Disconnect). Text and the button's action
+       are set at runtime by showConnectionBanner() in the app script. -->
+  <div id="connection-banner" class="connection-banner" hidden>
+    <span id="connection-banner-text" class="connection-banner-text"></span>
+    <button id="connection-banner-btn" class="btn btn-primary" type="button"></button>
+  </div>
+
+  <!-- NEW — first-launch gate, shown instead of empty-state/dashboard when
+       no spreadsheet is connected yet (localStorage has no spreadsheet id). -->
+  <section id="setup-gate" class="empty-state" hidden>
+    <h2>Connect Google Sheets</h2>
+    <p>Sign in with Google — your trips are automatically stored in a "Travel Expenses"
+       spreadsheet in your own Google Drive. Nothing to pick or paste.</p>
+    <div class="setup-signin-row">
+      <button id="setup-signin-btn" class="btn btn-primary">Sign in with Google</button>
+    </div>
+    <div id="setup-error" class="field-error"></div>
+    <span id="setup-saving-indicator" class="saving-indicator" style="display:flex; justify-content:center; margin-top: var(--sp-4);">
+      <span class="spinner"></span> Setting up your spreadsheet…
+    </span>
+    <div class="setup-signin-row" style="margin-top: var(--sp-4);">
+      <button id="setup-retry-btn" class="btn" hidden>Try again</button>
+    </div>
+  </section>
+
+  <!-- Empty state: shown when there are no trips yet -->
+  <section id="empty-state" class="empty-state" hidden>
+    <h2>No trips yet</h2>
+    <p>Create your first trip to start tracking expenses.</p>
+    <button id="empty-new-trip-btn" class="btn btn-primary">+ New trip</button>
+  </section>
+
+  <!-- Main dashboard: shown once a trip is active -->
+  <div id="dashboard" hidden>
+
+    <section class="section">
+      <div class="range-selector">
+        <button class="range-pill" data-range="all">All trip</button>
+        <button class="range-pill" data-range="week">This week</button>
+        <button class="range-pill" data-range="last7">Last 7 days</button>
+        <button class="range-pill" data-range="custom">Custom</button>
+        <div id="custom-range-fields" class="custom-range-fields">
+          <div>
+            <label for="custom-from">From</label>
+            <input type="date" id="custom-from">
+          </div>
+          <div>
+            <label for="custom-to">To</label>
+            <input type="date" id="custom-to">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section summary-grid">
+      <div class="card">
+        <div class="card-title">Total spent</div>
+        <div id="summary-total" class="summary-total tabular-nums">₪ 0</div>
+        <div class="summary-sub">
+          <span id="summary-count">0 expenses</span>
+          <span id="summary-avg">₪ 0 / day</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title">Monitored categories</div>
+          <button id="pin-categories-btn" class="footer-link" type="button">Pin categories</button>
+        </div>
+        <div id="gauges-grid" class="gauges-grid"></div>
+      </div>
+      <div class="card note-card">
+        <div class="card-title-row">
+          <div class="card-title">Note</div>
+          <span id="note-saved-hint" class="note-saved-hint">Saved</span>
+        </div>
+        <textarea id="trip-note-input" class="trip-note-input" dir="auto" placeholder="Write a note for this trip…"></textarea>
+        <div id="note-error" class="field-error"></div>
+      </div>
+    </section>
+
+    <section class="section charts-grid">
+      <div class="card wide">
+        <div class="card-title">Spend over time by category</div>
+        <div class="chart-canvas-wrap tall"><canvas id="chart-by-category"></canvas></div>
+        <div id="legend-by-category" class="legend-badges"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total spend over time</div>
+        <div class="chart-canvas-wrap"><canvas id="chart-total"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Spend by category</div>
+        <div class="donut-layout">
+          <div class="chart-canvas-wrap donut">
+            <canvas id="chart-donut"></canvas>
+          </div>
+          <div id="donut-legend" class="legend-badges donut-legend-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section card">
+      <div class="card-title">Expenses</div>
+      <div id="table-category-filter" class="legend-badges"></div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th class="amount-col">Amount</th>
+              <th>Category</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="expense-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="app-footer">
+    <button id="rate-history-link" class="footer-link">Exchange rate history</button>
+    <button id="disconnect-link" class="footer-link">Disconnect Google Sheets</button>
+  </footer>
+
+</div>
+
+<!-- New trip modal -->
+<div id="new-trip-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h3>New trip</h3>
+      <button class="btn btn-ghost" data-close-modal="new-trip-modal">&times;</button>
+    </div>
+    <div class="modal-field">
+      <label for="new-trip-name">Trip name</label>
+      <input type="text" id="new-trip-name" placeholder="e.g. Greece 2026">
+    </div>
+    <div class="modal-field">
+      <label for="new-trip-currency">Trip currency</label>
+      <select id="new-trip-currency"></select>
+    </div>
+    <div id="new-trip-error" class="field-error"></div>
+    <div class="modal-actions">
+      <span id="new-trip-saving-indicator" class="saving-indicator"><span class="spinner"></span> Saving…</span>
+      <button class="btn" data-close-modal="new-trip-modal">Cancel</button>
+      <button id="create-trip-btn" class="btn btn-secondary">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add expense modal -->
+<div id="add-expense-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add expense</h3>
+      <button class="btn btn-ghost" data-close-modal="add-expense-modal">&times;</button>
+    </div>
+
+    <div class="modal-field">
+      <label for="expense-date">Date</label>
+      <input type="date" id="expense-date">
+    </div>
+
+    <div class="modal-field">
+      <label for="expense-category">Category</label>
+      <select id="expense-category"></select>
+    </div>
+
+    <div class="modal-row modal-field">
+      <div>
+        <label for="expense-currency">Currency</label>
+        <select id="expense-currency"></select>
+      </div>
+      <div>
+        <label for="expense-amount">Amount</label>
+        <input type="number" id="expense-amount" min="0.01" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+    <div id="conversion-line" class="conversion-line" hidden></div>
+    <button id="divide-toggle-btn" class="divide-toggle" type="button">Divide…</button>
+    <div id="divide-panel" class="divide-panel">
+      <input type="number" id="divide-total" placeholder="Total" min="0" step="0.01">
+      <span>÷</span>
+      <input type="number" id="divide-by" placeholder="Divide by" min="1" step="1">
+      <span>=</span>
+      <span id="divide-result" class="tabular-nums">—</span>
+    </div>
+
+    <div class="modal-field" style="margin-top:16px;">
+      <label for="expense-notes">Notes</label>
+      <input type="text" id="expense-notes" dir="auto" placeholder="Optional">
+    </div>
+
+    <div id="expense-error" class="field-error"></div>
+
+    <div class="modal-actions">
+      <span id="expense-saving-indicator" class="saving-indicator"><span class="spinner"></span> Saving…</span>
+      <button class="btn" data-close-modal="add-expense-modal">Cancel</button>
+      <button id="save-expense-btn" class="btn btn-secondary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pin categories modal -->
+<div id="pin-categories-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Pin categories</h3>
+      <button class="btn btn-ghost" data-close-modal="pin-categories-modal">&times;</button>
+    </div>
+    <p class="modal-hint">Choose which categories get their own gauge on the dashboard.</p>
+    <div id="pin-categories-list" class="checkbox-list"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close-modal="pin-categories-modal">Cancel</button>
+      <button id="save-pinned-categories-btn" class="btn btn-secondary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rate history modal -->
+<div id="rate-history-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Exchange rate history</h3>
+      <button class="btn btn-ghost" data-close-modal="rate-history-modal">&times;</button>
+    </div>
+    <table class="rate-history-table">
+      <thead>
+        <tr><th>Date</th><th>Currency</th><th>Rate</th></tr>
+      </thead>
+      <tbody id="rate-history-body"></tbody>
+    </table>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<script>
+/* Custom date input — replaces native <input type="date">.
+ *
+ * Chromium renders a native date input's placeholder and month names using
+ * the browser's own UI language, ignoring the page's `lang` attribute. This
+ * widget is entirely self-drawn so the displayed format never depends on
+ * the visitor's browser or OS locale. Copied verbatim from
+ * static/date-picker.js.
+ *
+ * attachDatePicker(inputId) turns the <input id="inputId"> into a hidden
+ * ISO (yyyy-mm-dd) value holder and adds a visible dd/mm/yyyy text field +
+ * calendar dropdown next to it. The element keeps its id and `.value`
+ * still reads/writes the ISO string, and still fires a native "change"
+ * event on selection — so existing code that does el(id).value or
+ * el(id).addEventListener("change", ...) keeps working unchanged.
+ */
+(function () {
+  "use strict";
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function toISO(year, month, day) {
+    return `${year}-${pad2(month + 1)}-${pad2(day)}`;
+  }
+
+  function parseISO(iso) {
+    if (!iso) return null;
+    const [y, m, d] = iso.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return { year: y, month: m - 1, day: d };
+  }
+
+  function isoToDisplay(iso) {
+    const parsed = parseISO(iso);
+    if (!parsed) return "";
+    return `${pad2(parsed.day)}/${pad2(parsed.month + 1)}/${parsed.year}`;
+  }
+
+  // Accepts "d/m/yyyy" or 8 bare digits ("ddmmyyyy"); returns an ISO string
+  // or null if it isn't a real calendar date.
+  function displayToISO(text) {
+    let day, month, year;
+    if (text.includes("/")) {
+      const parts = text.split("/").map((p) => p.trim());
+      if (parts.length !== 3) return null;
+      [day, month, year] = parts.map(Number);
+    } else {
+      const digits = text.replace(/\D/g, "");
+      if (digits.length !== 8) return null;
+      day = Number(digits.slice(0, 2));
+      month = Number(digits.slice(2, 4));
+      year = Number(digits.slice(4, 8));
+    }
+    if (!day || !month || !year || year < 100) return null;
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return toISO(year, month - 1, day);
+  }
+
+  function attachDatePicker(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const nativeValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+    const getRaw = () => nativeValue.get.call(input);
+    const setRaw = (v) => nativeValue.set.call(input, v);
+
+    input.type = "hidden";
+
+    const wrap = document.createElement("div");
+    wrap.className = "date-picker";
+
+    const display = document.createElement("input");
+    display.type = "text";
+    display.className = "date-picker-display";
+    display.placeholder = "dd/mm/yyyy";
+    display.autocomplete = "off";
+    display.inputMode = "numeric";
+
+    const panel = document.createElement("div");
+    panel.className = "date-picker-panel";
+    panel.hidden = true;
+
+    const header = document.createElement("div");
+    header.className = "date-picker-header";
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "date-picker-nav";
+    prevBtn.textContent = "‹";
+    prevBtn.setAttribute("aria-label", "Previous month");
+    const label = document.createElement("span");
+    label.className = "date-picker-label";
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "date-picker-nav";
+    nextBtn.textContent = "›";
+    nextBtn.setAttribute("aria-label", "Next month");
+    header.append(prevBtn, label, nextBtn);
+
+    const weekdays = document.createElement("div");
+    weekdays.className = "date-picker-weekdays";
+    for (const w of WEEKDAY_LABELS) {
+      const cell = document.createElement("span");
+      cell.textContent = w;
+      weekdays.appendChild(cell);
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "date-picker-grid";
+
+    panel.append(header, weekdays, grid);
+    wrap.append(display, panel);
+    input.insertAdjacentElement("afterend", wrap);
+
+    let viewYear, viewMonth; // month currently shown in the open panel
+
+    function updateDisplay() {
+      display.value = isoToDisplay(getRaw());
+    }
+
+    function setValue(iso, opts) {
+      opts = opts || {};
+      setRaw(iso || "");
+      updateDisplay();
+      if (!opts.silent) input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    // Preserve el(id).value get/set semantics for callers that never
+    // touch the picker UI (e.g. `el("expense-date").value = todayISO()`).
+    Object.defineProperty(input, "value", {
+      get: getRaw,
+      set(v) { setRaw(v); updateDisplay(); },
+      configurable: true,
+    });
+
+    function renderGrid() {
+      label.textContent = `${MONTH_NAMES[viewMonth]} ${viewYear}`;
+      grid.innerHTML = "";
+      const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const selected = parseISO(getRaw());
+      const today = new Date();
+
+      for (let i = 0; i < firstWeekday; i++) {
+        grid.appendChild(document.createElement("span"));
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "date-picker-day";
+        cell.textContent = String(day);
+        if (selected && selected.year === viewYear && selected.month === viewMonth && selected.day === day) {
+          cell.classList.add("selected");
+        }
+        if (today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === day) {
+          cell.classList.add("today");
+        }
+        cell.addEventListener("click", () => {
+          setValue(toISO(viewYear, viewMonth, day));
+          closePanel();
+        });
+        grid.appendChild(cell);
+      }
+    }
+
+    function openPanel() {
+      const parsed = parseISO(getRaw()) || { year: new Date().getFullYear(), month: new Date().getMonth() };
+      viewYear = parsed.year;
+      viewMonth = parsed.month;
+      renderGrid();
+      panel.hidden = false;
+      document.addEventListener("click", onOutsideClick, true);
+    }
+
+    function closePanel() {
+      panel.hidden = true;
+      document.removeEventListener("click", onOutsideClick, true);
+    }
+
+    function onOutsideClick(e) {
+      if (!wrap.contains(e.target)) closePanel();
+    }
+
+    prevBtn.addEventListener("click", () => {
+      viewMonth -= 1;
+      if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+      renderGrid();
+    });
+    nextBtn.addEventListener("click", () => {
+      viewMonth += 1;
+      if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+      renderGrid();
+    });
+
+    function commitDisplay() {
+      const text = display.value.trim();
+      if (text === "") { setValue(""); return; }
+      const iso = displayToISO(text);
+      if (iso) setValue(iso);
+      else updateDisplay(); // invalid — revert to the last good value
+    }
+
+    display.addEventListener("focus", () => { if (panel.hidden) openPanel(); });
+    display.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitDisplay(); closePanel(); }
+      if (e.key === "Escape") { closePanel(); }
+    });
+    display.addEventListener("blur", commitDisplay);
+
+    updateDisplay();
+  }
+
+  window.attachDatePicker = attachDatePicker;
+})();
+</script>
+<script>
+/* Travel Expenses Tracker — standalone Google Sheets build.
+ * Ported from static/app.js + main.py/excel_io.py/rate_tracking.py: all
+ * rendering/theming/chart/filter/note logic below is unchanged from the
+ * server-backed version. What changed is only the data layer — instead of
+ * relative /api/* calls to a FastAPI backend reading .xlsx files, this
+ * talks directly to the Google Sheets REST API from the browser, gated by
+ * Google Sign-In. See the setup comment block at the very top of this
+ * file for one-time Google Cloud configuration.
+ */
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONFIG — hardcoded (previously served by GET /api/config from
+  // config.py). There's no server for this static build, so these are
+  // copied verbatim from config.py. Edit this object directly to change
+  // categories, rates, etc. — there is no in-app UI for it, same as today.
+  // ============================================================
+  const APP_CONFIG = {
+    base_currency: "ILS",
+    base_currency_symbol: "₪",
+    exchange_rates: {
+      EUR: 3.90,
+      USD: 3.65,
+      JPY: 0.024,
+    },
+    categories: [
+      "Meals", "Lodging", "Transport", "Flights", "Essentials", "Leisure",
+      "Clothing", "Cash Withdrawal", "Gifts for Others", "Gifts for Self",
+      "Fun", "Category MAI", "Mai Save", "Uncategorized",
+    ],
+    monitored_categories: ["Fun", "Category MAI", "Leisure"],
+    default_time_range: "All trip",
+  };
+
+  // ============================================================
+  // GOOGLE SHEETS + SIGN-IN — replaces the /api/* calls the old backend
+  // served, using the Google Identity Services token model (no client
+  // secret — this is a static site).
+  // ============================================================
+  const CLIENT_ID = '1065291210789-1if7o28onefirphe5n92r2jl0l5crg3f.apps.googleusercontent.com';
+  // drive.metadata.readonly is only used to search for this app's own
+  // spreadsheet by name right after sign-in (read-only file *metadata* —
+  // titles/ids/timestamps — never file contents of anything outside this
+  // app's own sheet). All actual reads/writes still go through the
+  // spreadsheets scope alone.
+  const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly";
+  const REQUIRED_HEADERS = ["Date", "Amount", "Category", "Notes"];
+
+  // The one spreadsheet this app ever uses, identified purely by name in
+  // the signed-in user's own Drive — there is no "choose/paste a sheet"
+  // step at all. Signing in is sufficient identification; the app finds
+  // this by name or creates it automatically.
+  const DEFAULT_SPREADSHEET_TITLE = "Travel Expenses";
+
+  // A single reserved sheet tab (not a per-trip tab) holding one row per
+  // trip: its note and its base currency. Its header row never matches
+  // REQUIRED_HEADERS, so getTrips()'s existing header-check already keeps
+  // it out of the trip dropdown with no special-casing needed.
+  const METADATA_SHEET_NAME = "_Metadata";
+  const METADATA_HEADERS = ["Trip Name", "Notes", "Currency"];
+
+  function isReservedTripName(name) {
+    return (name || "").trim().toLowerCase() === METADATA_SHEET_NAME.toLowerCase();
+  }
+
+  const SPREADSHEET_ID_KEY = "travel_expenses_spreadsheet_id";
+
+  let tokenClient = null;
+  let accessToken = null;        // in-memory only — never persisted
+  let pendingTokenResolve = null;
+  let refreshInFlight = null;
+  let spreadsheetId = localStorage.getItem(SPREADSHEET_ID_KEY);
+  const tripHeaderMapCache = {}; // trip name -> { headerName: columnIndex }
+
+  function initGoogleAuth() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SHEETS_SCOPE,
+      callback: (resp) => {
+        if (resp && resp.access_token) {
+          accessToken = resp.access_token;
+          hideConnectionBanner();
+        }
+        if (pendingTokenResolve) {
+          const resolve = pendingTokenResolve;
+          pendingTokenResolve = null;
+          resolve(!!(resp && resp.access_token));
+        }
+      },
+      // Fires instead of callback when the request never gets a response at
+      // all — e.g. the pop-up was blocked outright, or the user closed it.
+      // Without this, that case left pendingTokenResolve stuck forever (the
+      // awaiting caller's UI just hung with no feedback). Only resolves the
+      // pending promise here — the caller (onSetupSignIn / onReconnectClick)
+      // already has its own context-appropriate failure handling for
+      // ok === false, so showing a second, generic message here would be
+      // redundant at best and wrong-context at worst.
+      error_callback: (err) => {
+        console.warn('Google auth failed:', err);
+        if (pendingTokenResolve) {
+          const resolve = pendingTokenResolve;
+          pendingTokenResolve = null;
+          resolve(false);
+        }
+      },
+    });
+  }
+
+  // Wraps a single requestAccessToken() call in a promise resolved by the
+  // tokenClient's one shared callback above (GIS supports only one
+  // callback per client, so every caller — sign-in button, reconnect
+  // button, silent 401 refresh — goes through this same choke point).
+  function requestToken(promptMode) {
+    return new Promise((resolve) => {
+      pendingTokenResolve = resolve;
+      tokenClient.requestAccessToken({ prompt: promptMode });
+    });
+  }
+
+  function silentTokenRefresh() {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = requestToken("").finally(() => { refreshInFlight = null; });
+    return refreshInFlight;
+  }
+
+  function authFailureError(message) {
+    const err = new Error(message);
+    err.authFailure = true;
+    return err;
+  }
+
+  // ---- Sheets REST helpers ----
+
+  function a1Range(sheetName, cells) {
+    const quoted = `'${sheetName.replace(/'/g, "''")}'`;
+    return cells ? `${quoted}!${cells}` : quoted;
+  }
+
+  function sheetsSpreadsheetUrl(path) {
+    return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}${path}`;
+  }
+
+  // Every Sheets call goes through here: attaches the bearer token, and on
+  // a 401 (missing/expired token) tries one silent refresh before giving
+  // up and surfacing an authFailure error. The same 401 handling covers
+  // both "never had a token yet" (page just loaded, nothing persisted)
+  // and "token expired mid-session" (~1hr) — both look identical to the
+  // API, so one code path handles both.
+  async function sheetsFetch(url, options) {
+    options = options || {};
+    const doFetch = () => fetch(url, {
+      ...options,
+      headers: { ...(options.headers || {}), Authorization: `Bearer ${accessToken || ""}` },
+    });
+
+    let res = await doFetch();
+    if (res.status === 401) {
+      const refreshed = await silentTokenRefresh();
+      if (refreshed) res = await doFetch();
+    }
+    if (res.status === 401) {
+      showConnectionBanner("Google connection expired.", "Reconnect to Google", onReconnectClick);
+      throw authFailureError("Google session expired. Please reconnect.");
+    }
+
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* no body */ }
+    if (!res.ok) {
+      const message = (body && body.error && body.error.message) || `Sheets request failed (${res.status})`;
+      throw new Error(message);
+    }
+    return body;
+  }
+
+  const sheetsGet = (path, extra) => sheetsFetch(sheetsSpreadsheetUrl(path), { method: "GET", ...(extra || {}) });
+
+  async function createSpreadsheet() {
+    const doCreate = () => fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken || ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: { title: DEFAULT_SPREADSHEET_TITLE } }),
+    });
+    let res = await doCreate();
+    if (res.status === 401) {
+      const refreshed = await silentTokenRefresh();
+      if (refreshed) res = await doCreate();
+    }
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      if (res.status === 401) throw authFailureError("Google session expired. Please reconnect.");
+      throw new Error((body && body.error && body.error.message) || `Request failed (${res.status})`);
+    }
+    return body.spreadsheetId;
+  }
+
+  // Looks up this app's own spreadsheet by its canonical name in the
+  // signed-in user's Drive (the Sheets API itself has no "list my
+  // spreadsheets" endpoint) — this plus createSpreadsheet() above is the
+  // entire "which sheet" story: no URL to paste, no picker. Signing in is
+  // the only identification needed. If more than one match somehow exists
+  // (e.g. leftovers from testing), the most recently modified one is used
+  // — deterministic, no prompt.
+  async function findDefaultSpreadsheet() {
+    const q = encodeURIComponent(
+      `name = '${DEFAULT_SPREADSHEET_TITLE.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`
+    );
+    const fields = encodeURIComponent("files(id,name,modifiedTime)");
+    const doList = () => fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=modifiedTime desc`,
+      { headers: { Authorization: `Bearer ${accessToken || ""}` } }
+    );
+    let res = await doList();
+    if (res.status === 401) {
+      const refreshed = await silentTokenRefresh();
+      if (refreshed) res = await doList();
+    }
+    if (!res.ok) {
+      // A failed search is NOT the same as a confirmed "nothing found" —
+      // treating them the same is what caused every failed search (Drive
+      // API not yet enabled, scope not granted, a network blip) to fall
+      // through to createSpreadsheet() and mint a brand new duplicate.
+      // Throwing here instead means autoConnectSpreadsheet() stops and
+      // surfaces the real error/Retry button — a spreadsheet only ever
+      // gets created after a search that actually completed and
+      // genuinely came back empty.
+      const body = await res.json().catch(() => null);
+      const message = (body && body.error && body.error.message) || `Drive search failed (${res.status})`;
+      throw new Error(`Couldn't check for an existing spreadsheet: ${message}`);
+    }
+    const body = await res.json().catch(() => null);
+    const files = (body && body.files) || [];
+    return files.length > 0 ? files[0].id : null;
+  }
+
+  function headerIndexMap(headerRow) {
+    const map = {};
+    (headerRow || []).forEach((h, i) => {
+      if (h !== undefined && h !== null && String(h).trim() !== "") map[String(h).trim()] = i;
+    });
+    return map;
+  }
+
+  function missingHeaders(map, required) {
+    return (required || REQUIRED_HEADERS).filter((h) => !(h in map));
+  }
+
+  async function getTripHeaderMap(trip, forceRefresh) {
+    if (!forceRefresh && tripHeaderMapCache[trip]) return tripHeaderMapCache[trip];
+    const range = encodeURIComponent(a1Range(trip, "1:1"));
+    const data = await sheetsGet(`/values/${range}`);
+    const map = headerIndexMap((data.values || [])[0] || []);
+    const missing = missingHeaders(map);
+    if (missing.length) {
+      throw new Error(`'${trip}' is missing required column(s): ${missing.join(", ")}`);
+    }
+    tripHeaderMapCache[trip] = map;
+    return map;
+  }
+
+  // ---- API surface (same function names/shapes the rendering code below
+  // already calls — only the implementation changed from fetch("/api/...")
+  // to direct Sheets REST calls) ----
+
+  async function getConfig() {
+    return APP_CONFIG;
+  }
+
+  async function getTrips() {
+    const meta = await sheetsGet("?fields=" + encodeURIComponent("sheets.properties.title"));
+    const titles = (meta.sheets || []).map((s) => s.properties.title);
+    if (titles.length === 0) return { trips: [] };
+
+    // One batchGet across every tab's header row — a tab that doesn't
+    // pass the required-header check (e.g. the spreadsheet's original
+    // default tab) is silently excluded, mirroring list_trips() only
+    // globbing *.xlsx files today with no special-casing needed.
+    const rangesQs = titles.map((t) => `ranges=${encodeURIComponent(a1Range(t, "1:1"))}`).join("&");
+    const batch = await sheetsGet(`/values:batchGet?${rangesQs}`);
+    const valueRanges = batch.valueRanges || [];
+
+    const trips = [];
+    titles.forEach((title, i) => {
+      const row = (valueRanges[i] && valueRanges[i].values && valueRanges[i].values[0]) || [];
+      const map = headerIndexMap(row);
+      if (missingHeaders(map).length === 0) {
+        tripHeaderMapCache[title] = map; // warm the cache so selectTrip won't need a second header fetch
+        trips.push(title);
+      }
+    });
+    trips.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    return { trips };
+  }
+
+  async function createTripApi(name, currency) {
+    if (isReservedTripName(name)) {
+      throw new Error(`'${name}' is a reserved name — choose a different trip name.`);
+    }
+    const meta = await sheetsGet("?fields=" + encodeURIComponent("sheets.properties.title"));
+    const titles = (meta.sheets || []).map((s) => s.properties.title);
+    if (titles.includes(name)) {
+      throw new Error(`Trip '${name}' already exists`);
+    }
+
+    // addSheet is atomic — two near-simultaneous creates of the same name
+    // can't both "succeed" and silently clobber one tab into the other;
+    // Sheets itself rejects a duplicate title.
+    await sheetsFetch(sheetsSpreadsheetUrl(":batchUpdate"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: name } } }] }),
+    });
+
+    const range = encodeURIComponent(a1Range(name, "A1:D1"));
+    await sheetsFetch(sheetsSpreadsheetUrl(`/values/${range}?valueInputOption=RAW`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [REQUIRED_HEADERS] }),
+    });
+
+    tripHeaderMapCache[name] = { Date: 0, Amount: 1, Category: 2, Notes: 3 };
+
+    // Trip names are already guaranteed unique above, so this is always a
+    // fresh append inside upsertMetadataRow, never the same-row update path.
+    await upsertMetadataRow(name, { currency, notes: "" });
+
+    return { name };
+  }
+
+  // Creates _Metadata (with its header row) the first time anything needs
+  // to write to it — same addSheet + header-write pattern createTripApi
+  // uses for a trip tab.
+  async function ensureMetadataSheet(titles, fetchOpts) {
+    fetchOpts = fetchOpts || {};
+    if (titles.includes(METADATA_SHEET_NAME)) return;
+    await sheetsFetch(sheetsSpreadsheetUrl(":batchUpdate"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: METADATA_SHEET_NAME } } }] }),
+      ...fetchOpts,
+    });
+    const range = encodeURIComponent(a1Range(METADATA_SHEET_NAME, "A1:C1"));
+    await sheetsFetch(sheetsSpreadsheetUrl(`/values/${range}?valueInputOption=RAW`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [METADATA_HEADERS] }),
+      ...fetchOpts,
+    });
+  }
+
+  // Reads the whole _Metadata tab into { [tripName]: { notes, currency } }.
+  // Returns {} (not an error) if the tab doesn't exist yet at all — no
+  // trip has ever had a note or a non-default currency saved, which is a
+  // perfectly normal state, not a broken one.
+  async function getMetadataMap() {
+    const meta = await sheetsGet("?fields=" + encodeURIComponent("sheets.properties.title"));
+    const titles = (meta.sheets || []).map((s) => s.properties.title);
+    if (!titles.includes(METADATA_SHEET_NAME)) return {};
+
+    const range = encodeURIComponent(a1Range(METADATA_SHEET_NAME));
+    const data = await sheetsGet(`/values/${range}`);
+    const rows = data.values || [];
+    if (rows.length === 0) return {};
+    const map = headerIndexMap(rows[0]);
+    if (missingHeaders(map, METADATA_HEADERS).length) return {}; // malformed — fail open to defaults, never block trip selection over it
+
+    const result = {};
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const tripName = row[map["Trip Name"]];
+      if (!tripName) continue;
+      const currencyVal = row[map["Currency"]];
+      result[String(tripName)] = {
+        notes: row[map["Notes"]] !== undefined ? String(row[map["Notes"]]) : "",
+        currency: currencyVal !== undefined && currencyVal !== "" ? String(currencyVal) : null,
+      };
+    }
+    return result;
+  }
+
+  // Upserts one trip's metadata row (only the given fields; anything
+  // omitted keeps its current value). Unlike postExpense/createTripApi —
+  // pure append, safe under concurrency because Sheets serializes appends
+  // — this is a genuine read-then-write: a note gets edited repeatedly
+  // over a trip's life, so it has to update the *same* row each time. The
+  // row lookup is always done fresh, immediately before the write (never
+  // a cached/stale row index), to keep that window as narrow as possible.
+  // Trade-off, accepted and disclosed: two tabs editing the *same trip's*
+  // note within the same instant could still last-write-wins clobber each
+  // other on that one row — there's no row-level lock available from
+  // client JS. Far narrower blast radius than a whole-file overwrite
+  // (one row, one trip, never another trip's data), and this app is
+  // single-user/Testing-mode, so real locking isn't built for it.
+  // Serializes every metadata write, regardless of caller (a trip-creation
+  // currency write and a note-save write are otherwise completely
+  // independent — each does its own read-existing-rows-then-write cycle
+  // with no knowledge of the other). Without this, two writes for the
+  // *same trip* that happen to overlap can both read "no row yet" and
+  // both append, producing two rows for one trip — silently breaking the
+  // "one row per trip" invariant everything else here assumes, since a
+  // later read just picks whichever duplicate happens to sort last.
+  // Chaining guarantees a later write's read always sees every earlier
+  // write's result already landed.
+  let metadataWriteChain = Promise.resolve();
+
+  function upsertMetadataRow(tripName, fields, opts) {
+    const run = () => upsertMetadataRowNow(tripName, fields, opts);
+    metadataWriteChain = metadataWriteChain.then(run, run);
+    return metadataWriteChain;
+  }
+
+  async function upsertMetadataRowNow(tripName, fields, opts) {
+    opts = opts || {};
+    const fetchOpts = opts.keepalive ? { keepalive: true } : {};
+
+    const meta = await sheetsGet("?fields=" + encodeURIComponent("sheets.properties.title"), fetchOpts);
+    const titles = (meta.sheets || []).map((s) => s.properties.title);
+    await ensureMetadataSheet(titles, fetchOpts);
+
+    const range = encodeURIComponent(a1Range(METADATA_SHEET_NAME));
+    const data = await sheetsGet(`/values/${range}`, fetchOpts);
+    const rows = data.values || [];
+    const map = rows.length ? headerIndexMap(rows[0]) : headerIndexMap(METADATA_HEADERS);
+
+    let matchedSheetRow = null; // 1-based sheet row number
+    let existing = { notes: "", currency: "" };
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][map["Trip Name"]] === tripName) {
+        matchedSheetRow = i + 1;
+        existing = { notes: rows[i][map["Notes"]] || "", currency: rows[i][map["Currency"]] || "" };
+        break;
+      }
+    }
+
+    const merged = {
+      notes: fields.notes !== undefined ? fields.notes : existing.notes,
+      currency: fields.currency !== undefined ? fields.currency : existing.currency,
+    };
+    const rowValues = [];
+    rowValues[map["Trip Name"]] = tripName;
+    rowValues[map["Notes"]] = merged.notes;
+    rowValues[map["Currency"]] = merged.currency;
+    for (let i = 0; i < rowValues.length; i++) if (rowValues[i] === undefined) rowValues[i] = "";
+
+    if (matchedSheetRow === null) {
+      const appendRange = encodeURIComponent(a1Range(METADATA_SHEET_NAME, "A1"));
+      await sheetsFetch(sheetsSpreadsheetUrl(`/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: [rowValues] }),
+        ...fetchOpts,
+      });
+    } else {
+      const updateRange = encodeURIComponent(a1Range(METADATA_SHEET_NAME, `${matchedSheetRow}:${matchedSheetRow}`));
+      await sheetsFetch(sheetsSpreadsheetUrl(`/values/${updateRange}?valueInputOption=RAW`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values: [rowValues] }),
+        ...fetchOpts,
+      });
+    }
+  }
+
+  // Tolerates a cell value that isn't a plain "YYYY-MM-DD" string (e.g. a
+  // hand-typed date in a pasted-in sheet, rendered back as a locale-
+  // formatted string) by passing it through unchanged — mirrors
+  // excel_io.py's _cell_to_iso_date(), which falls back to str(value) for
+  // anything that isn't already a recognized date type rather than trying
+  // to guess-parse it.
+  function cellToIsoDate(value) {
+    if (value === undefined || value === null || value === "") return "";
+    return String(value);
+  }
+
+  async function getExpenses(trip) {
+    const map = await getTripHeaderMap(trip);
+    // Whole-sheet read (no A1 cell range) so a header living outside A:D
+    // on a hand-edited sheet is still found — mirrors excel_io.py reading
+    // the full worksheet rather than assuming a fixed column block.
+    // UNFORMATTED_VALUE keeps Amount a plain number (not a locale-
+    // formatted "1,234.56" string with a comma parseFloat would choke on).
+    const range = encodeURIComponent(a1Range(trip));
+    const data = await sheetsGet(`/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`);
+    const rows = data.values || [];
+    const expenses = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const dateVal = row[map.Date];
+      const amountVal = row[map.Amount];
+      const dateEmpty = dateVal === undefined || dateVal === null || dateVal === "";
+      const amountEmpty = amountVal === undefined || amountVal === null || amountVal === "";
+      if (dateEmpty && amountEmpty) continue; // skip fully blank trailing rows
+      expenses.push({
+        date: cellToIsoDate(dateVal),
+        amount: amountEmpty ? 0 : (Number(amountVal) || 0),
+        category: row[map.Category] !== undefined ? String(row[map.Category]) : "",
+        notes: row[map.Notes] !== undefined ? String(row[map.Notes]) : "",
+      });
+    }
+    return { expenses };
+  }
+
+  // Appends one row via Sheets' native append endpoint — additive, never
+  // a full-range overwrite, so two tabs/devices writing at once can't
+  // clobber each other. This is the Sheets-native equivalent of
+  // excel_io.py's lock-protected load-modify-save, without needing a lock.
+  async function postExpense(trip, expense) {
+    const map = await getTripHeaderMap(trip);
+    const width = Math.max(map.Date, map.Amount, map.Category, map.Notes) + 1;
+    const row = new Array(width).fill("");
+    row[map.Date] = expense.date;
+    row[map.Amount] = expense.amount_base;
+    row[map.Category] = expense.category;
+    row[map.Notes] = expense.notes || "";
+
+    const range = encodeURIComponent(a1Range(trip, "A1"));
+    await sheetsFetch(sheetsSpreadsheetUrl(`/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [row] }),
+    });
+    return { ok: true };
+  }
+
+  // A few backed-off retries for transient failures (network blip, Sheets
+  // 5xx) — never for an authFailure, which needs the user to click
+  // Reconnect, not a background retry.
+  async function withRetry(fn, delaysMs) {
+    let lastErr;
+    for (let i = 0; i <= delaysMs.length; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        if (err.authFailure) throw err;
+        if (i < delaysMs.length) await new Promise((r) => setTimeout(r, delaysMs[i]));
+      }
+    }
+    throw lastErr;
+  }
+
+  // ---- Rate history — was rate_tracking.py's sync_on_startup(), run once
+  // server-side at boot. There's no server anymore, so it runs client-side
+  // on page load instead, against a localStorage-persisted history array
+  // seeded from the same values config/rates_history.json already had. ----
+
+  const RATE_HISTORY_KEY = "travel_expenses_rate_history";
+  const RATE_HISTORY_SEED = [
+    { date: "2026-07-05", currency: "EUR", rate: 3.9 },
+    { date: "2026-07-05", currency: "USD", rate: 3.65 },
+    { date: "2026-07-05", currency: "JPY", rate: 0.024 },
+  ];
+
+  function loadRateHistoryRaw() {
+    try {
+      const raw = localStorage.getItem(RATE_HISTORY_KEY);
+      if (raw === null) return null;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function syncRateHistoryOnLoad() {
+    let history = loadRateHistoryRaw();
+    const isFirstRun = history === null;
+    if (isFirstRun) history = RATE_HISTORY_SEED.slice();
+
+    const lastRate = {};
+    history.forEach((entry) => { lastRate[entry.currency] = entry.rate; });
+
+    const today = todayISO();
+    let changed = false;
+    Object.keys(APP_CONFIG.exchange_rates).forEach((currency) => {
+      const rate = APP_CONFIG.exchange_rates[currency];
+      if (lastRate[currency] !== rate) {
+        history.push({ date: today, currency, rate });
+        changed = true;
+      }
+    });
+
+    if (isFirstRun || changed) {
+      localStorage.setItem(RATE_HISTORY_KEY, JSON.stringify(history));
+    }
+  }
+
+  async function getRateHistory() {
+    return { history: loadRateHistoryRaw() || RATE_HISTORY_SEED.slice() };
+  }
+
+  const CURRENCY_SYMBOLS = { EUR: "€", USD: "$", JPY: "¥", GBP: "£" };
+  const THEME_STORAGE_KEY = "travel_expenses_theme"; // must match the inline script in <head> above
+
+  // A distinct, stable color per category (assigned once from appConfig.categories'
+  // order, not from whatever happens to have data in the current filter) so a
+  // category reads as the same color everywhere — chart, legend, donut — no
+  // matter which time range or trip is active.
+  const CATEGORY_COLORS_LIGHT = [
+    "#2f6fa8", "#0f9d68", "#c98a00", "#008300", "#4a3aa7", "#e34948", "#a83a82", "#eb6834",
+    "#0090a8", "#8a4a14", "#d1567a", "#7a8a1f", "#3f4fb0", "#d97a5c",
+  ];
+  const CATEGORY_COLORS_DARK = [
+    "#4a8ccb", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767", "#c94a9e", "#d95926",
+    "#1a9aad", "#c47a3a", "#d1698a", "#849c26", "#6b7ce0", "#c97650",
+  ];
+  let categoryColorMapLight = {};
+  let categoryColorMapDark = {};
+
+  function currentThemeName() {
+    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+
+  function categoryColor(cat) {
+    const dark = currentThemeName() === "dark";
+    const map = dark ? categoryColorMapDark : categoryColorMapLight;
+    if (map[cat]) return map[cat];
+    // Fallback for a category not in appConfig.categories (e.g. a stray value
+    // in the file) — deterministic so it stays the same color across renders.
+    const palette = dark ? CATEGORY_COLORS_DARK : CATEGORY_COLORS_LIGHT;
+    let hash = 0;
+    for (let i = 0; i < cat.length; i++) hash = (hash * 31 + cat.charCodeAt(i)) | 0;
+    return palette[Math.abs(hash) % palette.length];
+  }
+
+  function hexToRgba(hex, alpha) {
+    const h = (hex || "#000000").replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const n = parseInt(full, 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function getVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // Two animation speeds, used consistently across all three charts: a
+  // chart being created for the first time (new trip, first load) gets the
+  // slower, more deliberate grow-in — there's nothing on screen yet, so it
+  // reads as an entrance. A chart reacting to something the user just did
+  // (toggled a category, changed the range) gets the snappier one — it's
+  // already visible, and a slow animation there reads as lag, not polish.
+  const ENTRANCE_ANIMATION_MS = 500;
+  const UPDATE_ANIMATION_MS = 350;
+
+  // A thin dashed vertical rule at whichever bucket the tooltip is currently
+  // anchored to — without it, "index" hover mode (any of a dozen-plus lines,
+  // or a bar, near the cursor) leaves no visual confirmation of *which*
+  // bucket the shared tooltip is describing. Shared by both time charts;
+  // the donut has no x-axis, so it has no use for this.
+  const crosshairPlugin = {
+    id: "crosshair",
+    afterDraw(chart) {
+      const active = chart.tooltip && chart.tooltip.opacity > 0 ? chart.tooltip.getActiveElements() : [];
+      if (!active || !active.length) return;
+      const { ctx, chartArea } = chart;
+      const x = active[0].element.x;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = hexToRgba(getVar("--border-strong"), 0.9);
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    },
+  };
+
+  // ---- Global state ----
+  let appConfig = null;       // = APP_CONFIG (kept as a variable so the rest of this file reads identically to the server-backed version)
+  let activeTrip = null;      // string trip name
+  let activeTripCurrency = null;       // this trip's base currency (from _Metadata, falls back to appConfig.base_currency)
+  let activeTripCurrencySymbol = null; // matching display symbol for activeTripCurrency
+  let allExpenses = [];       // every expense for the active trip (unfiltered)
+  let currentRangeKey = "all";
+  let charts = { byCategory: null, total: null, donut: null };
+  let categoryVisibility = {}; // category -> bool (shown in the by-category chart)
+  let pinnedCategories = [];   // user-chosen categories shown as dashboard gauges
+
+  const el = (id) => document.getElementById(id);
+
+  // ---- Formatting helpers ----
+
+  function formatBase(amount) {
+    const n = Number(amount) || 0;
+    return `${activeTripCurrencySymbol} ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  }
+
+  // Standalone lookup (not dependent on activeTrip*) used to *set*
+  // activeTripCurrencySymbol itself in selectTrip() — currencySymbol()
+  // below can't be used for that, since it reads activeTripCurrency.
+  function symbolForCurrency(code) {
+    if (code === appConfig.base_currency) return appConfig.base_currency_symbol;
+    return CURRENCY_SYMBOLS[code] || code + " ";
+  }
+
+  function currencySymbol(code) {
+    if (code === activeTripCurrency) return activeTripCurrencySymbol;
+    return CURRENCY_SYMBOLS[code] || code + " ";
+  }
+
+  function isKnownCurrency(code) {
+    return code === appConfig.base_currency || Object.prototype.hasOwnProperty.call(appConfig.exchange_rates, code);
+  }
+
+  // appConfig.exchange_rates only gives rate-to-ILS per currency (ILS
+  // itself implicitly 1) — there's no direct table for, say, JPY->EUR.
+  // Every cross-currency conversion in this app (an expense logged in a
+  // currency other than the active trip's own) pivots through ILS.
+  function rateToILS(code) {
+    if (code === "ILS") return 1;
+    return appConfig.exchange_rates[code];
+  }
+
+  function convert(amount, fromCode, toCode) {
+    if (fromCode === toCode) return amount;
+    return (amount * rateToILS(fromCode)) / rateToILS(toCode);
+  }
+
+  function toISODate(d) {
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${yr}-${mo}-${day}`;
+  }
+
+  function todayISO() { return toISODate(new Date()); }
+
+  // ---- Init ----
+
+  async function init() {
+    initTheme();
+    initGoogleAuth();
+    appConfig = await getConfig();
+    categoryColorMapLight = {};
+    categoryColorMapDark = {};
+    appConfig.categories.forEach((cat, i) => {
+      categoryColorMapLight[cat] = CATEGORY_COLORS_LIGHT[i % CATEGORY_COLORS_LIGHT.length];
+      categoryColorMapDark[cat] = CATEGORY_COLORS_DARK[i % CATEGORY_COLORS_DARK.length];
+    });
+    pinnedCategories = loadPinnedCategories();
+    populateCategorySelect();
+    populateCurrencySelect();
+    wireStaticEvents();
+    syncRateHistoryOnLoad();
+
+    if (!spreadsheetId) {
+      el("setup-gate").hidden = false;
+      return;
+    }
+    try {
+      await refreshTripList();
+    } catch (err) {
+      // An authFailure already showed the reconnect banner (from inside
+      // sheetsFetch); any other error (bad/deleted spreadsheet id, no
+      // access) gets its own banner with a Disconnect escape hatch.
+      if (!err.authFailure) {
+        showConnectionBanner(err.message || "Could not load your spreadsheet.", "Disconnect", onDisconnectClick);
+      }
+    }
+  }
+
+  // ---- Theme (light / dark) — preference lives in localStorage only,
+  // never in the spreadsheet. ----
+
+  function systemPrefersDark() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+
+  function getStoredTheme() {
+    try { return localStorage.getItem(THEME_STORAGE_KEY); } catch (e) { return null; }
+  }
+
+  function storeTheme(theme) {
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* ignore */ }
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+
+  function initTheme() {
+    const stored = getStoredTheme();
+    applyTheme(stored || (systemPrefersDark() ? "dark" : "light"));
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+        if (getStoredTheme()) return; // user made an explicit choice — OS changes no longer apply
+        applyTheme(e.matches ? "dark" : "light");
+        rerenderChartsForTheme();
+      });
+    }
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    storeTheme(next);
+    rerenderChartsForTheme();
+  }
+
+  // Chart.js bakes computed CSS colors into each dataset at creation time, so
+  // a theme flip needs the charts torn down and redrawn to pick up the new
+  // palette — cheap here since renderAll() re-reads state already in memory.
+  function rerenderChartsForTheme() {
+    if (activeTrip && !el("dashboard").hidden) renderAll();
+  }
+
+  function loadPinnedCategories() {
+    const raw = localStorage.getItem("travel_expenses_pinned_categories");
+    if (raw === null) return [...appConfig.monitored_categories]; // first run: use config's default
+    try {
+      const stored = JSON.parse(raw);
+      if (Array.isArray(stored)) return stored.filter((c) => appConfig.categories.includes(c));
+    } catch (e) { /* fall through */ }
+    return [...appConfig.monitored_categories];
+  }
+
+  function savePinnedCategories(list) {
+    pinnedCategories = list;
+    localStorage.setItem("travel_expenses_pinned_categories", JSON.stringify(list));
+  }
+
+  function populateCategorySelect() {
+    const sel = el("expense-category");
+    sel.innerHTML = "";
+    for (const cat of appConfig.categories) {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      sel.appendChild(opt);
+    }
+  }
+
+  function populateCurrencyOptions(selectEl) {
+    selectEl.innerHTML = "";
+    const baseOpt = document.createElement("option");
+    baseOpt.value = appConfig.base_currency;
+    baseOpt.textContent = appConfig.base_currency;
+    selectEl.appendChild(baseOpt);
+    for (const code of Object.keys(appConfig.exchange_rates)) {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = code;
+      selectEl.appendChild(opt);
+    }
+  }
+
+  function populateCurrencySelect() {
+    populateCurrencyOptions(el("expense-currency"));
+    populateCurrencyOptions(el("new-trip-currency"));
+    el("new-trip-currency").value = appConfig.base_currency;
+  }
+
+  async function refreshTripList() {
+    const { trips } = await getTrips();
+    const sel = el("trip-select");
+    sel.innerHTML = "";
+    for (const name of trips) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    }
+    const newOpt = document.createElement("option");
+    newOpt.value = "__new__";
+    newOpt.textContent = "+ New trip";
+    sel.appendChild(newOpt);
+
+    if (trips.length === 0) {
+      el("empty-state").hidden = false;
+      el("dashboard").hidden = true;
+      el("add-expense-btn").hidden = true;
+      return;
+    }
+
+    el("empty-state").hidden = true;
+    el("add-expense-btn").hidden = false;
+
+    const stored = localStorage.getItem("travel_expenses_active_trip");
+    const toSelect = trips.includes(stored) ? stored : trips[0];
+    sel.value = toSelect;
+    await selectTrip(toSelect);
+  }
+
+  async function selectTrip(name) {
+    flushTripNote(); // save any pending edit for the trip being left, before its note gets overwritten below
+    activeTrip = name;
+    localStorage.setItem("travel_expenses_active_trip", name);
+    el("trip-select").value = name;
+    allExpenses = (await getExpenses(name)).expenses;
+
+    const metadataMap = await getMetadataMap();
+    const meta = metadataMap[name] || {};
+    activeTripCurrency = meta.currency && isKnownCurrency(meta.currency) ? meta.currency : appConfig.base_currency;
+    activeTripCurrencySymbol = symbolForCurrency(activeTripCurrency);
+    el("trip-note-input").value = meta.notes || "";
+    el("note-error").classList.remove("visible");
+
+    categoryVisibility = {};
+    const allCats = new Set(appConfig.categories);
+    allExpenses.forEach((e) => allCats.add(e.category));
+    for (const cat of allCats) categoryVisibility[cat] = true;
+    el("dashboard").hidden = false;
+    renderAll();
+  }
+
+  // ---- Trip note (one free-text note per trip) — lives in the _Metadata
+  // sheet (Notes column), so it syncs across devices instead of being
+  // stuck to whichever browser it was typed in, and survives a refresh
+  // that lands inside the save debounce window (see flushTripNote below —
+  // that race is exactly what caused notes to go missing before). ----
+
+  let noteSaveTimer = null;
+  let noteHintTimer = null;
+  let pendingNoteTrip = null; // which trip the debounced save below belongs to
+  let pendingNoteText = null; // its text, captured at keystroke time
+
+  // Serializes every note write. upsertMetadataRow() does its own
+  // independent read-current-row-then-write cycle each call — if a pause
+  // mid-typing triggers an early autosave for a *partial* note, and the
+  // user then keeps typing and navigates away quickly, a second save (for
+  // the fuller text) could start before that first one's write actually
+  // lands on the sheet. With no ordering guarantee between two independent
+  // read/write cycles, the stale (shorter) save could land *after* the
+  // fresh one and silently clobber it — this is what caused "only one
+  // word saved" after typing two. Chaining through one promise guarantees
+  // a later save's read can only begin once the earlier save's write has
+  // fully finished, so the most recent edit always wins.
+  let noteSaveChain = Promise.resolve();
+
+  function saveTripNoteNow(tripName, text, opts) {
+    const run = () => doSaveTripNote(tripName, text, opts);
+    noteSaveChain = noteSaveChain.then(run, run);
+    return noteSaveChain;
+  }
+
+  // Actually performs the write. `opts.keepalive` marks a best-effort save
+  // fired from a page-unload handler: it can't be awaited for UI feedback
+  // (the page may already be gone by the time any response arrives), so it
+  // skips the retry loop and the Saved/error UI entirely and just gives
+  // the browser the best chance of finishing the request in the
+  // background via fetch's keepalive flag.
+  async function doSaveTripNote(tripName, text, opts) {
+    opts = opts || {};
+    if (opts.keepalive) {
+      try { await upsertMetadataRow(tripName, { notes: text }, { keepalive: true }); } catch (e) { /* best effort only */ }
+      return;
+    }
+    try {
+      await withRetry(() => upsertMetadataRow(tripName, { notes: text }), [2000, 6000]);
+      if (tripName === activeTrip) {
+        el("note-error").classList.remove("visible");
+        const hint = el("note-saved-hint");
+        hint.classList.add("visible");
+        clearTimeout(noteHintTimer);
+        noteHintTimer = setTimeout(() => hint.classList.remove("visible"), 1200);
+      }
+    } catch (err) {
+      // The textarea itself is never touched — whatever the user typed
+      // stays on screen; only the "Saved" confirmation is withheld,
+      // replaced with an inline error, matching the standard the rest of
+      // this app holds saves to (never silently discard typed data).
+      if (tripName === activeTrip) {
+        showError(el("note-error"), "Couldn't save note: " + err.message);
+      }
+    }
+  }
+
+  // Debounced autosave has a real window where a save is typed but not yet
+  // written: a page refresh (or a trip switch) inside that ~400ms gap used
+  // to lose the keystrokes entirely, because the pending setTimeout is
+  // simply discarded on navigation, and — separately — reading `activeTrip`
+  // fresh inside the timeout callback could pick up whatever trip was
+  // switched *to* by the time it fired, not the one the edit belonged to.
+  // Fixed two ways: pendingNoteTrip/pendingNoteText capture which trip's
+  // edit this is and what it says at keystroke time, and flushTripNote()
+  // lets every "about to lose this" moment (leaving the field, switching
+  // trips, the tab hiding, the page unloading) write immediately instead
+  // of waiting out the debounce.
+  function flushTripNote(opts) {
+    if (noteSaveTimer === null) return;
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer = null;
+    if (pendingNoteTrip !== null) {
+      const trip = pendingNoteTrip;
+      const text = pendingNoteText;
+      pendingNoteTrip = null;
+      pendingNoteText = null;
+      saveTripNoteNow(trip, text, opts);
+    }
+  }
+
+  function scheduleSaveTripNote() {
+    if (!activeTrip) return;
+    el("note-error").classList.remove("visible");
+    pendingNoteTrip = activeTrip;
+    pendingNoteText = el("trip-note-input").value;
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer = setTimeout(() => {
+      noteSaveTimer = null;
+      const trip = pendingNoteTrip;
+      const text = pendingNoteText;
+      pendingNoteTrip = null;
+      pendingNoteText = null;
+      saveTripNoteNow(trip, text);
+    }, 400);
+  }
+
+  // ---- Time range ----
+
+  function startOfISOWeek(d) {
+    const day = (d.getDay() + 6) % 7; // Monday=0 .. Sunday=6
+    const monday = new Date(d);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(d.getDate() - day);
+    return monday;
+  }
+
+  function currentRangeBounds() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (currentRangeKey === "week") {
+      const from = startOfISOWeek(today);
+      const to = new Date(from);
+      to.setDate(from.getDate() + 6);
+      return { from: toISODate(from), to: toISODate(to) };
+    }
+    if (currentRangeKey === "last7") {
+      const from = new Date(today);
+      from.setDate(today.getDate() - 6);
+      return { from: toISODate(from), to: toISODate(today) };
+    }
+    if (currentRangeKey === "custom") {
+      const from = el("custom-from").value || null;
+      const to = el("custom-to").value || null;
+      return { from, to };
+    }
+    return { from: null, to: null }; // "all"
+  }
+
+  function filteredExpenses() {
+    const { from, to } = currentRangeBounds();
+    return allExpenses.filter((e) => {
+      if (from && e.date < from) return false;
+      if (to && e.date > to) return false;
+      return true;
+    });
+  }
+
+  function rangeDayCount(expenses) {
+    const { from, to } = currentRangeBounds();
+    if (from && to) {
+      const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+      return Math.max(days, 1);
+    }
+    if (expenses.length === 0) return 1;
+    const dates = expenses.map((e) => e.date).sort();
+    const span = Math.round((new Date(dates[dates.length - 1]) - new Date(dates[0])) / 86400000) + 1;
+    return Math.max(span, 1);
+  }
+
+  // ---- Aggregation helpers ----
+
+  function totalsByCategory(expenses) {
+    const totals = {};
+    for (const e of expenses) {
+      totals[e.category] = (totals[e.category] || 0) + e.amount;
+    }
+    return totals;
+  }
+
+  // ---- Time bucketing ----
+  //
+  // The chart's x-axis must cover every day (or month/year, for a long trip)
+  // in the range — not just the dates that happen to have an expense. A
+  // labels-from-distinct-expense-dates axis draws equal spacing between a
+  // 1-day gap and a 20-day gap, which is what made a burst of receipts look
+  // like a crowded zigzag and a quiet stretch collapse to nothing. Zero-fill
+  // (not null) for an empty bucket, since every bucket in the range now
+  // genuinely exists — there's no "gap" left to bridge.
+  function dateFromISO(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function isoFromParts(y, m, d) {
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  // Auto-granularity fallback — not currently used by either time chart
+  // (both now force a fixed resolution, see bucketedTotalsByCategory/
+  // bucketedTotals below), kept here in case a future chart wants it.
+  function determineGranularity(fromISO, toISO) {
+    const spanDays = Math.round((dateFromISO(toISO) - dateFromISO(fromISO)) / 86400000) + 1;
+    if (spanDays <= 45) return "daily";
+    if (spanDays <= 180) return "weekly";
+    if (spanDays <= 730) return "monthly";
+    return "yearly";
+  }
+
+  function buildBuckets(fromISO, toISO, granularity) {
+    const buckets = [];
+    if (granularity === "daily") {
+      let d = dateFromISO(fromISO);
+      const end = dateFromISO(toISO);
+      while (d <= end) {
+        const iso = isoFromParts(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        buckets.push({ key: iso, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      }
+    } else if (granularity === "weekly") {
+      // Trip-relative 7-day chunks starting at `from`, not calendar weeks —
+      // a trip doesn't care that a week "should" start on Monday, and this
+      // avoids a lopsided partial first/last calendar week.
+      let d = dateFromISO(fromISO);
+      const end = dateFromISO(toISO);
+      let i = 0;
+      while (d <= end) {
+        buckets.push({ key: `w${i}`, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+        i++;
+      }
+    } else if (granularity === "monthly") {
+      let [fy, fm] = fromISO.split("-").map(Number);
+      const [ty, tm] = toISO.split("-").map(Number);
+      while (fy < ty || (fy === ty && fm <= tm)) {
+        const key = `${fy}-${String(fm).padStart(2, "0")}`;
+        const label = new Date(fy, fm - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        buckets.push({ key, label });
+        fm++; if (fm > 12) { fm = 1; fy++; }
+      }
+    } else {
+      let fy = parseInt(fromISO.split("-")[0], 10);
+      const ty = parseInt(toISO.split("-")[0], 10);
+      while (fy <= ty) { buckets.push({ key: String(fy), label: String(fy) }); fy++; }
+    }
+    return buckets;
+  }
+
+  function bucketKeyForDate(dateISO, granularity, fromISO) {
+    if (granularity === "daily") return dateISO;
+    if (granularity === "weekly") {
+      const days = Math.round((dateFromISO(dateISO) - dateFromISO(fromISO)) / 86400000);
+      return `w${Math.floor(days / 7)}`;
+    }
+    if (granularity === "monthly") return dateISO.slice(0, 7);
+    return dateISO.slice(0, 4);
+  }
+
+  // `forcedGranularity` overrides the auto-selection below — the two time
+  // charts intentionally show the *same* range at two different fixed
+  // resolutions (by-category always daily, total always weekly), not
+  // whatever the trip's own length would auto-pick. Auto-selection is still
+  // here as the fallback for a hypothetical future chart that wants it.
+  function computeBuckets(expenses, forcedGranularity) {
+    if (expenses.length === 0) return { labels: [], buckets: [], indexByKey: new Map(), granularity: "daily", from: null };
+    const isoDates = expenses.map((e) => e.date);
+    const from = isoDates.reduce((a, b) => (a < b ? a : b));
+    const to = isoDates.reduce((a, b) => (a > b ? a : b));
+    const granularity = forcedGranularity || determineGranularity(from, to);
+    const buckets = buildBuckets(from, to, granularity);
+    const labels = buckets.map((b) => b.label);
+    const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
+    return { labels, buckets, indexByKey, granularity, from };
+  }
+
+  // Always daily, regardless of trip length — the per-category trend is
+  // the one place day-to-day texture actually matters (spotting exactly
+  // which day a category spiked), so this chart never auto-collapses to
+  // weekly/monthly the way the total chart does.
+  function bucketedTotalsByCategory(expenses) {
+    const { labels, buckets, indexByKey, granularity, from } = computeBuckets(expenses, "daily");
+    const categories = Array.from(new Set(expenses.map((e) => e.category)));
+    const series = {};
+    for (const cat of categories) series[cat] = buckets.map(() => 0);
+    expenses.forEach((e) => {
+      const idx = indexByKey.get(bucketKeyForDate(e.date, granularity, from));
+      if (idx !== undefined) series[e.category][idx] += e.amount;
+    });
+    return { labels, series };
+  }
+
+  // Always weekly — one level coarser than the by-category chart on
+  // purpose, since this one is read as an overall trend line, not a
+  // day-by-day drilldown.
+  function bucketedTotals(expenses) {
+    const { labels, buckets, indexByKey, granularity, from } = computeBuckets(expenses, "weekly");
+    const totals = buckets.map(() => 0);
+    expenses.forEach((e) => {
+      const idx = indexByKey.get(bucketKeyForDate(e.date, granularity, from));
+      if (idx !== undefined) totals[idx] += e.amount;
+    });
+    return { labels, totals };
+  }
+
+  // ---- Rendering ----
+
+  function renderAll() {
+    const dateFiltered = filteredExpenses();
+    const visible = dateFiltered.filter((e) => categoryVisibility[e.category] !== false);
+    renderCategoryFilterPills(el("legend-by-category"));
+    renderCategoryFilterPills(el("table-category-filter"));
+    renderSummary(visible);
+    renderGauges(visible);
+    renderCharts(dateFiltered, visible);
+    renderTable(visible);
+  }
+
+  // Every category the trip has ever used (config order first, then any
+  // stray values found in the sheet) — stable regardless of the current time
+  // range, so a category never disappears from the filter just because it
+  // has no rows in the selected window.
+  function categoryFilterList() {
+    const extras = Object.keys(categoryVisibility)
+      .filter((c) => !appConfig.categories.includes(c))
+      .sort();
+    return [...appConfig.categories, ...extras];
+  }
+
+  // Shared by both the chart legend and the expense-table filter row — they
+  // toggle the same categoryVisibility state, so acting on either stays in
+  // sync with the other and re-renders the whole dashboard (table, totals,
+  // donut, gauges), not just the one chart.
+  function renderCategoryFilterPills(container) {
+    container.innerHTML = "";
+    categoryFilterList().forEach((cat) => {
+      const badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "legend-badge" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      badge.title = "Click to toggle · double-click to show only this category";
+      badge.innerHTML = `<span class="swatch" style="background:${categoryColor(cat)}"></span>${escapeHtml(cat)}`;
+      attachCategoryToggle(badge, cat);
+      container.appendChild(badge);
+    });
+  }
+
+  // Shows only `cat` (hides every other category); double-clicking the
+  // already-isolated category again restores all of them, so solo mode is
+  // never a dead end — you don't have to re-enable every category by hand.
+  function soloCategory(cat) {
+    const isolated = categoryFilterList().every((c) => (categoryVisibility[c] !== false) === (c === cat));
+    categoryFilterList().forEach((c) => { categoryVisibility[c] = isolated ? true : c === cat; });
+    renderAll();
+  }
+
+  // A single click toggles just this category. A double-click should solo
+  // it instead — but the browser fires two "click" events before "dblclick",
+  // so a plain click listener would flip this category on/off/on again first.
+  // Defer the single-click action briefly; a second click within the window
+  // cancels it and lets the dblclick handler take over.
+  function attachCategoryToggle(element, cat) {
+    let pending = null;
+    element.addEventListener("click", () => {
+      if (pending) { clearTimeout(pending); pending = null; return; }
+      pending = setTimeout(() => {
+        pending = null;
+        categoryVisibility[cat] = categoryVisibility[cat] === false ? true : false;
+        renderAll();
+      }, 250);
+    });
+    element.addEventListener("dblclick", () => {
+      if (pending) { clearTimeout(pending); pending = null; }
+      soloCategory(cat);
+    });
+  }
+
+  function renderSummary(expenses) {
+    const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const days = rangeDayCount(expenses);
+    el("summary-total").textContent = formatBase(total);
+    el("summary-count").textContent = `${expenses.length} expense${expenses.length === 1 ? "" : "s"}`;
+    el("summary-avg").textContent = `${formatBase(total / days)} / day`;
+  }
+
+  function renderGauges(expenses) {
+    const grid = el("gauges-grid");
+    grid.innerHTML = "";
+
+    if (pinnedCategories.length === 0) {
+      grid.innerHTML = `<div class="gauges-empty">No categories pinned yet — click "Pin categories" to choose some.</div>`;
+      return;
+    }
+
+    const rangeTotals = totalsByCategory(expenses);
+    const allTimeTotals = totalsByCategory(allExpenses);
+
+    for (const cat of pinnedCategories) {
+      const value = rangeTotals[cat] || 0;
+      const max = Math.max(
+        allTimeTotals[cat] || 0,
+        ...pinnedCategories.map((c) => allTimeTotals[c] || 0)
+      ) || 1;
+      const pct = Math.min(100, (value / max) * 100);
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <div class="gauge-name">${escapeHtml(cat)}</div>
+        <div class="gauge-value tabular-nums">${formatBase(value)}</div>
+        <div class="gauge-track"><div class="gauge-fill" style="width:${pct}%;"></div></div>
+      `;
+      grid.appendChild(wrap);
+    }
+  }
+
+  // Re-applies the theme-dependent (CSS-variable-driven) colors on an
+  // existing chart's scales. Needed because updating a chart in place
+  // (see below) reuses the options object set at creation — without this,
+  // a light/dark toggle would leave stale tick/grid colors until the next
+  // full page reload.
+  function refreshChartThemeColors(chart) {
+    const scales = chart.options.scales;
+    if (scales) {
+      if (scales.x && scales.x.ticks) scales.x.ticks.color = getVar("--text-muted");
+      if (scales.y) {
+        if (scales.y.ticks) scales.y.ticks.color = getVar("--text-muted");
+        if (scales.y.grid) scales.y.grid.color = hexToRgba(getVar("--border-strong"), 0.5);
+      }
+    }
+    // Tooltip colors are read from CSS vars at chart *creation* time only —
+    // charts are updated in place on a theme flip (not torn down), so without
+    // this the tooltip keeps rendering in the old theme's colors.
+    const tooltip = chart.options.plugins && chart.options.plugins.tooltip;
+    if (tooltip) {
+      tooltip.backgroundColor = getVar("--panel");
+      tooltip.borderColor = hexToRgba(getVar("--border-strong"), 0.6);
+      tooltip.titleColor = getVar("--text-muted");
+      tooltip.bodyColor = getVar("--text");
+    }
+  }
+
+  // dateFiltered: date-range-only, used for the by-category chart so every
+  // category with data in the current range keeps a toggleable line (Chart.js
+  // `hidden` handles show/hide). visible: date range + category filter
+  // applied, used for everything that should actually react to the filter.
+  function renderCharts(dateFiltered, visible) {
+    renderByCategoryChart(dateFiltered);
+    renderTotalChart(visible);
+    renderDonutChart(visible);
+  }
+
+  // Every render* chart function below updates an existing Chart.js instance
+  // in place (mutate data/options, then chart.update()) rather than
+  // destroying and recreating it, so category toggles / range changes /
+  // filter clicks animate smoothly instead of flickering to a blank canvas.
+
+  function renderByCategoryChart(expenses) {
+    const { labels, series } = bucketedTotalsByCategory(expenses);
+    const categories = categoryFilterList().filter((cat) => cat in series);
+
+    const datasets = categories.map((cat) => ({
+      label: cat,
+      data: series[cat],
+      borderColor: categoryColor(cat),
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: 0.25,
+      hidden: categoryVisibility[cat] === false,
+    }));
+
+    if (charts.byCategory) {
+      const chart = charts.byCategory;
+      chart.data.labels = labels;
+      chart.data.datasets = datasets;
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
+      refreshChartThemeColors(chart);
+      chart.update();
+      return;
+    }
+
+    const ctx = el("chart-by-category").getContext("2d");
+    charts.byCategory = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets },
+      options: timeChartOptions(),
+      plugins: [crosshairPlugin],
+    });
+  }
+
+  // A filled line, one level coarser (weekly) than the by-category chart's
+  // daily buckets — this one is read as an overall trend, not a day-by-day
+  // drilldown.
+  function renderTotalChart(expenses) {
+    const { labels, totals } = bucketedTotals(expenses);
+
+    if (charts.total) {
+      const chart = charts.total;
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = totals;
+      chart.data.datasets[0].borderColor = getVar("--spend");
+      chart.data.datasets[0].backgroundColor = getVar("--spend-bg");
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
+      refreshChartThemeColors(chart);
+      chart.update();
+      return;
+    }
+
+    const ctx = el("chart-total").getContext("2d");
+    charts.total = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Total",
+          data: totals,
+          borderColor: getVar("--spend"),
+          backgroundColor: getVar("--spend-bg"),
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          tension: 0.25,
+        }],
+      },
+      options: timeChartOptions(),
+      plugins: [crosshairPlugin],
+    });
+  }
+
+  // Draws the center "total" text directly on the canvas at Chart.js's own
+  // computed chartArea center — always exactly centered on the ring no
+  // matter the card's aspect ratio. Reads `centerText` (a mutable object)
+  // each draw, so an in-place chart.update() can change the displayed total
+  // just by mutating centerText.amount before calling update().
+  function makeDonutCenterPlugin(centerText) {
+    return {
+      id: "donutCenterText",
+      afterDraw(chart) {
+        const { ctx, chartArea } = chart;
+        const cx = (chartArea.left + chartArea.right) / 2;
+        const cy = (chartArea.top + chartArea.bottom) / 2;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = getVar("--text");
+        ctx.font = `700 23px ${getVar("--font-sans")}`;
+        ctx.fillText(centerText.amount, cx, cy - 12);
+        ctx.fillStyle = getVar("--text-muted");
+        ctx.font = `600 11px ${getVar("--font-sans")}`;
+        ctx.fillText(centerText.caption.toUpperCase(), cx, cy + 15);
+        ctx.restore();
+      },
+    };
+  }
+
+  function renderDonutChart(expenses) {
+    const totals = totalsByCategory(expenses);
+    // Fixed, canonical order (not object-key insertion order) — otherwise
+    // toggling a category reshuffles everyone else's slice position instead
+    // of just growing/shrinking in place.
+    const categories = categoryFilterList().filter((cat) => cat in totals);
+    const values = categories.map((c) => totals[c]);
+    const grandTotal = values.reduce((a, b) => a + b, 0);
+
+    if (charts.donut) {
+      const chart = charts.donut;
+      chart.data.labels = categories;
+      chart.data.datasets[0].data = values;
+      chart.data.datasets[0].backgroundColor = categories.map((cat) => categoryColor(cat));
+      chart.data.datasets[0].borderColor = getVar("--panel");
+      chart.data.datasets[0].hoverBorderColor = getVar("--panel");
+      chart.$centerText.amount = formatBase(grandTotal);
+      chart.options.animation.duration = UPDATE_ANIMATION_MS;
+      refreshChartThemeColors(chart);
+      chart.update();
+    } else {
+      const ctx = el("chart-donut").getContext("2d");
+      const centerText = { amount: formatBase(grandTotal), caption: "total" };
+      charts.donut = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: categories,
+          datasets: [{
+            data: values,
+            backgroundColor: categories.map((cat) => categoryColor(cat)),
+            borderColor: getVar("--panel"),
+            borderWidth: 2,
+            hoverBackgroundColor: getVar("--amber"),
+            hoverBorderColor: getVar("--panel"),
+            hoverOffset: 8,
+          }],
+        },
+        options: {
+          cutout: "62%",
+          layout: { padding: 16 },
+          animation: { duration: ENTRANCE_ANIMATION_MS, easing: "easeOutQuart" },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+              titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+              displayColors: true, boxPadding: 4,
+            },
+          },
+        },
+        plugins: [makeDonutCenterPlugin(centerText)],
+      });
+      charts.donut.$centerText = centerText;
+    }
+
+    // Rendered as plain HTML below the canvas (not Chart.js's built-in
+    // legend) so the number of visible categories never changes the
+    // canvas's own layout. Capped to the biggest few categories (zero-value
+    // ones dropped entirely) — the full list is still available, uncapped,
+    // via the chart legend badges above and the table's filter row.
+    const DONUT_LEGEND_LIMIT = 5;
+    const ranked = categoryFilterList()
+      .filter((cat) => Math.abs(totals[cat] || 0) > 0)
+      .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
+    const shown = ranked.slice(0, DONUT_LEGEND_LIMIT);
+    const rest = ranked.slice(DONUT_LEGEND_LIMIT);
+
+    const legendEl = el("donut-legend");
+    legendEl.innerHTML = "";
+    shown.forEach((cat) => {
+      const value = totals[cat] || 0;
+      const pct = grandTotal ? ((value / grandTotal) * 100).toFixed(1) : "0.0";
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "legend-badge donut-legend-pill" + (categoryVisibility[cat] !== false ? "" : " disabled");
+      row.title = "Click to toggle · double-click to show only this category";
+      row.innerHTML = `
+        <span class="swatch" style="background:${categoryColor(cat)}"></span>
+        <span class="donut-legend-label">${escapeHtml(cat)}</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(value)}<span class="donut-legend-pct"> · ${pct}%</span></span>
+      `;
+      attachCategoryToggle(row, cat);
+      legendEl.appendChild(row);
+    });
+
+    if (rest.length > 0) {
+      const restTotal = rest.reduce((sum, cat) => sum + (totals[cat] || 0), 0);
+      const pct = grandTotal ? ((restTotal / grandTotal) * 100).toFixed(1) : "0.0";
+      const row = document.createElement("div");
+      row.className = "legend-badge donut-legend-pill donut-legend-other";
+      row.title = rest.join(", ");
+      row.innerHTML = `
+        <span class="swatch" style="background:var(--text-muted)"></span>
+        <span class="donut-legend-label">Other (${rest.length})</span>
+        <span class="donut-legend-value tabular-nums">${formatBase(restTotal)}<span class="donut-legend-pct"> · ${pct}%</span></span>
+      `;
+      legendEl.appendChild(row);
+    }
+  }
+
+  // Shared by the by-category line chart and the total-spend bar chart —
+  // same bucket labels, same hover behavior, same tooltip treatment.
+  function timeChartOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: ENTRANCE_ANIMATION_MS, easing: "easeOutQuart" },
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { ticks: { color: getVar("--text-muted"), maxRotation: 0, autoSkip: true, autoSkipPadding: 16 }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: getVar("--text-muted") }, grid: { color: hexToRgba(getVar("--border-strong"), 0.5) } },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: getVar("--panel"), borderColor: hexToRgba(getVar("--border-strong"), 0.6), borderWidth: 1,
+          titleColor: getVar("--text-muted"), bodyColor: getVar("--text"), padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          filter: (item) => item.parsed.y !== 0,
+          itemSort: (a, b) => b.parsed.y - a.parsed.y,
+        },
+      },
+    };
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function renderTable(expenses) {
+    const body = el("expense-table-body");
+    body.innerHTML = "";
+    const sorted = [...expenses].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    for (const e of sorted) {
+      const tr = document.createElement("tr");
+      if (window.__newlyAddedRowKey === rowKey(e)) {
+        tr.classList.add("row-new");
+      }
+      tr.innerHTML = `
+        <td>${escapeHtml(e.date)}</td>
+        <td class="amount-col tabular-nums">${formatBase(e.amount)}</td>
+        <td>${escapeHtml(e.category)}</td>
+        <td class="notes-col" dir="auto">${escapeHtml(e.notes)}</td>
+      `;
+      body.appendChild(tr);
+    }
+  }
+
+  function rowKey(e) { return `${e.date}|${e.amount}|${e.category}|${e.notes}`; }
+
+  // ---- Modal plumbing ----
+
+  function openModal(id) { el(id).hidden = false; }
+  function closeModal(id) { el(id).hidden = true; }
+
+  // ---- Connection banner — a small persistent bar (not a blocking modal)
+  // used for two distinct situations: a silent token refresh failed
+  // (needs the user to click Reconnect), or the saved spreadsheet id
+  // couldn't be loaded at all (needs Disconnect to get back to setup).
+  // Whatever the user has open elsewhere — an in-progress Add Expense
+  // form — is left completely alone while this is showing. ----
+
+  function showConnectionBanner(message, actionLabel, actionFn) {
+    el("connection-banner-text").textContent = message;
+    const btn = el("connection-banner-btn");
+    btn.textContent = actionLabel;
+    btn.onclick = actionFn;
+    el("connection-banner").hidden = false;
+  }
+
+  function hideConnectionBanner() {
+    el("connection-banner").hidden = true;
+  }
+
+  async function onReconnectClick() {
+    const btn = el("connection-banner-btn");
+    btn.disabled = true;
+    try {
+      const ok = await requestToken("consent");
+      if (ok) {
+        hideConnectionBanner();
+        await refreshTripList();
+      }
+    } catch (err) {
+      // leave the banner up — the user can just try the button again
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function onDisconnectClick() {
+    localStorage.removeItem(SPREADSHEET_ID_KEY);
+    location.reload();
+  }
+
+  // ---- Setup gate (first launch / no spreadsheet connected yet) ----
+  //
+  // No "choose a sheet" step at all: signing in is the only identification
+  // needed. After sign-in, autoConnectSpreadsheet() finds this app's own
+  // spreadsheet by name in the user's Drive, or creates it if it doesn't
+  // exist yet — never asks the user to paste a URL or pick one.
+
+  async function onSetupSignIn() {
+    const errorEl = el("setup-error");
+    errorEl.classList.remove("visible");
+    try {
+      const ok = await requestToken("consent");
+      if (!ok) { showError(errorEl, "Sign-in was cancelled or failed."); return; }
+      el("setup-signin-btn").hidden = true;
+      await autoConnectSpreadsheet();
+    } catch (err) {
+      showError(errorEl, err.message || "Sign-in failed.");
+    }
+  }
+
+  async function autoConnectSpreadsheet() {
+    const errorEl = el("setup-error");
+    const retryBtn = el("setup-retry-btn");
+    errorEl.classList.remove("visible");
+    retryBtn.hidden = true;
+    el("setup-saving-indicator").classList.add("visible");
+    try {
+      let id = await findDefaultSpreadsheet();
+      if (!id) id = await createSpreadsheet();
+      spreadsheetId = id;
+      localStorage.setItem(SPREADSHEET_ID_KEY, id);
+      await enterApp();
+    } catch (err) {
+      showError(errorEl, err.message || "Could not set up your spreadsheet.");
+      retryBtn.hidden = false;
+    } finally {
+      el("setup-saving-indicator").classList.remove("visible");
+    }
+  }
+
+  async function enterApp() {
+    el("setup-gate").hidden = true;
+    await refreshTripList();
+  }
+
+  function wireStaticEvents() {
+    attachDatePicker("custom-from");
+    attachDatePicker("custom-to");
+    attachDatePicker("expense-date");
+
+    el("btnThemeToggle").addEventListener("click", toggleTheme);
+
+    document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
+    });
+    document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+      overlay.addEventListener("click", (evt) => {
+        if (evt.target === overlay) overlay.hidden = true;
+      });
+    });
+
+    // Trip selector
+    el("trip-select").addEventListener("change", async (evt) => {
+      const value = evt.target.value;
+      if (value === "__new__") {
+        el("trip-select").value = activeTrip || "";
+        openModal("new-trip-modal");
+        el("new-trip-name").value = "";
+        el("new-trip-error").classList.remove("visible");
+        el("new-trip-name").focus();
+        return;
+      }
+      await selectTrip(value);
+    });
+
+    el("empty-new-trip-btn").addEventListener("click", () => {
+      openModal("new-trip-modal");
+      el("new-trip-name").value = "";
+      el("new-trip-error").classList.remove("visible");
+    });
+
+    el("create-trip-btn").addEventListener("click", onCreateTrip);
+    el("new-trip-name").addEventListener("keydown", (e) => { if (e.key === "Enter") onCreateTrip(); });
+
+    // Range selector
+    document.querySelectorAll(".range-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".range-pill").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentRangeKey = btn.dataset.range;
+        el("custom-range-fields").classList.toggle("visible", currentRangeKey === "custom");
+        renderAll();
+      });
+    });
+    document.querySelector('.range-pill[data-range="all"]').classList.add("active");
+    el("custom-from").addEventListener("change", () => { if (currentRangeKey === "custom") renderAll(); });
+    el("custom-to").addEventListener("change", () => { if (currentRangeKey === "custom") renderAll(); });
+
+    // Add expense
+    el("add-expense-btn").addEventListener("click", openAddExpenseModal);
+    el("expense-currency").addEventListener("change", updateConversionLine);
+    el("expense-amount").addEventListener("input", updateConversionLine);
+    el("save-expense-btn").addEventListener("click", onSaveExpense);
+
+    el("divide-toggle-btn").addEventListener("click", () => {
+      el("divide-panel").classList.toggle("visible");
+    });
+    el("divide-total").addEventListener("input", updateDivideResult);
+    el("divide-by").addEventListener("input", updateDivideResult);
+
+    // Rate history
+    el("rate-history-link").addEventListener("click", async () => {
+      const { history } = await getRateHistory();
+      const body = el("rate-history-body");
+      body.innerHTML = "";
+      [...history].reverse().forEach((entry) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.currency)}</td><td class="tabular-nums">${entry.rate}</td>`;
+        body.appendChild(tr);
+      });
+      openModal("rate-history-modal");
+    });
+
+    // Pin categories
+    el("pin-categories-btn").addEventListener("click", openPinCategoriesModal);
+    el("save-pinned-categories-btn").addEventListener("click", onSavePinnedCategories);
+
+    // Trip note
+    el("trip-note-input").addEventListener("input", scheduleSaveTripNote);
+    el("trip-note-input").addEventListener("blur", () => flushTripNote());
+    // Two independent nets, since neither fires reliably in every
+    // situation on every browser: visibilitychange catches backgrounding/
+    // switching apps/tabs, pagehide catches navigation/refresh/close —
+    // between the two, a pending note edit should never be sitting
+    // unsaved when the page actually goes away. keepalive:true gives the
+    // in-flight request a chance to finish even after JS execution stops.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushTripNote({ keepalive: true });
+    });
+    window.addEventListener("pagehide", () => flushTripNote({ keepalive: true }));
+
+    // NEW — Google Sheets setup gate + disconnect
+    el("setup-signin-btn").addEventListener("click", onSetupSignIn);
+    el("setup-retry-btn").addEventListener("click", autoConnectSpreadsheet);
+    el("disconnect-link").addEventListener("click", onDisconnectClick);
+  }
+
+  function openPinCategoriesModal() {
+    const list = el("pin-categories-list");
+    list.innerHTML = "";
+    for (const cat of appConfig.categories) {
+      const id = `pin-cat-${cat.replace(/\W+/g, "-")}`;
+      const label = document.createElement("label");
+      label.className = "checkbox-pill";
+      label.htmlFor = id;
+      label.innerHTML = `
+        <input type="checkbox" id="${id}" value="${escapeHtml(cat)}" ${pinnedCategories.includes(cat) ? "checked" : ""}>
+        <span class="swatch" style="background:${categoryColor(cat)}"></span>
+        ${escapeHtml(cat)}
+      `;
+      list.appendChild(label);
+    }
+    openModal("pin-categories-modal");
+  }
+
+  function onSavePinnedCategories() {
+    const checked = Array.from(el("pin-categories-list").querySelectorAll("input:checked")).map((cb) => cb.value);
+    savePinnedCategories(checked);
+    closeModal("pin-categories-modal");
+    renderAll();
+  }
+
+  async function onCreateTrip() {
+    const name = el("new-trip-name").value.trim();
+    const errorEl = el("new-trip-error");
+    errorEl.classList.remove("visible");
+    if (!name) {
+      showError(errorEl, "Trip name is required.");
+      return;
+    }
+    if (isReservedTripName(name)) {
+      showError(errorEl, `"${name}" is a reserved name — choose a different trip name.`);
+      return;
+    }
+    const currency = el("new-trip-currency").value;
+    const btn = el("create-trip-btn");
+    btn.disabled = true;
+    el("new-trip-saving-indicator").classList.add("visible");
+    try {
+      // A couple of backed-off retries absorb a network blip or a Sheets
+      // 5xx; an auth failure skips straight to the error below instead of
+      // wasting the retry budget, since it needs a Reconnect click, not
+      // a background retry.
+      await withRetry(() => createTripApi(name, currency), [2000, 6000]);
+      closeModal("new-trip-modal");
+      await refreshTripList();
+      await selectTrip(name);
+    } catch (err) {
+      // Modal stays open and the typed name is untouched — nothing is lost.
+      showError(errorEl, err.message);
+    } finally {
+      btn.disabled = false;
+      el("new-trip-saving-indicator").classList.remove("visible");
+    }
+  }
+
+  function openAddExpenseModal() {
+    el("expense-date").value = todayISO();
+    el("expense-category").value = appConfig.categories[0];
+    el("expense-currency").value = activeTripCurrency;
+    el("expense-amount").value = "";
+    el("expense-notes").value = "";
+    el("divide-panel").classList.remove("visible");
+    el("divide-total").value = "";
+    el("divide-by").value = "";
+    el("divide-result").textContent = "—";
+    el("expense-error").classList.remove("visible");
+    updateConversionLine();
+    openModal("add-expense-modal");
+    el("expense-amount").focus();
+  }
+
+  function updateConversionLine() {
+    const currency = el("expense-currency").value;
+    const amount = parseFloat(el("expense-amount").value);
+    const line = el("conversion-line");
+    if (currency === activeTripCurrency || isNaN(amount)) {
+      line.hidden = true;
+      return;
+    }
+    const converted = convert(amount, currency, activeTripCurrency);
+    const effectiveRate = rateToILS(currency) / rateToILS(activeTripCurrency);
+    line.hidden = false;
+    line.textContent = `${currencySymbol(currency)}${amount.toFixed(2)} → ${formatBase(converted)} (rate ${effectiveRate.toFixed(4)})`;
+  }
+
+  function updateDivideResult() {
+    const total = parseFloat(el("divide-total").value);
+    const by = parseFloat(el("divide-by").value);
+    const resultEl = el("divide-result");
+    if (isNaN(total) || isNaN(by) || by <= 0) {
+      resultEl.textContent = "—";
+      return;
+    }
+    const result = total / by;
+    resultEl.textContent = result.toFixed(2);
+    el("expense-amount").value = result.toFixed(2);
+    updateConversionLine();
+  }
+
+  async function onSaveExpense() {
+    const errorEl = el("expense-error");
+    errorEl.classList.remove("visible");
+
+    const date = el("expense-date").value;
+    const category = el("expense-category").value;
+    const currency = el("expense-currency").value;
+    const amount = parseFloat(el("expense-amount").value);
+    const notes = el("expense-notes").value.trim();
+
+    if (!date) { return showError(errorEl, "Date is required."); }
+    if (!(amount > 0)) { return showError(errorEl, "Amount must be greater than 0."); }
+
+    const amountBase = Math.round(convert(amount, currency, activeTripCurrency) * 100) / 100;
+
+    const btn = el("save-expense-btn");
+    btn.disabled = true;
+    el("expense-saving-indicator").classList.add("visible");
+    try {
+      await withRetry(() => postExpense(activeTrip, { date, amount_base: amountBase, category, notes }), [2000, 6000]);
+      window.__newlyAddedRowKey = rowKey({ date, amount: amountBase, category, notes });
+      closeModal("add-expense-modal");
+      allExpenses = (await getExpenses(activeTrip)).expenses;
+      renderAll();
+      setTimeout(() => { window.__newlyAddedRowKey = null; }, 1600);
+    } catch (err) {
+      // Modal stays open with every typed field intact — the expense the
+      // user entered is never silently discarded, per this repo's
+      // data-loss-critical standard for apps that are the sole copy of
+      // real trip data.
+      showError(errorEl, err.message);
+    } finally {
+      btn.disabled = false;
+      el("expense-saving-indicator").classList.remove("visible");
+    }
+  }
+
+  function showError(errorEl, message) {
+    errorEl.textContent = message;
+    errorEl.classList.add("visible");
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
