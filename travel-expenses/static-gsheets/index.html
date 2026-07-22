@@ -1827,14 +1827,35 @@ input, select, textarea, button { font-family: inherit; }
     }
   }
 
-  // Tolerates a cell value that isn't a plain "YYYY-MM-DD" string (e.g. a
-  // hand-typed date in a pasted-in sheet, rendered back as a locale-
-  // formatted string) by passing it through unchanged — mirrors
-  // excel_io.py's _cell_to_iso_date(), which falls back to str(value) for
-  // anything that isn't already a recognized date type rather than trying
-  // to guess-parse it.
+  // A true date-typed cell, read with dateTimeRenderOption=SERIAL_NUMBER
+  // below, comes back as a Sheets serial day count (epoch = Dec 30 1899,
+  // serial 0) — converted here to plain "YYYY-MM-DD" using UTC getters so
+  // the calendar day survives regardless of the browser's timezone offset.
+  // Anything else (a hand-typed non-date string in a pasted-in sheet, or
+  // blank) is passed through unchanged — mirrors excel_io.py's
+  // _cell_to_iso_date(), which falls back to str(value) for anything that
+  // isn't already a recognized date type rather than trying to guess-parse
+  // it.
+  //
+  // This used to request dateTimeRenderOption=FORMATTED_STRING instead,
+  // which returns a date cell as Sheets' locale-formatted display string
+  // (e.g. "31/05/2026" for a dd/mm/yyyy-locale spreadsheet) rather than
+  // ISO. Every date-range computation in this file (computeBuckets,
+  // bucketKeyForDate, the This-week/Last-7-days/Custom filters) does
+  // string/lexicographic comparison and `.split("-")` on `date`, assuming
+  // ISO — on a non-ISO locale that silently produced NaN/empty ranges, so
+  // both time-series charts rendered with zero buckets while the
+  // category-total donut (no date arithmetic) still looked fine.
+  const SHEETS_SERIAL_EPOCH_UTC_MS = Date.UTC(1899, 11, 30);
   function cellToIsoDate(value) {
     if (value === undefined || value === null || value === "") return "";
+    if (typeof value === "number") {
+      const d = new Date(SHEETS_SERIAL_EPOCH_UTC_MS + Math.floor(value) * 86400000);
+      const yr = d.getUTCFullYear();
+      const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${yr}-${mo}-${day}`;
+    }
     return String(value);
   }
 
@@ -1846,7 +1867,7 @@ input, select, textarea, button { font-family: inherit; }
     // UNFORMATTED_VALUE keeps Amount a plain number (not a locale-
     // formatted "1,234.56" string with a comma parseFloat would choke on).
     const range = encodeURIComponent(a1Range(trip));
-    const data = await sheetsGet(`/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`);
+    const data = await sheetsGet(`/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
     const rows = data.values || [];
     const expenses = [];
     for (let i = 1; i < rows.length; i++) {
