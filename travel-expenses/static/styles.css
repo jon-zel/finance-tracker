@@ -608,7 +608,7 @@ th {
 tr:last-child td { border-bottom: none; }
 tbody tr { transition: background-color .12s ease; }
 tbody tr:hover { background: var(--surface-alt); }
-td.amount-col { text-align: right; }
+.amount-col { text-align: right; }
 td.notes-col { color: var(--text); }
 
 tr.row-new { animation: highlight-row 1.6s ease-out; }
