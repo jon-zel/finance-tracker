@@ -2,11 +2,15 @@
 GOOGLE CLOUD SETUP — one-time, before first deploy of this file:
   1. Go to https://console.cloud.google.com/ and create a project (or reuse one).
   2. APIs & Services > Library > enable "Google Sheets API" AND "Google Drive API"
-     (Drive API is only used read-only, to find this app's spreadsheet by name after
-     sign-in, with no "choose a sheet" step — see findDefaultSpreadsheet() below).
+     (Drive API is used, under the drive.file scope, to find this app's own
+     previously-created spreadsheet by name after sign-in, with no "choose a sheet"
+     step — see findDefaultSpreadsheet() below).
   3. APIs & Services > OAuth consent screen: User type "External", Publishing status
      "Testing", and add your own Google account under "Test users" (Testing-mode apps
-     only let listed test users sign in — that's fine for a personal app).
+     only let listed test users sign in — that's fine for a personal app). The app
+     only requests the drive.file scope, which is non-sensitive, so Google's
+     "unverified app" verification process is not required — you can also move
+     Publishing status to "In production" without submitting for verification.
   4. APIs & Services > Credentials > Create Credentials > OAuth client ID >
      Application type "Web application".
      - Authorized JavaScript origins: add "https://<your-username>.github.io"
@@ -1351,12 +1355,15 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
   // secret — this is a static site).
   // ============================================================
   const CLIENT_ID = '1065291210789-1if7o28onefirphe5n92r2jl0l5crg3f.apps.googleusercontent.com';
-  // drive.metadata.readonly is only used to search for this app's own
-  // spreadsheet by name right after sign-in (read-only file *metadata* —
-  // titles/ids/timestamps — never file contents of anything outside this
-  // app's own sheet). All actual reads/writes still go through the
-  // spreadsheets scope alone.
-  const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly";
+  // drive.file (non-sensitive, no Google verification required) instead of
+  // the old "spreadsheets" + "drive.metadata.readonly" combo (both
+  // sensitive scopes, which triggered the "Google hasn't verified this
+  // app" warning). drive.file only grants access to files this app itself
+  // created via the Sheets API below — findDefaultSpreadsheet()'s Drive
+  // search and every Sheets read/write still work, but ONLY for such
+  // app-created files. A spreadsheet created or edited outside this app
+  // (e.g. by hand in Google Sheets) is invisible to it under this scope.
+  const SHEETS_SCOPE = "https://www.googleapis.com/auth/drive.file";
   const REQUIRED_HEADERS = ["Date", "Amount", "Category", "Notes"];
 
   // The one spreadsheet this app ever uses, identified purely by name in
