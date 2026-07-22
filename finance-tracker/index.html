@@ -164,6 +164,16 @@ svg{display:block;}
 .welcome p{color:var(--text-muted);max-width:480px;margin:0 auto 24px;}
 .empty-state{text-align:center;color:var(--text-muted);padding:30px 10px;font-size:15px;}
 
+/* ---- Main tabs (Income & Expenses / Loans) ---- */
+.main-tab-bar{display:flex;gap:24px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.main-tab-btn{
+  background:none;border:none;border-bottom:2px solid transparent;padding:10px 2px;
+  font-family:var(--font-sans);font-size:15px;font-weight:600;color:var(--text-muted);cursor:pointer;
+  transition:color .15s ease,border-color .15s ease;
+}
+.main-tab-btn:hover{color:var(--text);}
+.main-tab-btn.active{color:var(--text);border-bottom-color:var(--accent);}
+
 /* ---- Time range selector ---- */
 .range-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;}
 .range-btn{
@@ -286,7 +296,6 @@ canvas{max-width:100%;}
 .savings-empty{color:var(--text-muted);font-size:14px;padding:6px 0 14px;}
 
 /* ---- Loans module ---- */
-.loans-section-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;}
 .loans-list{display:flex;flex-direction:column;gap:12px;}
 .loan-row{
   border-radius:var(--radius);border:1px solid var(--border);padding:16px 18px;
@@ -347,6 +356,13 @@ canvas{max-width:100%;}
 .loan-bar-fill.balance{background:var(--accent);}
 .loan-bar-fill.payments{background:var(--loan);}
 .loan-bar-fill.interest{background:var(--loan);}
+/* "Debt today" bar is split into two adjacent segments (paid-off / still-owed)
+   instead of one solid fill — same flex-segment pattern as .stack-bar/.stack-seg,
+   so the container's rounding clips the pair into one pill shape. */
+.loan-bar-track-split{display:flex;}
+.loan-bar-fill-seg{height:100%;transition:width .4s cubic-bezier(.16,1,.3,1);}
+.loan-bar-fill-seg.paid{background:var(--invest);}
+.loan-bar-fill-seg.balance{background:var(--accent);}
 .loan-bar-value{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
 .loan-bar-value.emphasis{font-size:20px;color:var(--loan);}
 .field-warning{color:var(--loan);font-size:12px;margin-top:5px;}
@@ -372,7 +388,11 @@ canvas{max-width:100%;}
   background:var(--panel);transition:background-color .2s ease,border-color .2s ease,color .2s ease;
 }
 .field input:focus,.field select:focus{outline:2px solid var(--copper);outline-offset:1px;}
-.field select:disabled{opacity:.65;cursor:not-allowed;background:var(--surface-alt);}
+.field input:disabled,.field select:disabled{opacity:.65;cursor:not-allowed;background:var(--surface-alt);}
+.field-static{
+  padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:15px;
+  color:var(--text);background:var(--surface-alt);
+}
 .field-error{color:var(--expense);font-size:13px;margin-top:5px;}
 .field-hint{color:var(--text-muted);font-size:12px;margin-top:5px;}
 .amount-row{display:flex;gap:10px;align-items:flex-start;}
@@ -416,13 +436,27 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           Add Income
         </button>
       </div>
+      <div class="app-actions hidden" id="loanHeaderActions">
+        <button class="btn btn-expense" id="btnAddLoan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          Add Loan
+        </button>
+      </div>
     </div>
   </div>
 
   <div id="browserNotice"></div>
-  <div id="dataSafetyNotice"></div>
   <div id="concurrencyNotice"></div>
   <div id="statusNotice"></div>
+
+  <!-- ============================================================
+       MAIN TABS — Income & Expenses / Loans (same one-page app; this
+       only toggles which section is visible, never a navigation/reload)
+       ============================================================ -->
+  <div class="main-tab-bar hidden" id="mainTabBar">
+    <button type="button" class="main-tab-btn" data-tab="dashboard">Income &amp; Expenses</button>
+    <button type="button" class="main-tab-btn" data-tab="loans">Loans</button>
+  </div>
 
   <!-- ============================================================
        WELCOME / FIRST-RUN STATE
@@ -606,16 +640,6 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
        (independent of Transactions/Golden Rule — see spec §22-27)
        ============================================================ -->
   <div id="loansModule" class="hidden">
-    <div class="panel">
-      <div class="loans-section-header">
-        <div class="app-title" style="font-size:20px;">Loans</div>
-        <button class="btn btn-expense" id="btnAddLoan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
-          Add Loan
-        </button>
-      </div>
-    </div>
-
     <div id="loansEmpty" class="panel empty-state hidden">No loans yet — add one above.</div>
 
     <div id="loansContent" class="hidden">
@@ -636,7 +660,10 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
             <h3>Debt Today vs. Total You'll Actually Pay</h3>
             <div class="loan-bar-row">
               <div class="loan-bar-label">Debt today</div>
-              <div class="loan-bar-track"><div class="loan-bar-fill balance" id="loanBarBalanceFill"></div></div>
+              <div class="loan-bar-track loan-bar-track-split">
+                <div class="loan-bar-fill-seg paid" id="loanBarPaidFill" title="Paid off so far"></div>
+                <div class="loan-bar-fill-seg balance" id="loanBarBalanceFill" title="Still owed"></div>
+              </div>
               <div class="loan-bar-value" id="loanBarBalanceValue">0</div>
             </div>
             <div class="loan-bar-row">
@@ -660,6 +687,22 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <h2>Debt &amp; Interest Over Time</h2>
         <div id="loanChartEmpty" class="empty-state hidden">No payoff projection available — the selected loan(s) have a payment that doesn't cover the interest. Edit them to fix this.</div>
         <div class="chart-wrap" id="loanChartWrap"><canvas id="loanChart"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2>Payment History</h2>
+        <div id="paymentHistoryEmpty" class="empty-state hidden">No payments logged yet — use the payment icon on a loan above to log one.</div>
+        <div class="table-scroll" id="paymentHistoryWrap">
+          <table id="paymentHistoryTable">
+            <thead>
+              <tr>
+                <th>Date</th><th>Loan</th><th class="amount-col">Amount Paid</th><th class="amount-col">Principal</th><th class="amount-col">Interest</th><th class="amount-col">Balance After</th><th>Notes</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="paymentHistoryTableBody"></tbody>
+          </table>
+        </div>
+        <div class="table-note">Editing or deleting a payment keeps its matching expense entry in Income &amp; Expenses in sync automatically.</div>
       </div>
     </div>
   </div>
@@ -686,6 +729,12 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <label for="expClassification">Classification</label>
         <select id="expClassification" required></select>
         <div class="field-hint" id="expClassificationLockHint" style="display:none;">Locked to Investment for this category.</div>
+      </div>
+      <div class="field hidden" id="expLoanFieldWrap">
+        <label for="expLoanId">Which loan?</label>
+        <select id="expLoanId"></select>
+        <div class="field-error hidden" id="expLoanIdError">Add a loan in the Loans tab first, or choose a different category.</div>
+        <div class="field-hint">This also records a real payment against that loan.</div>
       </div>
       <div class="field">
         <div class="amount-row">
@@ -776,6 +825,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <label for="loanBalance">Current Balance</label>
         <input type="number" id="loanBalance" min="0.01" step="0.01" required>
         <div class="field-error hidden" id="loanBalanceError">Enter a balance greater than 0.</div>
+        <div class="field-hint hidden" id="loanBalanceTrackedHint">Tracked automatically from payment history — log, edit, or delete a payment below to change it.</div>
       </div>
       <div class="field">
         <label for="loanPayment">Monthly Payment</label>
@@ -808,6 +858,47 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 </div>
 
 <!-- ============================================================
+     LOG / EDIT LOAN PAYMENT MODAL
+     ============================================================ -->
+<div class="modal-overlay hidden" id="paymentModalOverlay">
+  <div class="modal">
+    <h2 id="paymentModalTitle">Log a Payment</h2>
+    <form id="paymentForm">
+      <input type="hidden" id="pmtId">
+      <input type="hidden" id="pmtLoanId">
+      <div class="field">
+        <label>Loan</label>
+        <div class="field-static" id="pmtLoanName">&mdash;</div>
+      </div>
+      <div class="field">
+        <label for="pmtDate">Date</label>
+        <input type="date" id="pmtDate" required>
+      </div>
+      <div class="field">
+        <label for="pmtAmount">Amount Paid</label>
+        <input type="number" id="pmtAmount" min="0.01" step="0.01" required>
+        <div class="field-error hidden" id="pmtAmountError">Enter an amount greater than 0.</div>
+        <div class="field-hint">Defaults to the loan's monthly payment — change it for an extra or lump-sum payment.</div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <div class="field-static">Loan Payments</div>
+        <div class="field-hint">This payment is also logged as an expense in Income &amp; Expenses.</div>
+      </div>
+      <div class="field">
+        <label for="pmtNotes">Notes (optional)</label>
+        <input type="text" id="pmtNotes">
+      </div>
+      <div class="modal-error hidden" id="paymentFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelPayment">Cancel</button>
+        <button type="submit" class="btn btn-expense" id="btnSavePayment">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
      CONFIGURATION CONSTANTS
      Edit these to change categories, the data filename, or the
      default view — no other code changes are required.
@@ -815,7 +906,11 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 <script>
 const DATA_FILENAME = "finances.xlsx";
 const SHEET_NAME = "Transactions";
-const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description"];
+// "Loan ID"/"Payment ID" are optional/blank for every ordinary entry — set
+// only on the expense row linked to a loan payment (§LOAN-PAYMENTS), so that
+// row can be found again (to keep it in sync, or remove it) if the payment
+// it came from is later edited or deleted.
+const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description", "Loan ID", "Payment ID"];
 
 const EXPENSE_CATEGORIES = [
   "Food & Groceries",
@@ -832,12 +927,21 @@ const EXPENSE_CATEGORIES = [
   "Leisure & Entertainment",
   "Shopping & Clothing",
   "Investment / Savings Deposit",
+  "Loan Payments",
   "Other"
 ];
 
-// Picking this category always forces Classification to Investment (see wireStaticEvents),
+// Picking this category always forces Classification to Investment (see syncExpenseCategoryLock),
 // so money going INTO investments/savings can't accidentally get logged as Income.
 const INVESTMENT_LOCKED_CATEGORY = "Investment / Savings Deposit";
+
+// Picking this category always forces Classification to Loan and reveals a
+// "Which loan?" field (see syncExpenseCategoryLock) — choosing it also
+// records a real payment against that loan (§LOAN-PAYMENTS), the same as the
+// Loans tab's own "Log Payment" action. One category, one code path, so an
+// expense tagged as a loan payment can never drift out of sync with the loan
+// it belongs to.
+const LOAN_LOCKED_CATEGORY = "Loan Payments";
 
 const INCOME_CATEGORIES = [
   "Salary",
@@ -866,7 +970,28 @@ const SAVINGS_TARGET_PERCENT = 10;
 // ---- Loans module (§22-27) — a second, independent worksheet in the same
 // .xlsx file. Rows here are editable/deletable, unlike Transactions.
 const LOANS_SHEET_NAME = "Loans";
-const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "Payment Day", "Annual Interest Rate", "Last Updated", "Notes"];
+// "Tracking Start Balance" is set automatically (never shown in the UI) the
+// first time a payment is ever logged for a loan — it's the fixed anchor the
+// payment-history chain replays forward from (§LOAN-PAYMENTS). Blank for any
+// loan with no logged payments, which behave exactly as before this feature.
+//
+// "Original Loan Amount" (§LOAN-PROGRESS) is set once, automatically, and
+// then locked forever: for a loan created from now on, it's the Current
+// Balance entered at creation time; for a loan that already existed before
+// this feature, it's silently backfilled from whatever Current Balance it
+// has the next time it's touched (edited, or has its first payment logged) —
+// see ensureOriginalLoanAmount(). There is no UI field for it and it's never
+// user-editable. It's what "progress paid off" is measured against.
+const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "Payment Day", "Annual Interest Rate", "Last Updated", "Notes", "Tracking Start Balance", "Original Loan Amount"];
+
+// ---- Loan payment history (§LOAN-PAYMENTS) — a third worksheet holding the
+// real, dated record of payments actually made against a loan. Independent of
+// Transactions (which still gets a matching Expense row for each one, kept in
+// sync at write time — see appendLoanPayment) and of Loans (whose Current
+// Balance/Last Updated this sheet drives once a loan has any history). Rows
+// are user-editable/deletable, like Loans — see recomputeLoanPaymentChain.
+const LOAN_PAYMENTS_SHEET_NAME = "LoanPayments";
+const LOAN_PAYMENT_COLUMNS = ["Payment ID", "Loan ID", "Date", "Amount Paid", "Category", "Principal Portion", "Interest Portion", "Balance After", "Notes", "Last Updated"];
 
 // Maps the Annual Effective Interest Rate (%/year) to a severity tier used for
 // ranking color intensity. Tune these without touching the calculation logic.
@@ -966,6 +1091,14 @@ let rawLoanRows = [];           // raw sheet rows for the Loans sheet (Golden-Ru
 let sourceLoanHeader = LOAN_COLUMNS.slice();
 let selectedLoanId = null;      // null = "All Loans"
 let loanChart = null;
+
+// ---- Loan payment history state ----
+let allLoanPayments = [];              // normalized payment records
+let rawPaymentRows = [];               // raw sheet rows for the LoanPayments sheet
+let sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
+
+// ---- Main tabs (Income & Expenses / Loans) — UI state only, never the DB ----
+let activeTab = getStoredTab() || "dashboard"; // "dashboard" | "loans"
 
 // Categorical palette for the category donuts (8 fixed hues, assigned in order —
 // never cycled by rank). Each mode is its own validated instance (lightness/chroma
@@ -1111,6 +1244,58 @@ function toggleTheme() {
 
 function rerenderChartsForTheme() {
   if (!el("dashboard").classList.contains("hidden")) refreshDashboard();
+  if (!el("loansModule").classList.contains("hidden")) refreshLoansModule();
+}
+
+/* ============================================================
+   MAIN TABS (Income & Expenses / Loans) — same one-page app; this only
+   toggles which section is visible. UI state lives in localStorage only,
+   never the Excel file (Golden Rule).
+   ============================================================ */
+const TAB_STORAGE_KEY = "finance_tracker_active_tab";
+
+function getStoredTab() {
+  try {
+    const v = localStorage.getItem(TAB_STORAGE_KEY);
+    return (v === "dashboard" || v === "loans") ? v : null;
+  } catch (e) { return null; }
+}
+
+function storeTab(tab) {
+  try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch (e) { /* ignore */ }
+}
+
+function updateTabButtonStyles() {
+  document.querySelectorAll(".main-tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === activeTab);
+  });
+}
+
+// Only ever call once data is actually loaded (openDataFile/handleImportFile/
+// "start fresh") — calling it earlier would prematurely show an empty
+// dashboard before a folder has even been chosen.
+// Each tab shows its own primary action button(s) in the same header slot —
+// "+ Add Expense"/"+ Add Income" for Income & Expenses, "+ Add Loan" for
+// Loans — so both tabs feel like the same app, not one bolted onto the other.
+function applyActiveTab() {
+  updateTabButtonStyles();
+  if (activeTab === "loans") {
+    hide("dashboard"); show("loansModule");
+    hide("headerActions"); show("loanHeaderActions");
+  } else {
+    show("dashboard"); hide("loansModule");
+    show("headerActions"); hide("loanHeaderActions");
+  }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  storeTab(tab);
+  applyActiveTab();
+  // Charts skip re-rendering while their tab is hidden (rerenderChartsForTheme),
+  // so re-render whichever tab we just switched into in case the theme
+  // changed while it was in the background.
+  if (tab === "loans") refreshLoansModule(); else refreshDashboard();
 }
 
 function getChartThemeColors() {
@@ -1151,6 +1336,21 @@ function isoFromParts(y, m, d) {
 function dateFromISO(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
+}
+
+function monthKey(iso) { return iso.slice(0, 7); } // "YYYY-MM"
+
+function addMonthsToKey(ym, n) {
+  let [y, m] = ym.split("-").map(Number);
+  m += n;
+  y += Math.floor((m - 1) / 12);
+  m = ((m - 1) % 12 + 12) % 12 + 1;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+function monthKeyLabel(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 function friendlyDate(iso) {
@@ -1251,13 +1451,17 @@ function normalizeRow(raw) {
   if (type2 === "Expense" && !CLASSIFICATIONS.includes(classification)) classification = DEFAULT_CLASSIFICATION;
   const amount = round2(parseFloat(raw.Amount));
   const description = String(raw.Description || "").trim();
+  const loanId = String(raw["Loan ID"] || "").trim();
+  const paymentId = String(raw["Payment ID"] || "").trim();
   return {
     Date: dateISO,
     Type: type2,
     Category: category,
     Classification: classification,
     Amount: isFinite(amount) ? amount : 0,
-    Description: description
+    Description: description,
+    "Loan ID": loanId,
+    "Payment ID": paymentId
   };
 }
 
@@ -1296,18 +1500,24 @@ function parseSheetFromWorkbook(wb, sheetName, defaultColumns, fallbackToFirstSh
   return { header, rows, found };
 }
 
-// Reads both worksheets from one buffer. The Loans sheet is looked up by exact
-// name only (it's brand new — there's no legacy file to fall back from); the
-// Transactions sheet keeps its original fallback-to-first-sheet behavior.
-// `loanSheetFound` is surfaced separately from `loanRows` so callers can tell
-// "this file genuinely has no Loans sheet yet" apart from "the sheet exists but
-// happens to be empty" — the two must not be treated as interchangeable, see
-// warnIfLoansUnexpectedlyGone() and saveWithFreshMerge() below (§DATA-SAFETY).
+// Reads all three worksheets from one buffer. The Loans and LoanPayments
+// sheets are looked up by exact name only (both are new — there's no legacy
+// file to fall back from); the Transactions sheet keeps its original
+// fallback-to-first-sheet behavior. `loanSheetFound`/`paymentSheetFound` are
+// surfaced separately from the row arrays so callers can tell "this file
+// genuinely has no such sheet yet" apart from "the sheet exists but happens
+// to be empty" — the two must not be treated as interchangeable, see
+// saveWithFreshMerge() below (§DATA-SAFETY).
 function parseWorkbookBuffer(buf) {
   const wb = XLSX.read(buf, { type: "array" });
   const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, true);
   const loans = parseSheetFromWorkbook(wb, LOANS_SHEET_NAME, LOAN_COLUMNS, false);
-  return { txHeader: tx.header, txRows: tx.rows, loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found };
+  const payments = parseSheetFromWorkbook(wb, LOAN_PAYMENTS_SHEET_NAME, LOAN_PAYMENT_COLUMNS, false);
+  return {
+    txHeader: tx.header, txRows: tx.rows,
+    loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found,
+    paymentHeader: payments.header, paymentRows: payments.rows, paymentSheetFound: payments.found
+  };
 }
 
 /* ============================================================
@@ -1316,49 +1526,24 @@ function parseWorkbookBuffer(buf) {
    Added after an incident where a stale browser tab silently
    overwrote finances.xlsx with an empty Loans sheet, permanently
    deleting loan records the user had already saved from another
-   session. Two independent layers guard against a repeat:
-
-   1. warnIfLoansUnexpectedlyGone() — a localStorage breadcrumb
-      remembers whether this browser has ever seen loan records for
-      this app. If a fresh read ever comes back with zero loans after
-      previously having some, that is treated as suspicious and
-      surfaced loudly, instead of silently rendering an empty module.
-
-   2. saveWithFreshMerge() — every single save (add/edit/delete of a
-      transaction OR a loan) re-reads finances.xlsx from disk
-      immediately beforehand and applies just that one change on top
-      of the freshest possible state, then adopts the merged result as
-      the new in-memory truth. A stale tab's outdated in-memory arrays
-      are never again written to disk wholesale. If the Loans sheet
-      can't be found on a save where this session believes loans
-      exist, the save is refused outright rather than risking a wipe.
+   session. saveWithFreshMerge() guards against a repeat: every single
+   save (add/edit/delete of a transaction, loan, or loan payment)
+   re-reads finances.xlsx from disk immediately beforehand and applies
+   just that one change on top of the freshest possible state, then
+   adopts the merged result as the new in-memory truth. A stale tab's
+   outdated in-memory arrays are never again written to disk wholesale.
+   If the Loans or LoanPayments sheet can't be found on a save where
+   this session believes it has that kind of data, the save is refused
+   outright rather than risking a wipe.
    ============================================================ */
-const HAD_LOANS_KEY = "finance_tracker_had_loans_flag"; // breadcrumb only — never a source of truth for loan data itself
-
-function noteLoansPresence(loanCount) {
-  try { if (loanCount > 0) localStorage.setItem(HAD_LOANS_KEY, "1"); } catch (e) { /* ignore */ }
-}
-
-function warnIfLoansUnexpectedlyGone(loanCount, sheetFound) {
-  if (loanCount > 0) { setNotice("dataSafetyNotice", "", false); return; }
-  let hadLoansBefore = false;
-  try { hadLoansBefore = localStorage.getItem(HAD_LOANS_KEY) === "1"; } catch (e) { /* ignore */ }
-  if (!hadLoansBefore) return;
-  setNotice("dataSafetyNotice",
-    "⚠️ This browser previously had loan records saved for this file, but none were found just now" +
-    (sheetFound ? "" : " — the “Loans” sheet itself wasn't found in finances.xlsx") +
-    ". If you didn't delete them yourself, STOP: don't add or change anything yet. Close this tab, check whether " +
-    "finances.xlsx was replaced/edited elsewhere, and restore from a backup copy (see the finances.backup-*.xlsx " +
-    "files in your data folder) before continuing.", true);
-}
 
 async function readWorkbookRows(handle) {
   const file = await handle.getFile();
   if (file.size === 0) {
     rawRows = []; sourceHeader = COLUMNS.slice();
     rawLoanRows = []; sourceLoanHeader = LOAN_COLUMNS.slice();
-    allLoans = [];
-    warnIfLoansUnexpectedlyGone(0, false);
+    rawPaymentRows = []; sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
+    allLoans = []; allLoanPayments = [];
     return [];
   }
   const buf = await file.arrayBuffer();
@@ -1367,9 +1552,10 @@ async function readWorkbookRows(handle) {
   rawRows = parsed.txRows;
   sourceLoanHeader = parsed.loanHeader;
   rawLoanRows = parsed.loanRows;
+  sourcePaymentHeader = parsed.paymentHeader;
+  rawPaymentRows = parsed.paymentRows;
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
-  warnIfLoansUnexpectedlyGone(allLoans.length, parsed.loanSheetFound);
-  noteLoansPresence(allLoans.length);
+  allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
   return rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
 }
 
@@ -1384,7 +1570,8 @@ async function peekFreshWorkbookState() {
     return {
       rawRows: [], sourceHeader: COLUMNS.slice(),
       rawLoanRows: [], sourceLoanHeader: LOAN_COLUMNS.slice(),
-      loanSheetFound: false, bytes: null
+      rawPaymentRows: [], sourcePaymentHeader: LOAN_PAYMENT_COLUMNS.slice(),
+      loanSheetFound: false, paymentSheetFound: false, bytes: null
     };
   }
   const buf = await file.arrayBuffer();
@@ -1392,7 +1579,8 @@ async function peekFreshWorkbookState() {
   return {
     rawRows: parsed.txRows, sourceHeader: parsed.txHeader,
     rawLoanRows: parsed.loanRows, sourceLoanHeader: parsed.loanHeader,
-    loanSheetFound: parsed.loanSheetFound, bytes: buf
+    rawPaymentRows: parsed.paymentRows, sourcePaymentHeader: parsed.paymentHeader,
+    loanSheetFound: parsed.loanSheetFound, paymentSheetFound: parsed.paymentSheetFound, bytes: buf
   };
 }
 
@@ -1404,15 +1592,16 @@ function rowsToWorksheet(rows, headerOrder) {
 // Both sheets are always written together so neither one is ever left stale —
 // the Transactions sheet (append-only), the Loans sheet (mutable), completely
 // independent of each other's content but sharing one physical .xlsx file.
-function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader) {
+function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentRows, paymentHeader) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(txRows, txHeader), SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(loanRows, loanHeader), LOANS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(paymentRows, paymentHeader), LOAN_PAYMENTS_SHEET_NAME);
   return XLSX.write(wb, { bookType: "xlsx", type: "array" });
 }
 
 function buildWorkbookBytes() {
-  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader);
+  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader, rawPaymentRows, sourcePaymentHeader);
 }
 
 async function writeWorkbookToHandle(handle) {
@@ -1440,44 +1629,6 @@ function downloadWorkbook(bytes) {
   URL.revokeObjectURL(url);
 }
 
-/* ---- Rolling backups (§DATA-SAFETY) ----
-   One recovery snapshot per calendar day, taken from the exact on-disk bytes
-   about to be overwritten — so any future bug, bad merge, or external file
-   corruption is always at most one day away from being undoable. Pruned after
-   BACKUP_RETENTION_DAYS so the data folder doesn't grow forever. Best-effort:
-   a backup failure is logged but never blocks the actual save. */
-const BACKUP_PREFIX = "finances.backup-";
-const BACKUP_RETENTION_DAYS = 14;
-
-function backupFileName(date) {
-  return `${BACKUP_PREFIX}${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}.xlsx`;
-}
-
-async function pruneOldBackups() {
-  const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  try {
-    for await (const name of dirHandle.keys()) {
-      if (!name.startsWith(BACKUP_PREFIX) || !name.endsWith(".xlsx")) continue;
-      const d = new Date(name.slice(BACKUP_PREFIX.length, -5));
-      if (!isNaN(d) && d.getTime() < cutoff) await dirHandle.removeEntry(name);
-    }
-  } catch (e) { console.error("Backup pruning failed (non-fatal):", e); }
-}
-
-async function maybeBackupBeforeOverwrite(currentBytes) {
-  if (!currentBytes) return; // nothing on disk yet — nothing to lose
-  const name = backupFileName(new Date());
-  try {
-    await dirHandle.getFileHandle(name); // throws NotFoundError if today's backup doesn't exist yet
-    return;
-  } catch (e) { /* doesn't exist yet — fall through and create it */ }
-  try {
-    const backupHandle = await dirHandle.getFileHandle(name, { create: true });
-    await writeBytesToHandle(backupHandle, currentBytes);
-    await pruneOldBackups();
-  } catch (e) { console.error("Backup failed (continuing with save):", e); }
-}
-
 // The single save primitive every mutation (append/update/delete, for both
 // transactions and loans) now goes through. `mutate(state)` receives the
 // FRESHEST possible on-disk snapshot (re-read right here, not whatever stale
@@ -1485,19 +1636,32 @@ async function maybeBackupBeforeOverwrite(currentBytes) {
 // Only on a successful write do the in-memory globals adopt the merged result
 // — a failed save leaves them untouched, and a save from a stale tab can never
 // again blow away rows another session already persisted. See §DATA-SAFETY.
+const SILENT_SAVE_ERRORS = new Set(["LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING"]);
+
 async function saveWithFreshMerge(mutate) {
   let state;
   if (usingFallback) {
     // No shared file handle to race against in fallback mode (Safari/Firefox)
     // — the in-memory arrays are the only copy that exists until re-imported.
-    state = { rawRows: rawRows.slice(), sourceHeader: sourceHeader.slice(), rawLoanRows: rawLoanRows.slice(), sourceLoanHeader: sourceLoanHeader.slice(), bytes: null };
+    state = {
+      rawRows: rawRows.slice(), sourceHeader: sourceHeader.slice(),
+      rawLoanRows: rawLoanRows.slice(), sourceLoanHeader: sourceLoanHeader.slice(),
+      rawPaymentRows: rawPaymentRows.slice(), sourcePaymentHeader: sourcePaymentHeader.slice(),
+      bytes: null
+    };
   } else {
     state = await peekFreshWorkbookState();
     if (!state.loanSheetFound && allLoans.length > 0) {
       setNotice("statusNotice",
         "Couldn't save — the “Loans” sheet is missing from finances.xlsx right now, but this session has loan " +
-        "records. Nothing was changed. Reconnect to the right data folder (or restore finances.xlsx from a backup) before saving again.", true);
+        "records. Nothing was changed. Reconnect to the right data folder before saving again.", true);
       throw new Error("LOANS_SHEET_MISSING");
+    }
+    if (!state.paymentSheetFound && allLoanPayments.length > 0) {
+      setNotice("statusNotice",
+        "Couldn't save — the “LoanPayments” sheet is missing from finances.xlsx right now, but this session has " +
+        "logged payment history. Nothing was changed. Reconnect to the right data folder before saving again.", true);
+      throw new Error("LOAN_PAYMENTS_SHEET_MISSING");
     }
   }
 
@@ -1505,12 +1669,16 @@ async function saveWithFreshMerge(mutate) {
 
   state.sourceHeader = computeFinalHeader(state.sourceHeader, state.rawRows, COLUMNS);
   state.sourceLoanHeader = computeFinalHeader(state.sourceLoanHeader, state.rawLoanRows, LOAN_COLUMNS);
-  const newBytes = buildWorkbookBytesFrom(state.rawRows, state.sourceHeader, state.rawLoanRows, state.sourceLoanHeader);
+  state.sourcePaymentHeader = computeFinalHeader(state.sourcePaymentHeader, state.rawPaymentRows, LOAN_PAYMENT_COLUMNS);
+  const newBytes = buildWorkbookBytesFrom(
+    state.rawRows, state.sourceHeader,
+    state.rawLoanRows, state.sourceLoanHeader,
+    state.rawPaymentRows, state.sourcePaymentHeader
+  );
 
   if (usingFallback) {
     downloadWorkbook(newBytes);
   } else {
-    await maybeBackupBeforeOverwrite(state.bytes);
     await writeBytesToHandle(fileHandle, newBytes);
   }
 
@@ -1518,9 +1686,11 @@ async function saveWithFreshMerge(mutate) {
   sourceHeader = state.sourceHeader;
   rawLoanRows = state.rawLoanRows;
   sourceLoanHeader = state.sourceLoanHeader;
+  rawPaymentRows = state.rawPaymentRows;
+  sourcePaymentHeader = state.sourcePaymentHeader;
   allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
-  noteLoansPresence(allLoans.length);
+  allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
 }
 
 /* ============================================================
@@ -1593,7 +1763,10 @@ async function openDataFile() {
     sourceHeader = COLUMNS.slice();
     rawLoanRows = [];
     sourceLoanHeader = LOAN_COLUMNS.slice();
+    rawPaymentRows = [];
+    sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
     allLoans = [];
+    allLoanPayments = [];
     await writeWorkbookToHandle(fileHandle);
     allRows = [];
   } else {
@@ -1603,19 +1776,26 @@ async function openDataFile() {
   hide("reconnectScreen");
   hide("fallbackWelcome");
   show("headerActions");
+  // Both shown briefly (before the tab bar hides the inactive one below) so
+  // Chart.js creates every canvas while its container has real layout size —
+  // a canvas created inside a display:none ancestor can end up mis-sized.
   show("dashboard");
   show("loansModule");
   setNotice("statusNotice", "", false);
   initCrossTabNotice();
   refreshDashboard();
   refreshLoansModule();
+  show("mainTabBar");
+  applyActiveTab();
 }
 
 function showReconnect(message) {
   hide("welcomeScreen");
   hide("dashboard");
   hide("loansModule");
+  hide("mainTabBar");
   hide("headerActions");
+  hide("loanHeaderActions");
   el("reconnectMessage").innerHTML = message;
   show("reconnectScreen");
 }
@@ -1625,6 +1805,9 @@ function showReconnect(message) {
    ============================================================ */
 function wireStaticEvents() {
   el("btnThemeToggle").addEventListener("click", toggleTheme);
+  document.querySelectorAll(".main-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
   el("btnChooseFolder").addEventListener("click", chooseFolder);
   el("btnReconnect").addEventListener("click", reconnect);
 
@@ -1637,12 +1820,17 @@ function wireStaticEvents() {
     allLoans = [];
     rawLoanRows = [];
     sourceLoanHeader = LOAN_COLUMNS.slice();
+    allLoanPayments = [];
+    rawPaymentRows = [];
+    sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
     refreshDashboard();
     refreshLoansModule();
+    show("mainTabBar");
+    applyActiveTab();
   });
 
   el("btnAddExpense").addEventListener("click", () => openModal("expenseModalOverlay"));
@@ -1663,7 +1851,8 @@ function wireStaticEvents() {
 
   el("expenseForm").addEventListener("submit", handleExpenseSubmit);
   el("incomeForm").addEventListener("submit", handleIncomeSubmit);
-  el("expCategory").addEventListener("change", syncInvestmentCategoryLock);
+  el("expCategory").addEventListener("change", syncExpenseCategoryLock);
+  el("expLoanId").addEventListener("change", syncExpLoanDescription);
 
   el("btnToggleDivide").addEventListener("click", () => {
     el("dividePanel").classList.toggle("hidden");
@@ -1729,14 +1918,17 @@ async function handleImportFile(e) {
     sourceLoanHeader = parsed.loanHeader;
     rawLoanRows = parsed.loanRows;
     allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
-    warnIfLoansUnexpectedlyGone(allLoans.length, parsed.loanSheetFound);
-    noteLoansPresence(allLoans.length);
+    sourcePaymentHeader = parsed.paymentHeader;
+    rawPaymentRows = parsed.paymentRows;
+    allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
     refreshDashboard();
     refreshLoansModule();
+    show("mainTabBar");
+    applyActiveTab();
   } catch (err) {
     console.error(err);
     setNotice("statusNotice", "Couldn't read that file &mdash; make sure it's a valid finances.xlsx file.", true);
@@ -1756,7 +1948,7 @@ async function appendRow(row) {
     return true;
   } catch (err) {
     console.error(err);
-    if (err.message !== "LOANS_SHEET_MISSING") {
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't save your entry &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
@@ -1770,6 +1962,13 @@ function generateLoanId() {
   return `loan_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+// Shared by any optional numeric loan field that must stay null (not 0) when
+// absent — a blank/invalid cell is genuinely "not set yet", not zero.
+function parseOptionalNumber(raw) {
+  const parsed = round2(parseFloat(raw));
+  return (raw === "" || raw == null || !isFinite(parsed)) ? null : parsed;
+}
+
 function normalizeLoanRow(raw) {
   const id = String(raw["Loan ID"] || "").trim();
   const name = String(raw["Name"] || "").trim();
@@ -1779,6 +1978,8 @@ function normalizeLoanRow(raw) {
   const rate = parseFloat(raw["Annual Interest Rate"]);
   const lastUpdated = normalizeDateValue(raw["Last Updated"]) || todayISO();
   const notes = String(raw["Notes"] || "").trim();
+  const trackingStartBalance = parseOptionalNumber(raw["Tracking Start Balance"]);
+  const originalAmount = parseOptionalNumber(raw["Original Loan Amount"]);
   return {
     id, name,
     balance: isFinite(balance) ? balance : 0,
@@ -1786,7 +1987,9 @@ function normalizeLoanRow(raw) {
     paymentDay: isFinite(paymentDay) ? paymentDay : 1,
     rate: isFinite(rate) ? rate : 0,
     lastUpdated,
-    notes
+    notes,
+    trackingStartBalance,
+    originalAmount
   };
 }
 
@@ -1799,12 +2002,84 @@ function loanToRawRow(loan) {
     "Payment Day": loan.paymentDay,
     "Annual Interest Rate": loan.rate,
     "Last Updated": loan.lastUpdated,
-    "Notes": loan.notes
+    "Notes": loan.notes,
+    "Tracking Start Balance": loan.trackingStartBalance == null ? "" : loan.trackingStartBalance,
+    "Original Loan Amount": loan.originalAmount == null ? "" : loan.originalAmount
   };
+}
+
+// Backfills "Original Loan Amount" (§LOAN-PROGRESS) the first time a loan is
+// touched by this feature — either at creation (handleLoanSubmit sets it
+// directly) or, for a loan that already existed before this feature shipped,
+// the next time it's edited or gets its first payment logged. Uses whatever
+// Current Balance is on record *before* this call's own changes are applied,
+// since that's the closest available proxy to "what it was standing at, up
+// to this point" for a loan with no true original-amount history. Once set,
+// never touched again — a mistaken/rough backfill is a one-time trade-off,
+// not something that should keep drifting on every later edit.
+function ensureOriginalLoanAmount(state, loanIdx) {
+  const loan = normalizeLoanRow(state.rawLoanRows[loanIdx]);
+  if (loan.originalAmount == null) {
+    state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], { "Original Loan Amount": loan.balance });
+  }
 }
 
 function findRawLoanIndex(rows, id) {
   return rows.findIndex(r => String(r["Loan ID"] || "").trim() === id);
+}
+
+/* ---- Loan payment history — data model (§LOAN-PAYMENTS) ---- */
+function generatePaymentId() {
+  return `pmt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeLoanPaymentRow(raw) {
+  const id = String(raw["Payment ID"] || "").trim();
+  const loanId = String(raw["Loan ID"] || "").trim();
+  const date = normalizeDateValue(raw["Date"]);
+  const amount = round2(parseFloat(raw["Amount Paid"]));
+  const category = String(raw["Category"] || "").trim();
+  const principal = round2(parseFloat(raw["Principal Portion"]));
+  const interest = round2(parseFloat(raw["Interest Portion"]));
+  const balanceAfter = round2(parseFloat(raw["Balance After"]));
+  const notes = String(raw["Notes"] || "").trim();
+  const lastUpdated = normalizeDateValue(raw["Last Updated"]) || date;
+  return {
+    id, loanId, date,
+    amount: isFinite(amount) ? amount : 0,
+    category,
+    principal: isFinite(principal) ? principal : 0,
+    interest: isFinite(interest) ? interest : 0,
+    balanceAfter: isFinite(balanceAfter) ? balanceAfter : 0,
+    notes,
+    lastUpdated
+  };
+}
+
+function loanPaymentToRawRow(p) {
+  return {
+    "Payment ID": p.id,
+    "Loan ID": p.loanId,
+    "Date": p.date,
+    "Amount Paid": p.amount,
+    "Category": p.category,
+    "Principal Portion": p.principal,
+    "Interest Portion": p.interest,
+    "Balance After": p.balanceAfter,
+    "Notes": p.notes,
+    "Last Updated": p.lastUpdated
+  };
+}
+
+function findRawPaymentIndex(rows, id) {
+  return rows.findIndex(r => String(r["Payment ID"] || "").trim() === id);
+}
+
+// Finds the Transactions row linked to a given loan payment (if any) — the
+// expense auto-recorded alongside it, kept in sync by Payment ID rather than
+// by matching on date/amount/description, which could collide or drift.
+function findRawTransactionIndexByPaymentId(rows, paymentId) {
+  return rows.findIndex(r => String(r["Payment ID"] || "").trim() === paymentId);
 }
 
 async function appendLoan(loan) {
@@ -1814,7 +2089,7 @@ async function appendLoan(loan) {
     return true;
   } catch (err) {
     console.error(err);
-    if (err.message !== "LOANS_SHEET_MISSING") {
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't save your loan &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
@@ -1833,6 +2108,7 @@ async function updateLoan(id, fields) {
     await saveWithFreshMerge(state => {
       const rawIdx = findRawLoanIndex(state.rawLoanRows, id);
       if (rawIdx === -1) { found = false; return; }
+      ensureOriginalLoanAmount(state, rawIdx);
       const prevLoan = normalizeLoanRow(state.rawLoanRows[rawIdx]);
       const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
       state.rawLoanRows[rawIdx] = Object.assign({}, state.rawLoanRows[rawIdx], loanToRawRow(updatedLoan));
@@ -1844,13 +2120,16 @@ async function updateLoan(id, fields) {
     return found;
   } catch (err) {
     console.error(err);
-    if (err.message !== "LOANS_SHEET_MISSING") {
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't update your loan &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
   }
 }
 
+// Deleting a loan also removes its logged payment history (§LOAN-PAYMENTS)
+// and each of those payments' linked Expense rows in Transactions — there'd
+// be no valid loan left for any of them to reference otherwise.
 async function deleteLoan(id) {
   let found = true;
   try {
@@ -1858,14 +2137,219 @@ async function deleteLoan(id) {
       const rawIdx = findRawLoanIndex(state.rawLoanRows, id);
       if (rawIdx === -1) { found = false; return; }
       state.rawLoanRows.splice(rawIdx, 1);
+
+      const paymentIds = state.rawPaymentRows
+        .filter(r => String(r["Loan ID"] || "").trim() === id)
+        .map(r => String(r["Payment ID"] || "").trim())
+        .filter(pid => pid !== "");
+      state.rawPaymentRows = state.rawPaymentRows.filter(r => String(r["Loan ID"] || "").trim() !== id);
+      // Every one of those payments' linked Expense rows goes with it —
+      // there'd be no loan left for an orphaned "Loan Payments" expense to
+      // point back to.
+      state.rawRows = state.rawRows.filter(r => !paymentIds.includes(String(r["Payment ID"] || "").trim()));
     });
     if (selectedLoanId === id) selectedLoanId = null; // §27: reset to "All Loans"
     refreshLoansModule();
+    refreshDashboard();
     return found;
   } catch (err) {
     console.error(err);
-    if (err.message !== "LOANS_SHEET_MISSING") {
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't delete your loan &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
+    return false;
+  }
+}
+
+/* ---- Loan payment history — CRUD & the balance recompute engine (§LOAN-PAYMENTS) ----
+   Recording a real payment is what turns "Current Balance" from a number the
+   user free-types after checking a statement into a figure derived from an
+   actual, dated ledger — the same relationship Transactions already has to
+   the dashboard, just mutable/correctable like the rest of the Loans sheet.
+
+   Simplification, by design: replaying the chain always uses the loan's
+   CURRENT Annual Interest Rate for every past payment, not whatever rate was
+   nominally in effect on that date. This mirrors the rest of the app (§24.1
+   already computes every projection "fresh, starting from today" off a
+   single current rate, with no rate-history concept) — adding a per-payment
+   rate snapshot would be a bigger model change than this app's scope calls
+   for. In practice this only matters if a loan's rate is edited AND an old
+   payment is later edited/deleted; new payments logged in real time are
+   unaffected since they always use today's rate anyway. */
+
+// Replays a loan's payment history in date order from its fixed
+// `Tracking Start Balance` anchor, deriving each payment's Principal/Interest/
+// Balance-After and the loan's resulting Current Balance/Last Updated. Must
+// run inside the same saveWithFreshMerge(mutate) that added/edited/deleted a
+// payment so the recomputed Loans + LoanPayments rows are written together
+// (§DATA-SAFETY) — never call this outside a mutate() callback.
+function recomputeLoanPaymentChain(state, loanId) {
+  const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
+  if (loanIdx === -1) return; // the loan itself is gone — nothing to recompute
+
+  ensureOriginalLoanAmount(state, loanIdx);
+  const loan = normalizeLoanRow(state.rawLoanRows[loanIdx]);
+  const paymentIdxs = [];
+  state.rawPaymentRows.forEach((r, i) => { if (String(r["Loan ID"] || "").trim() === loanId) paymentIdxs.push(i); });
+
+  if (paymentIdxs.length === 0) {
+    // Every payment for this loan has been deleted — Current Balance reverts
+    // to what it was before any payment was ever logged (the tracking
+    // anchor), and goes back to being freely editable again, same as a loan
+    // that never had history.
+    const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+    state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], {
+      "Current Balance": anchor,
+      "Last Updated": todayISO(),
+      "Tracking Start Balance": ""
+    });
+    return;
+  }
+
+  const payments = paymentIdxs
+    .map(i => Object.assign({ _rawIdx: i }, normalizeLoanPaymentRow(state.rawPaymentRows[i])))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.lastUpdated < b.lastUpdated ? -1 : 1)));
+
+  const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+  const monthlyRate = (loan.rate / 100) / 12;
+  let balance = anchor;
+
+  payments.forEach(p => {
+    const interest = round2(balance * monthlyRate);
+    let principal = round2(p.amount - interest);
+    let balanceAfter;
+    if (balance - principal < 0) {
+      // Overpayment: this payment fully clears the loan — never drive the
+      // balance negative. (Principal can still legitimately be negative for
+      // an underpayment that doesn't cover interest — the balance grows,
+      // same "negative amortization" case §24.2 already models.)
+      principal = balance;
+      balanceAfter = 0;
+    } else {
+      balanceAfter = round2(balance - principal);
+    }
+    state.rawPaymentRows[p._rawIdx] = Object.assign({}, state.rawPaymentRows[p._rawIdx], {
+      "Principal Portion": principal, "Interest Portion": interest, "Balance After": balanceAfter
+    });
+    balance = balanceAfter;
+  });
+
+  const last = payments[payments.length - 1];
+  state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], {
+    "Current Balance": balance,
+    "Last Updated": last.date,
+    "Tracking Start Balance": anchor
+  });
+}
+
+// Adds one loan payment plus its linked Transactions expense row, in a single
+// save — the one code path both the Loans tab's "Log Payment" action and the
+// Income & Expenses "Add Expense" flow (Category = Loan Payments, §LOAN-
+// PAYMENTS) go through, so an expense tagged as a loan payment and the loan
+// it belongs to can never drift out of sync with each other. The two rows
+// share a Payment ID so a later edit/delete of the payment (see
+// updateLoanPayment/deleteLoanPayment) can find and update this exact
+// Transactions row, not just any expense that happens to look similar.
+async function recordLoanPayment({ loanId, date, amount, notes }) {
+  const paymentId = generatePaymentId();
+  try {
+    await saveWithFreshMerge(state => {
+      const payment = {
+        id: paymentId, loanId, date, amount: round2(amount), category: LOAN_LOCKED_CATEGORY,
+        principal: 0, interest: 0, balanceAfter: 0, notes, lastUpdated: todayISO()
+      };
+      state.rawPaymentRows.push(loanPaymentToRawRow(payment));
+
+      const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
+      if (loanIdx !== -1) {
+        const loan = normalizeLoanRow(state.rawLoanRows[loanIdx]);
+        if (loan.trackingStartBalance == null) {
+          // First payment ever logged for this loan — snapshot its balance
+          // right now as the fixed anchor future replays start from.
+          state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], { "Tracking Start Balance": loan.balance });
+        }
+      }
+      recomputeLoanPaymentChain(state, loanId);
+
+      state.rawRows.push({
+        Date: date, Type: "Expense", Category: LOAN_LOCKED_CATEGORY, Classification: "Loan",
+        Amount: round2(amount), Description: notes, "Loan ID": loanId, "Payment ID": paymentId
+      });
+    });
+    refreshLoansModule();
+    refreshDashboard();
+    return true;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't save your payment &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
+    return false;
+  }
+}
+
+// Payments are matched by their stable Payment ID, never position (same
+// discipline as loans — see findRawLoanIndex). Editing one replays that
+// loan's whole chain (recomputeLoanPaymentChain) since every payment after it
+// depends on the corrected balance, and — unlike ordinary Transactions rows —
+// also updates the linked Expense row (found by the shared Payment ID) so the
+// two never disagree about the date/amount/notes of the same real payment.
+async function updateLoanPayment(id, fields) {
+  let found = true;
+  try {
+    await saveWithFreshMerge(state => {
+      const idx = findRawPaymentIndex(state.rawPaymentRows, id);
+      if (idx === -1) { found = false; return; }
+      const prev = normalizeLoanPaymentRow(state.rawPaymentRows[idx]);
+      const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
+      state.rawPaymentRows[idx] = Object.assign({}, state.rawPaymentRows[idx], loanPaymentToRawRow(updated));
+      recomputeLoanPaymentChain(state, updated.loanId);
+
+      const txIdx = findRawTransactionIndexByPaymentId(state.rawRows, id);
+      if (txIdx !== -1) {
+        state.rawRows[txIdx] = Object.assign({}, state.rawRows[txIdx], {
+          Date: updated.date, Amount: updated.amount, Description: updated.notes
+        });
+      }
+    });
+    if (!found) {
+      setNotice("statusNotice", "That payment no longer exists &mdash; it may have been deleted from another session. The list has been refreshed.", true);
+    }
+    refreshLoansModule();
+    refreshDashboard();
+    return found;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't update your payment &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
+    return false;
+  }
+}
+
+// Deleting a payment also removes its linked Expense row (found by Payment
+// ID) — a loan payment and its expense entry are two views of the same real
+// event, so neither should be able to outlive the other.
+async function deleteLoanPayment(id) {
+  let found = true;
+  try {
+    await saveWithFreshMerge(state => {
+      const idx = findRawPaymentIndex(state.rawPaymentRows, id);
+      if (idx === -1) { found = false; return; }
+      const loanId = String(state.rawPaymentRows[idx]["Loan ID"] || "").trim();
+      state.rawPaymentRows.splice(idx, 1);
+      recomputeLoanPaymentChain(state, loanId);
+
+      const txIdx = findRawTransactionIndexByPaymentId(state.rawRows, id);
+      if (txIdx !== -1) state.rawRows.splice(txIdx, 1);
+    });
+    refreshLoansModule();
+    refreshDashboard();
+    return found;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't delete your payment &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
   }
@@ -1957,18 +2441,61 @@ function formatPercent1(n) { return (isFinite(n) ? n : 0).toFixed(1); }
 /* ============================================================
    MODALS
    ============================================================ */
-function syncInvestmentCategoryLock() {
+function populateExpLoanSelect() {
+  const sel = el("expLoanId");
+  sel.innerHTML = "";
+  // No option pre-selected — forces an active choice rather than silently
+  // defaulting to whichever loan happens to be first in the list.
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select an option";
+  sel.appendChild(placeholder);
+  allLoans.forEach(loan => {
+    const o = document.createElement("option");
+    o.value = loan.id;
+    o.textContent = loan.name;
+    sel.appendChild(o);
+  });
+  sel.value = "";
+}
+
+// Mirrors the default notes text the dedicated "Log Payment" modal (Loans
+// tab) fills in for the same loan, so both entry points feel consistent.
+function syncExpLoanDescription() {
+  const loan = allLoans.find(l => l.id === el("expLoanId").value);
+  el("expDescription").value = loan ? `${loan.name} payment` : "";
+}
+
+// Two categories force a locked Classification (§8.3): Investment / Savings
+// Deposit forces Investment, Loan Payments forces Loan and additionally
+// reveals the "Which loan?" field — picking it doesn't just tag the expense,
+// it also records a real payment against that loan (recordLoanPayment,
+// §LOAN-PAYMENTS), so the two can never say different things about the same
+// real-world payment.
+function syncExpenseCategoryLock() {
   const catSelect = el("expCategory");
   const classSelect = el("expClassification");
-  const locked = catSelect.value === INVESTMENT_LOCKED_CATEGORY;
-  if (locked) {
-    classSelect.value = "Investment";
+  const cat = catSelect.value;
+  const lockedClassification = cat === INVESTMENT_LOCKED_CATEGORY ? "Investment" : cat === LOAN_LOCKED_CATEGORY ? "Loan" : null;
+
+  if (lockedClassification) {
+    classSelect.value = lockedClassification;
     classSelect.disabled = true;
   } else if (classSelect.disabled) {
     classSelect.disabled = false;
     classSelect.value = DEFAULT_CLASSIFICATION;
   }
-  el("expClassificationLockHint").style.display = locked ? "block" : "none";
+  el("expClassificationLockHint").textContent = lockedClassification ? `Locked to ${lockedClassification} for this category.` : "";
+  el("expClassificationLockHint").style.display = lockedClassification ? "block" : "none";
+
+  if (cat === LOAN_LOCKED_CATEGORY) {
+    populateExpLoanSelect();
+    syncExpLoanDescription(); // no loan chosen yet — clears any stale description
+    hide("expLoanIdError");
+    show("expLoanFieldWrap");
+  } else {
+    hide("expLoanFieldWrap");
+  }
 }
 
 function openModal(id) {
@@ -1977,7 +2504,7 @@ function openModal(id) {
     el("expDate").value = todayISO();
     el("expClassification").disabled = false;
     el("expClassification").value = DEFAULT_CLASSIFICATION;
-    syncInvestmentCategoryLock();
+    syncExpenseCategoryLock();
     hide("dividePanel");
     hide("divError");
     hide("expAmountError");
@@ -2028,6 +2555,7 @@ async function handleExpenseSubmit(e) {
 
   hide("expAmountError");
   hide("expenseFormError");
+  hide("expLoanIdError");
 
   if (!date || !category) {
     el("expenseFormError").textContent = "Please fill in the date and category.";
@@ -2039,8 +2567,19 @@ async function handleExpenseSubmit(e) {
     return;
   }
 
-  const row = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description };
   const btn = e.target.querySelector('button[type="submit"]');
+
+  if (category === LOAN_LOCKED_CATEGORY) {
+    const loanId = el("expLoanId").value;
+    if (!loanId) { show("expLoanIdError"); return; }
+    btn.disabled = true;
+    const ok = await recordLoanPayment({ loanId, date, amount: round2(amount), notes: description });
+    btn.disabled = false;
+    if (ok) closeModal("expenseModalOverlay");
+    return;
+  }
+
+  const row = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description };
   btn.disabled = true;
   const ok = await appendRow(row);
   btn.disabled = false;
@@ -2519,6 +3058,7 @@ function refreshLoansModule() {
   populateLoanSelector();
   renderLoanBars(projections);
   renderLoanChart(projections);
+  renderPaymentHistoryTable();
 }
 
 function renderLoansList(projections) {
@@ -2531,6 +3071,9 @@ function renderLoansList(projections) {
     const ratioLine = proj.negativeAmortization
       ? "Growing debt — this payment doesn't cover the interest, so the balance won't go down as configured."
       : `Will cost about +${formatNumber(Math.round(computeInterestToBalanceRatio(proj, loan)))}% in interest over its remaining life.`;
+    const balanceText = loan.originalAmount != null
+      ? `Balance ${formatNumber(loan.balance)} (originally ${formatNumber(loan.originalAmount)})`
+      : `Balance ${formatNumber(loan.balance)}`;
 
     const row = document.createElement("div");
     row.className = `loan-row tier-${tier}`;
@@ -2539,11 +3082,14 @@ function renderLoansList(projections) {
       <div class="loan-row-main">
         <div class="loan-row-info">
           <div class="loan-row-name">${escapeHtml(loan.name)}${proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : ""}</div>
-          <div class="loan-row-meta">Balance ${formatNumber(loan.balance)} &middot; Payment ${formatNumber(loan.payment)}/mo &middot; ${formatNumber(loan.rate)}% nominal &middot; as of ${friendlyDate(loan.lastUpdated)}</div>
+          <div class="loan-row-meta">${balanceText} &middot; Payment ${formatNumber(loan.payment)}/mo &middot; ${formatNumber(loan.rate)}% nominal &middot; as of ${friendlyDate(loan.lastUpdated)}</div>
           <div class="loan-row-ratio">${ratioLine}</div>
         </div>
         <div class="loan-row-rate">${formatPercent1(proj.effectiveAnnualRate)}%<span class="loan-row-rate-label"> per year</span></div>
         <div class="loan-row-actions">
+          <button type="button" class="icon-btn" data-action="log-payment" aria-label="Log a payment" title="Log a payment">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </button>
           <button type="button" class="icon-btn" data-action="edit" aria-label="Edit loan" title="Edit loan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
@@ -2582,8 +3128,15 @@ function renderLoanBars(projections) {
   const totalBalance = round2(included.reduce((s, l) => s + l.balance, 0));
   const totalPayments = round2(included.reduce((s, l) => s + projections[l.id].totalPayments, 0));
   const totalInterest = round2(included.reduce((s, l) => s + projections[l.id].totalInterest, 0));
+  // A loan with no recorded Original Loan Amount yet (§LOAN-PROGRESS) falls
+  // back to treating it as equal to its own current balance here — i.e. "no
+  // progress shown for that specific loan" — so the paid/remaining split
+  // never goes negative and every loan still contributes its real balance.
+  const totalOriginal = round2(included.reduce((s, l) => s + (l.originalAmount != null ? l.originalAmount : l.balance), 0));
+  const totalPaid = round2(Math.max(0, totalOriginal - totalBalance));
 
-  const maxCompare = Math.max(totalBalance, totalPayments, 1);
+  const maxCompare = Math.max(totalBalance, totalPayments, totalOriginal, 1);
+  el("loanBarPaidFill").style.width = `${Math.min(100, (totalPaid / maxCompare) * 100)}%`;
   el("loanBarBalanceFill").style.width = `${Math.min(100, (totalBalance / maxCompare) * 100)}%`;
   el("loanBarPaymentsFill").style.width = `${Math.min(100, (totalPayments / maxCompare) * 100)}%`;
   el("loanBarBalanceValue").textContent = formatNumber(totalBalance);
@@ -2602,6 +3155,27 @@ function renderLoanBars(projections) {
   }
 }
 
+// Real balance/cumulative-interest for one loan as of the end of calendar
+// month `ym`, derived purely from its logged LoanPayments rows — no
+// projection involved. `paymentsForLoan` must already be sorted ascending by
+// date. A loan with no payments on/before `ym` simply holds at its tracking
+// anchor (or Current Balance, if it has no history at all).
+function loanActualStateAtMonth(loan, paymentsForLoan, ym) {
+  let balance = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+  let cumInterest = 0;
+  for (const p of paymentsForLoan) {
+    if (monthKey(p.date) > ym) break;
+    balance = p.balanceAfter;
+    cumInterest = round2(cumInterest + p.interest);
+  }
+  return { balance, cumInterest };
+}
+
+// Debt & Interest Over Time (§26.5): a solid "actual" segment built from real
+// logged payments (§LOAN-PAYMENTS) up to this month, continuing as a dashed
+// "projected" segment from computeLoanProjection() out to payoff. A loan with
+// no logged payments at all has no actual segment — the chart is then pure
+// projection starting at "Today", exactly as before this feature existed.
 function renderLoanChart(projections) {
   const loans = selectedLoansSet();
   const included = loans.filter(l => !projections[l.id].negativeAmortization);
@@ -2616,35 +3190,79 @@ function renderLoanChart(projections) {
   hide("loanChartEmpty");
   show("loanChartWrap");
 
-  const maxMonths = Math.max(...included.map(l => projections[l.id].months));
+  const todayYM = monthKey(todayISO());
+  const paymentsByLoan = {};
+  included.forEach(l => {
+    paymentsByLoan[l.id] = allLoanPayments.filter(p => p.loanId === l.id).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  });
+
+  let earliestYM = todayYM;
+  included.forEach(l => {
+    const pmts = paymentsByLoan[l.id];
+    if (pmts.length > 0) {
+      const ym = monthKey(pmts[0].date);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+  });
+  const hasAnyHistory = earliestYM < todayYM;
+
+  const maxMonthsAhead = Math.max(...included.map(l => projections[l.id].months));
+
+  const buckets = []; // { ym, isFuture }
+  for (let ym = earliestYM; ym < todayYM; ym = addMonthsToKey(ym, 1)) buckets.push({ ym, isFuture: false });
+  for (let m = 0; m <= maxMonthsAhead; m++) buckets.push({ ym: addMonthsToKey(todayYM, m), isFuture: true });
+  const splitIndex = buckets.findIndex(b => b.isFuture); // index of "Today"
+
   const labels = [];
   const balanceData = [];
   const interestData = [];
   const noInterestData = [];
-  for (let m = 0; m <= maxMonths; m++) {
-    let balSum = 0, intSum = 0, noInterestSum = 0;
-    included.forEach(l => {
-      const sched = projections[l.id].schedule;
-      const point = sched[m] || sched[sched.length - 1]; // loan already paid off — holds at 0 balance / final interest
-      balSum += point.balance;
-      intSum += point.cumulativeInterest;
-      noInterestSum += Math.max(0, l.balance - l.payment * m); // hypothetical: same payment, 0% interest
-    });
-    labels.push(m === 0 ? "Today" : `Month ${m}`);
-    balanceData.push(round2(balSum));
-    interestData.push(round2(intSum));
-    noInterestData.push(round2(noInterestSum));
-  }
+
+  buckets.forEach((b, idx) => {
+    if (!b.isFuture) {
+      let balSum = 0, intSum = 0;
+      included.forEach(l => {
+        const { balance, cumInterest } = loanActualStateAtMonth(l, paymentsByLoan[l.id], b.ym);
+        balSum += balance; intSum += cumInterest;
+      });
+      labels.push(monthKeyLabel(b.ym));
+      balanceData.push(round2(balSum));
+      interestData.push(round2(intSum));
+      noInterestData.push(null); // hypothetical 0%-interest line is only meaningful for the projected future
+    } else {
+      const monthsFromToday = idx - splitIndex;
+      let balSum = 0, intSum = 0, noIntSum = 0;
+      included.forEach(l => {
+        const sched = projections[l.id].schedule;
+        const point = sched[monthsFromToday] || sched[sched.length - 1]; // loan already paid off — holds at 0 balance / final interest
+        balSum += point.balance;
+        intSum += point.cumulativeInterest;
+        noIntSum += Math.max(0, l.balance - l.payment * monthsFromToday); // hypothetical: same payment, 0% interest
+      });
+      labels.push(monthsFromToday === 0 ? "Today" : monthKeyLabel(b.ym));
+      balanceData.push(round2(balSum));
+      interestData.push(round2(intSum));
+      noInterestData.push(round2(noIntSum));
+    }
+  });
 
   const theme = getChartThemeColors();
+  // Solid through the last actual point (the segment ending exactly at
+  // "Today"), dashed for every segment beyond it — only when there's real
+  // history to distinguish from; otherwise the line stays uniformly solid,
+  // matching this chart's look before payment history existed.
+  const segmentStyle = hasAnyHistory
+    ? { borderDash: (ctx) => (ctx.p1DataIndex > splitIndex ? [6, 4] : undefined) }
+    : undefined;
+
   loanChart = new Chart(el("loanChart").getContext("2d"), {
     type: "line",
     data: {
       labels,
       datasets: [
-        { label: "Remaining balance", data: balanceData, borderColor: theme.loan, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 },
-        { label: "Cumulative interest paid", data: interestData, borderColor: theme.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 },
-        { label: "Balance if 0% interest", data: noInterestData, borderColor: theme.income, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2 }
+        { label: "Remaining balance", data: balanceData, borderColor: theme.loan, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2, segment: segmentStyle },
+        { label: "Cumulative interest paid", data: interestData, borderColor: theme.accent, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2, segment: segmentStyle },
+        { label: "Balance if 0% interest (projected)", data: noInterestData, borderColor: theme.income, backgroundColor: "transparent", tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: false }
       ]
     },
     options: {
@@ -2673,6 +3291,52 @@ function renderLoanChart(projections) {
   });
 }
 
+// Shows every logged payment for whichever loan(s) the selector (§26.2)
+// currently has in scope — "All Loans" shows every payment across every
+// loan, a specific loan shows just its own history. Newest first.
+function renderPaymentHistoryTable() {
+  const body = el("paymentHistoryTableBody");
+  body.innerHTML = "";
+
+  const loanIds = new Set(selectedLoansSet().map(l => l.id));
+  const rows = allLoanPayments.filter(p => loanIds.has(p.loanId))
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  if (rows.length === 0) {
+    show("paymentHistoryEmpty");
+    hide("paymentHistoryWrap");
+    return;
+  }
+  hide("paymentHistoryEmpty");
+  show("paymentHistoryWrap");
+
+  const loanNameById = {};
+  allLoans.forEach(l => { loanNameById[l.id] = l.name; });
+
+  rows.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${friendlyDate(p.date)}</td>
+      <td>${escapeHtml(loanNameById[p.loanId] || "—")}</td>
+      <td class="amount-col">${formatNumber(p.amount)}</td>
+      <td class="amount-col">${formatNumber(p.principal)}</td>
+      <td class="amount-col">${formatNumber(p.interest)}</td>
+      <td class="amount-col">${formatNumber(p.balanceAfter)}</td>
+      <td>${escapeHtml(p.notes)}</td>
+      <td class="loan-row-actions">
+        <button type="button" class="icon-btn" data-action="edit" data-payment-id="${p.id}" aria-label="Edit payment" title="Edit payment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <button type="button" class="icon-btn danger" data-action="delete" data-payment-id="${p.id}" aria-label="Delete payment" title="Delete payment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
 /* ---- Loans — add/edit/delete modal ---- */
 function hideLoanFormErrors() {
   hide("loanBalanceError"); hide("loanPaymentError"); hide("loanPaymentDayError"); hide("loanRateError"); hide("loanFormError");
@@ -2696,6 +3360,8 @@ function openLoanModalForAdd() {
   el("loanModalTitle").textContent = "Add Loan";
   el("btnSaveLoan").textContent = "Save";
   el("loanPaymentDay").value = new Date().getDate();
+  el("loanBalance").disabled = false;
+  hide("loanBalanceTrackedHint");
   hideLoanFormErrors();
   hide("loanNegAmortWarning");
   show("loanModalOverlay");
@@ -2716,6 +3382,14 @@ function openLoanModalForEdit(id) {
   el("loanNotes").value = loan.notes;
   hideLoanFormErrors();
   updateLoanNegAmortWarning();
+
+  // Once a loan has any logged payment history, its Current Balance is
+  // derived from that ledger (recomputeLoanPaymentChain) rather than
+  // free-typed — log/edit/delete a payment to change it instead.
+  const hasPayments = allLoanPayments.some(p => p.loanId === loan.id);
+  el("loanBalance").disabled = hasPayments;
+  el("loanBalanceTrackedHint").classList.toggle("hidden", !hasPayments);
+
   show("loanModalOverlay");
 }
 
@@ -2745,7 +3419,7 @@ async function handleLoanSubmit(e) {
   if (id) {
     ok = await updateLoan(id, { name, balance: round2(balance), payment: round2(payment), paymentDay, rate, notes });
   } else {
-    const loan = { id: generateLoanId(), name, balance: round2(balance), payment: round2(payment), paymentDay, rate, lastUpdated: todayISO(), notes };
+    const loan = { id: generateLoanId(), name, balance: round2(balance), payment: round2(payment), paymentDay, rate, lastUpdated: todayISO(), notes, originalAmount: round2(balance) };
     ok = await appendLoan(loan);
   }
   btn.disabled = false;
@@ -2755,8 +3429,81 @@ async function handleLoanSubmit(e) {
 async function handleDeleteLoan(id) {
   const loan = allLoans.find(l => l.id === id);
   if (!loan) return;
-  if (!window.confirm(`Delete "${loan.name}"? This can't be undone.`)) return;
+  const hasPayments = allLoanPayments.some(p => p.loanId === id);
+  const message = hasPayments
+    ? `Delete "${loan.name}"? This can't be undone and will also remove its logged payment history and their matching expense entries in Income & Expenses.`
+    : `Delete "${loan.name}"? This can't be undone.`;
+  if (!window.confirm(message)) return;
   await deleteLoan(id);
+}
+
+/* ---- Loans — log/edit/delete a real payment (§LOAN-PAYMENTS) ---- */
+function hidePaymentFormErrors() { hide("pmtAmountError"); hide("paymentFormError"); }
+
+function openPaymentModalForAdd(loanId) {
+  const loan = allLoans.find(l => l.id === loanId);
+  if (!loan) return;
+  el("paymentForm").reset();
+  el("pmtId").value = "";
+  el("pmtLoanId").value = loanId;
+  el("pmtLoanName").textContent = loan.name;
+  el("paymentModalTitle").textContent = "Log a Payment";
+  el("btnSavePayment").textContent = "Save";
+  el("pmtDate").value = todayISO();
+  el("pmtAmount").value = loan.payment;
+  el("pmtNotes").value = `${loan.name} payment`;
+  hidePaymentFormErrors();
+  show("paymentModalOverlay");
+}
+
+function openPaymentModalForEdit(id) {
+  const payment = allLoanPayments.find(p => p.id === id);
+  if (!payment) return;
+  const loan = allLoans.find(l => l.id === payment.loanId);
+  el("paymentForm").reset();
+  el("pmtId").value = payment.id;
+  el("pmtLoanId").value = payment.loanId;
+  el("pmtLoanName").textContent = loan ? loan.name : "(loan not found)";
+  el("paymentModalTitle").textContent = "Edit Payment";
+  el("btnSavePayment").textContent = "Save Changes";
+  el("pmtDate").value = payment.date;
+  el("pmtAmount").value = payment.amount;
+  el("pmtNotes").value = payment.notes;
+  hidePaymentFormErrors();
+  show("paymentModalOverlay");
+}
+
+async function handlePaymentSubmit(e) {
+  e.preventDefault();
+  hidePaymentFormErrors();
+
+  const id = el("pmtId").value;
+  const loanId = el("pmtLoanId").value;
+  const date = el("pmtDate").value;
+  const amount = parseFloat(el("pmtAmount").value);
+  const notes = el("pmtNotes").value.trim();
+
+  if (!date || !loanId) {
+    el("paymentFormError").textContent = "Please fill in the date.";
+    show("paymentFormError");
+    return;
+  }
+  if (isNaN(amount) || amount <= 0) { show("pmtAmountError"); return; }
+
+  const btn = el("btnSavePayment");
+  btn.disabled = true;
+  const ok = id
+    ? await updateLoanPayment(id, { date, amount: round2(amount), notes })
+    : await recordLoanPayment({ loanId, date, amount: round2(amount), notes });
+  btn.disabled = false;
+  if (ok) closeModal("paymentModalOverlay");
+}
+
+async function handleDeleteLoanPayment(id) {
+  const payment = allLoanPayments.find(p => p.id === id);
+  if (!payment) return;
+  if (!window.confirm("Delete this payment? This can't be undone and will also remove its matching expense entry in Income & Expenses.")) return;
+  await deleteLoanPayment(id);
 }
 
 function wireLoanEvents() {
@@ -2765,11 +3512,15 @@ function wireLoanEvents() {
   el("loanForm").addEventListener("submit", handleLoanSubmit);
   ["loanBalance", "loanPayment", "loanRate"].forEach(id => el(id).addEventListener("input", updateLoanNegAmortWarning));
 
+  el("btnCancelPayment").addEventListener("click", () => closeModal("paymentModalOverlay"));
+  el("paymentForm").addEventListener("submit", handlePaymentSubmit);
+
   el("loanSelector").addEventListener("change", () => {
     selectedLoanId = el("loanSelector").value === "all" ? null : el("loanSelector").value;
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
+    renderPaymentHistoryTable();
   });
 
   el("loansList").addEventListener("click", (e) => {
@@ -2781,6 +3532,7 @@ function wireLoanEvents() {
       e.stopPropagation();
       if (btn.dataset.action === "edit") openLoanModalForEdit(id);
       else if (btn.dataset.action === "delete") handleDeleteLoan(id);
+      else if (btn.dataset.action === "log-payment") openPaymentModalForAdd(id);
       return;
     }
     selectedLoanId = id;
@@ -2788,6 +3540,15 @@ function wireLoanEvents() {
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
+    renderPaymentHistoryTable();
+  });
+
+  el("paymentHistoryTableBody").addEventListener("click", (e) => {
+    const btn = e.target.closest(".icon-btn");
+    if (!btn) return;
+    const id = btn.dataset.paymentId;
+    if (btn.dataset.action === "edit") openPaymentModalForEdit(id);
+    else if (btn.dataset.action === "delete") handleDeleteLoanPayment(id);
   });
 }
 
@@ -2800,6 +3561,7 @@ function setRangeButtonsInitialState() {
     if (btn.dataset.range === DEFAULT_TIME_RANGE) btn.classList.add("active");
   });
 }
+updateTabButtonStyles();
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
