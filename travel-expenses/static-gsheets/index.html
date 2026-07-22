@@ -855,11 +855,13 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
     <button id="connection-banner-btn" class="btn btn-primary" type="button"></button>
   </div>
 
-  <!-- NEW — first-launch gate, shown instead of empty-state/dashboard when
-       no spreadsheet is connected yet (localStorage has no spreadsheet id). -->
+  <!-- Sign-in gate: shown on first launch (no spreadsheet id saved yet) and
+       also on every refresh, since the access token is memory-only and never
+       survives a reload. Heading/body text is swapped at runtime in init()
+       depending on which case this is. -->
   <section id="setup-gate" class="empty-state" hidden>
-    <h2>Connect Google Sheets</h2>
-    <p>Sign in with Google — your trips are automatically stored in a "Travel Expenses"
+    <h2 id="setup-gate-heading">Connect Google Sheets</h2>
+    <p id="setup-gate-body">Sign in with Google — your trips are automatically stored in a "Travel Expenses"
        spreadsheet in your own Google Drive. Nothing to pick or paste.</p>
     <div class="setup-signin-row">
       <button id="setup-signin-btn" class="btn btn-primary">Sign in with Google</button>
@@ -2056,20 +2058,18 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
     wireStaticEvents();
     syncRateHistoryOnLoad();
 
-    if (!spreadsheetId) {
-      el("setup-gate").hidden = false;
-      return;
+    // accessToken lives in memory only (never persisted — see the setup
+    // comment block at the top of this file), so it's always gone after a
+    // refresh even when a spreadsheet is already connected. Rather than
+    // optimistically calling the Sheets API, hitting a 401, and making the
+    // user click through a "Reconnect" banner, just show the sign-in screen
+    // right away: a refresh logs the user out automatically, and one click
+    // signs back in.
+    if (spreadsheetId) {
+      el("setup-gate-heading").textContent = "Signed out";
+      el("setup-gate-body").textContent = "Sign in with Google to continue.";
     }
-    try {
-      await refreshTripList();
-    } catch (err) {
-      // An authFailure already showed the reconnect banner (from inside
-      // sheetsFetch); any other error (bad/deleted spreadsheet id, no
-      // access) gets its own banner with a Disconnect escape hatch.
-      if (!err.authFailure) {
-        showConnectionBanner(err.message || "Could not load your spreadsheet.", "Disconnect", onDisconnectClick);
-      }
-    }
+    el("setup-gate").hidden = false;
   }
 
   // ---- Theme (light / dark) — preference lives in localStorage only,
@@ -2967,7 +2967,22 @@ tr.row-new { animation: highlight-row 1.6s ease-out; }
       const ok = await requestToken("consent");
       if (!ok) { showError(errorEl, "Sign-in was cancelled or failed."); return; }
       el("setup-signin-btn").hidden = true;
-      await autoConnectSpreadsheet();
+      // Returning user (a spreadsheet id is already saved from a previous
+      // session): skip the Drive search/create dance and go straight in.
+      if (spreadsheetId) {
+        try {
+          await enterApp();
+        } catch (err) {
+          // An authFailure already showed the reconnect banner (from inside
+          // sheetsFetch); any other error (bad/deleted spreadsheet id, no
+          // access) gets its own banner with a Disconnect escape hatch.
+          if (!err.authFailure) {
+            showConnectionBanner(err.message || "Could not load your spreadsheet.", "Disconnect", onDisconnectClick);
+          }
+        }
+      } else {
+        await autoConnectSpreadsheet();
+      }
     } catch (err) {
       showError(errorEl, err.message || "Sign-in failed.");
     }
