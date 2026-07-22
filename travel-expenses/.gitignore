@@ -6,3 +6,6 @@ server.log
 # User's personal trip data and rate history — not for version control.
 trips/*.xlsx
 config/rates_history.json
+
+# Pre-generated secret for future session auth (see config.py) — never commit.
+config/.session_secret
