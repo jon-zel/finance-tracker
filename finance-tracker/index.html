@@ -315,6 +315,10 @@ canvas{max-width:100%;}
   display:inline-block;background:var(--loan);color:#fff;font-size:11px;font-weight:700;
   padding:2px 8px;border-radius:var(--radius-pill);vertical-align:middle;
 }
+.loan-badge-paid{
+  display:inline-block;background:var(--income);color:#fff;font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:var(--radius-pill);vertical-align:middle;
+}
 /* Severity tiers: same red family as --loan everywhere, intensity via tint/border only —
    this is the app's core "worse loan = louder" rule and must scale identically in both themes. */
 .loan-row.tier-mild{background:rgba(192,57,43,0.05);border-left-color:rgba(192,57,43,0.35);}
@@ -322,6 +326,11 @@ canvas{max-width:100%;}
 .loan-row.tier-high{background:rgba(192,57,43,0.18);border-left-color:rgba(192,57,43,0.8);}
 .loan-row.tier-severe{background:rgba(192,57,43,0.28);border-left-color:var(--loan);}
 .loan-row.tier-negative{background:rgba(192,57,43,0.32);border-left-color:var(--loan);}
+.loan-row.tier-paid{background:rgba(26,156,107,0.12);border-left-color:var(--income);}
+.loan-row.tier-paid .loan-row-rate{color:var(--income);}
+:root[data-theme="dark"] .loan-row.tier-paid{background:rgba(62,207,142,0.14);border-left-color:var(--income);}
+.icon-btn:disabled{opacity:.35;cursor:not-allowed;}
+.icon-btn:disabled:hover{background:none;color:inherit;border-color:var(--border);}
 :root[data-theme="dark"] .loan-row.tier-mild{background:rgba(240,113,108,0.08);border-left-color:rgba(240,113,108,0.35);}
 :root[data-theme="dark"] .loan-row.tier-moderate{background:rgba(240,113,108,0.16);border-left-color:rgba(240,113,108,0.55);}
 :root[data-theme="dark"] .loan-row.tier-high{background:rgba(240,113,108,0.26);border-left-color:rgba(240,113,108,0.8);}
@@ -982,7 +991,7 @@ const LOANS_SHEET_NAME = "Loans";
 // has the next time it's touched (edited, or has its first payment logged) —
 // see ensureOriginalLoanAmount(). There is no UI field for it and it's never
 // user-editable. It's what "progress paid off" is measured against.
-const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "Payment Day", "Annual Interest Rate", "Last Updated", "Notes", "Tracking Start Balance", "Original Loan Amount"];
+const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "Payment Day", "Annual Interest Rate", "Last Updated", "Notes", "Tracking Start Balance", "Original Loan Amount", "Date Recorded"];
 
 // ---- Loan payment history (§LOAN-PAYMENTS) — a third worksheet holding the
 // real, dated record of payments actually made against a loan. Independent of
@@ -1348,6 +1357,12 @@ function addMonthsToKey(ym, n) {
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 
+function monthsBetween(fromYM, toYM) {
+  const [fy, fm] = fromYM.split("-").map(Number);
+  const [ty, tm] = toYM.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
+
 function monthKeyLabel(ym) {
   const [y, m] = ym.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -1665,6 +1680,11 @@ async function saveWithFreshMerge(mutate) {
     }
   }
 
+  // Runs against the state exactly as it stood before this save's own
+  // changes (same discipline as ensureOriginalLoanAmount) — an edit that's
+  // about to bump a loan's own Last Updated to today must not get to see
+  // that bump as if it were the loan's original signal.
+  backfillLoanRecordedDates(state);
   mutate(state);
 
   state.sourceHeader = computeFinalHeader(state.sourceHeader, state.rawRows, COLUMNS);
@@ -1980,6 +2000,7 @@ function normalizeLoanRow(raw) {
   const notes = String(raw["Notes"] || "").trim();
   const trackingStartBalance = parseOptionalNumber(raw["Tracking Start Balance"]);
   const originalAmount = parseOptionalNumber(raw["Original Loan Amount"]);
+  const dateRecorded = normalizeDateValue(raw["Date Recorded"]) || null;
   return {
     id, name,
     balance: isFinite(balance) ? balance : 0,
@@ -1989,7 +2010,8 @@ function normalizeLoanRow(raw) {
     lastUpdated,
     notes,
     trackingStartBalance,
-    originalAmount
+    originalAmount,
+    dateRecorded
   };
 }
 
@@ -2004,7 +2026,8 @@ function loanToRawRow(loan) {
     "Last Updated": loan.lastUpdated,
     "Notes": loan.notes,
     "Tracking Start Balance": loan.trackingStartBalance == null ? "" : loan.trackingStartBalance,
-    "Original Loan Amount": loan.originalAmount == null ? "" : loan.originalAmount
+    "Original Loan Amount": loan.originalAmount == null ? "" : loan.originalAmount,
+    "Date Recorded": loan.dateRecorded == null ? "" : loan.dateRecorded
   };
 }
 
@@ -2022,6 +2045,30 @@ function ensureOriginalLoanAmount(state, loanIdx) {
   if (loan.originalAmount == null) {
     state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], { "Original Loan Amount": loan.balance });
   }
+}
+
+// Backfills "Date Recorded" (§LOAN-START-DATE) for any Loans row that
+// predates this field — a loan's true creation date can't be recovered
+// exactly, so this uses the best available proxy: the earliest date any real
+// payment was ever logged against it, or — for a loan with no payment
+// history at all — its current Last Updated, which for a loan that's never
+// been edited since creation still equals the day it was first added. Runs
+// on every single save (not just when that specific loan is touched), so one
+// save anywhere in the app — adding an expense, logging any payment —
+// converges every legacy loan at once instead of waiting for each one to be
+// individually edited. Once set, never touched again, same as
+// ensureOriginalLoanAmount.
+function backfillLoanRecordedDates(state) {
+  state.rawLoanRows.forEach((raw, idx) => {
+    if (String(raw["Date Recorded"] || "").trim()) return;
+    const loan = normalizeLoanRow(raw);
+    const paymentDates = state.rawPaymentRows
+      .filter(r => String(r["Loan ID"] || "").trim() === loan.id)
+      .map(r => normalizeDateValue(r["Date"]))
+      .filter(Boolean);
+    const earliest = paymentDates.length > 0 ? paymentDates.reduce((min, d) => (d < min ? d : min)) : loan.lastUpdated;
+    state.rawLoanRows[idx] = Object.assign({}, raw, { "Date Recorded": earliest });
+  });
 }
 
 function findRawLoanIndex(rows, id) {
@@ -2183,6 +2230,43 @@ async function deleteLoan(id) {
 // run inside the same saveWithFreshMerge(mutate) that added/edited/deleted a
 // payment so the recomputed Loans + LoanPayments rows are written together
 // (§DATA-SAFETY) — never call this outside a mutate() callback.
+// Chain sort order shared by recomputeLoanPaymentChain and the overpayment
+// check below — both must agree on which payment lands in which slot.
+function sortPaymentsForChain(payments) {
+  return payments.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.lastUpdated < b.lastUpdated ? -1 : 1)));
+}
+
+// Pure replay of a loan's amortization chain — no state mutation, so it can
+// be used both to actually persist the recompute (recomputeLoanPaymentChain)
+// and to dry-run "would this candidate payment fit?" before it's ever
+// written (§LOAN-OVERPAY). `sortedPayments` must already be in chain order.
+// Each result carries `capped`: true when the entered amount was more than
+// the balance still owed at that point in the chain (plus that period's
+// interest) — i.e. this payment claims to pay off more debt than existed.
+function computeLoanChain(anchor, monthlyRate, sortedPayments) {
+  let balance = anchor;
+  const results = sortedPayments.map(p => {
+    const interest = round2(balance * monthlyRate);
+    const balanceBefore = balance;
+    let principal = round2(p.amount - interest);
+    let balanceAfter, capped = false;
+    if (balance - principal < 0) {
+      // Overpayment: this payment fully clears the loan — never drive the
+      // balance negative. (Principal can still legitimately be negative for
+      // an underpayment that doesn't cover interest — the balance grows,
+      // same "negative amortization" case §24.2 already models.)
+      principal = balance;
+      balanceAfter = 0;
+      capped = true;
+    } else {
+      balanceAfter = round2(balance - principal);
+    }
+    balance = balanceAfter;
+    return { payment: p, principal, interest, balanceAfter, balanceBefore, capped, maxAmount: round2(balanceBefore + interest) };
+  });
+  return { results, finalBalance: balance };
+}
+
 function recomputeLoanPaymentChain(state, loanId) {
   const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
   if (loanIdx === -1) return; // the loan itself is gone — nothing to recompute
@@ -2206,40 +2290,47 @@ function recomputeLoanPaymentChain(state, loanId) {
     return;
   }
 
-  const payments = paymentIdxs
-    .map(i => Object.assign({ _rawIdx: i }, normalizeLoanPaymentRow(state.rawPaymentRows[i])))
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.lastUpdated < b.lastUpdated ? -1 : 1)));
+  const payments = sortPaymentsForChain(
+    paymentIdxs.map(i => Object.assign({ _rawIdx: i }, normalizeLoanPaymentRow(state.rawPaymentRows[i])))
+  );
 
   const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
   const monthlyRate = (loan.rate / 100) / 12;
-  let balance = anchor;
+  const { results, finalBalance } = computeLoanChain(anchor, monthlyRate, payments);
 
-  payments.forEach(p => {
-    const interest = round2(balance * monthlyRate);
-    let principal = round2(p.amount - interest);
-    let balanceAfter;
-    if (balance - principal < 0) {
-      // Overpayment: this payment fully clears the loan — never drive the
-      // balance negative. (Principal can still legitimately be negative for
-      // an underpayment that doesn't cover interest — the balance grows,
-      // same "negative amortization" case §24.2 already models.)
-      principal = balance;
-      balanceAfter = 0;
-    } else {
-      balanceAfter = round2(balance - principal);
-    }
-    state.rawPaymentRows[p._rawIdx] = Object.assign({}, state.rawPaymentRows[p._rawIdx], {
-      "Principal Portion": principal, "Interest Portion": interest, "Balance After": balanceAfter
+  results.forEach(r => {
+    state.rawPaymentRows[r.payment._rawIdx] = Object.assign({}, state.rawPaymentRows[r.payment._rawIdx], {
+      "Principal Portion": r.principal, "Interest Portion": r.interest, "Balance After": r.balanceAfter
     });
-    balance = balanceAfter;
   });
 
   const last = payments[payments.length - 1];
   state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], {
-    "Current Balance": balance,
+    "Current Balance": finalBalance,
     "Last Updated": last.date,
     "Tracking Start Balance": anchor
   });
+}
+
+// Dry-runs one candidate payment (new or edited) against the loan's real
+// chain, without writing anything, to answer "does this amount fit?"
+// (§LOAN-OVERPAY — a single payment can't pay off more debt than the loan
+// actually has at that point in its history). `excludePaymentId` lets an
+// edit check itself against the chain as it would look with its own
+// pre-edit row removed. Returns null if the loan itself can't be found.
+function checkLoanPaymentFits(state, loanId, candidate, excludePaymentId) {
+  const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
+  if (loanIdx === -1) return null;
+  const loan = normalizeLoanRow(state.rawLoanRows[loanIdx]);
+  const others = state.rawPaymentRows
+    .filter(r => String(r["Loan ID"] || "").trim() === loanId && String(r["Payment ID"] || "").trim() !== (excludePaymentId || ""))
+    .map(normalizeLoanPaymentRow);
+  const payments = sortPaymentsForChain(others.concat([candidate]));
+  const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+  const monthlyRate = (loan.rate / 100) / 12;
+  const { results } = computeLoanChain(anchor, monthlyRate, payments);
+  const slot = results.find(r => r.payment === candidate);
+  return { exceeds: slot.capped, maxAmount: slot.maxAmount };
 }
 
 // Adds one loan payment plus its linked Transactions expense row, in a single
@@ -2254,10 +2345,27 @@ async function recordLoanPayment({ loanId, date, amount, notes }) {
   const paymentId = generatePaymentId();
   try {
     await saveWithFreshMerge(state => {
+      const loanIdx0 = findRawLoanIndex(state.rawLoanRows, loanId);
+      // Re-checked against the freshest on-disk balance (not the possibly-stale
+      // in-memory allLoans), same discipline as the rest of saveWithFreshMerge —
+      // a loan already paid off in another tab/session can't take another payment.
+      if (loanIdx0 !== -1 && normalizeLoanRow(state.rawLoanRows[loanIdx0]).balance <= 0) {
+        throw new Error("LOAN_ALREADY_PAID_OFF");
+      }
+
       const payment = {
         id: paymentId, loanId, date, amount: round2(amount), category: LOAN_LOCKED_CATEGORY,
         principal: 0, interest: 0, balanceAfter: 0, notes, lastUpdated: todayISO()
       };
+
+      // A single payment can't pay off more debt than the loan actually has
+      // at that point in its history (§LOAN-OVERPAY) — dry-run it against
+      // the real chain before ever writing it.
+      const fit = checkLoanPaymentFits(state, loanId, payment, null);
+      if (fit && fit.exceeds) {
+        throw new Error(`PAYMENT_EXCEEDS_BALANCE:${fit.maxAmount}`);
+      }
+
       state.rawPaymentRows.push(loanPaymentToRawRow(payment));
 
       const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
@@ -2281,7 +2389,14 @@ async function recordLoanPayment({ loanId, date, amount, notes }) {
     return true;
   } catch (err) {
     console.error(err);
-    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+    if (err.message === "LOAN_ALREADY_PAID_OFF") {
+      setNotice("statusNotice", "That loan is already fully paid off &mdash; no more payments can be logged against it.", true);
+      refreshLoansModule();
+    } else if (err.message.startsWith("PAYMENT_EXCEEDS_BALANCE:")) {
+      const maxAmount = err.message.split(":")[1];
+      setNotice("statusNotice", `That payment is more than the loan's remaining balance &mdash; the most you can pay right now is ${formatNumber(parseFloat(maxAmount))}.`, true);
+      refreshLoansModule();
+    } else if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't save your payment &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
@@ -2302,6 +2417,16 @@ async function updateLoanPayment(id, fields) {
       if (idx === -1) { found = false; return; }
       const prev = normalizeLoanPaymentRow(state.rawPaymentRows[idx]);
       const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
+
+      // Same overpayment guard as recordLoanPayment (§LOAN-OVERPAY), checked
+      // against the chain as it would look with this payment's own pre-edit
+      // row excluded — an edit can't grow the amount past what the loan
+      // actually owed at that point either.
+      const fit = checkLoanPaymentFits(state, updated.loanId, updated, id);
+      if (fit && fit.exceeds) {
+        throw new Error(`PAYMENT_EXCEEDS_BALANCE:${fit.maxAmount}`);
+      }
+
       state.rawPaymentRows[idx] = Object.assign({}, state.rawPaymentRows[idx], loanPaymentToRawRow(updated));
       recomputeLoanPaymentChain(state, updated.loanId);
 
@@ -2320,7 +2445,11 @@ async function updateLoanPayment(id, fields) {
     return found;
   } catch (err) {
     console.error(err);
-    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+    if (err.message.startsWith("PAYMENT_EXCEEDS_BALANCE:")) {
+      const maxAmount = err.message.split(":")[1];
+      setNotice("statusNotice", `That payment is more than the loan's remaining balance at that point &mdash; the most it can be is ${formatNumber(parseFloat(maxAmount))}.`, true);
+      refreshLoansModule();
+    } else if (!SILENT_SAVE_ERRORS.has(err.message)) {
       setNotice("statusNotice", "Couldn't update your payment &mdash; click “Open data folder” to reconnect and try again.", true);
     }
     return false;
@@ -2450,7 +2579,9 @@ function populateExpLoanSelect() {
   placeholder.value = "";
   placeholder.textContent = "Select an option";
   sel.appendChild(placeholder);
-  allLoans.forEach(loan => {
+  // Paid-off loans can't take any more payments, so they're left out here —
+  // same rule enforced server-side in recordLoanPayment.
+  allLoans.filter(loan => loan.balance > 0).forEach(loan => {
     const o = document.createElement("option");
     o.value = loan.id;
     o.textContent = loan.name;
@@ -2572,6 +2703,15 @@ async function handleExpenseSubmit(e) {
   if (category === LOAN_LOCKED_CATEGORY) {
     const loanId = el("expLoanId").value;
     if (!loanId) { show("expLoanIdError"); return; }
+
+    const candidate = { id: "pending", loanId, date, amount: round2(amount), lastUpdated: todayISO() };
+    const fit = clientCheckLoanPaymentFits(loanId, candidate, null);
+    if (fit && fit.exceeds) {
+      el("expenseFormError").textContent = `That payment is more than the loan's remaining balance — the most you can pay right now is ${formatNumber(fit.maxAmount)}.`;
+      show("expenseFormError");
+      return;
+    }
+
     btn.disabled = true;
     const ok = await recordLoanPayment({ loanId, date, amount: round2(amount), notes: description });
     btn.disabled = false;
@@ -3027,8 +3167,13 @@ function computeAllLoanProjections() {
 
 // Negative-amortization loans always pinned to the very top (§24.4), regardless
 // of rate; everyone else sorted by Annual Effective Interest Rate, descending.
+// Fully paid-off loans (balance 0) carry no more risk, so they always sink to
+// the very bottom regardless of their nominal rate.
 function sortedLoansForRanking(projections) {
   return allLoans.slice().sort((a, b) => {
+    const paidA = a.balance <= 0, paidB = b.balance <= 0;
+    if (paidA !== paidB) return paidA ? 1 : -1;
+    if (paidA && paidB) return 0;
     const pa = projections[a.id], pb = projections[b.id];
     if (pa.negativeAmortization !== pb.negativeAmortization) return pa.negativeAmortization ? -1 : 1;
     return pb.effectiveAnnualRate - pa.effectiveAnnualRate;
@@ -3067,13 +3212,19 @@ function renderLoansList(projections) {
   const sorted = sortedLoansForRanking(projections);
   sorted.forEach(loan => {
     const proj = projections[loan.id];
-    const tier = proj.negativeAmortization ? "negative" : severityTierForRate(proj.effectiveAnnualRate);
-    const ratioLine = proj.negativeAmortization
+    const isPaidOff = loan.balance <= 0;
+    const tier = isPaidOff ? "paid" : proj.negativeAmortization ? "negative" : severityTierForRate(proj.effectiveAnnualRate);
+    const ratioLine = isPaidOff
+      ? "Paid off — this loan carries no more risk."
+      : proj.negativeAmortization
       ? "Growing debt — this payment doesn't cover the interest, so the balance won't go down as configured."
       : `Will cost about +${formatNumber(Math.round(computeInterestToBalanceRatio(proj, loan)))}% in interest over its remaining life.`;
     const balanceText = loan.originalAmount != null
       ? `Balance ${formatNumber(loan.balance)} (originally ${formatNumber(loan.originalAmount)})`
       : `Balance ${formatNumber(loan.balance)}`;
+    const badge = isPaidOff
+      ? '<span class="loan-badge-paid">Paid off</span>'
+      : proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : "";
 
     const row = document.createElement("div");
     row.className = `loan-row tier-${tier}`;
@@ -3081,16 +3232,16 @@ function renderLoansList(projections) {
     row.innerHTML = `
       <div class="loan-row-main">
         <div class="loan-row-info">
-          <div class="loan-row-name">${escapeHtml(loan.name)}${proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : ""}</div>
+          <div class="loan-row-name">${escapeHtml(loan.name)}${badge}</div>
           <div class="loan-row-meta">${balanceText} &middot; Payment ${formatNumber(loan.payment)}/mo &middot; ${formatNumber(loan.rate)}% nominal &middot; as of ${friendlyDate(loan.lastUpdated)}</div>
           <div class="loan-row-ratio">${ratioLine}</div>
         </div>
         <div class="loan-row-rate">${formatPercent1(proj.effectiveAnnualRate)}%<span class="loan-row-rate-label"> per year</span></div>
         <div class="loan-row-actions">
-          <button type="button" class="icon-btn" data-action="log-payment" aria-label="Log a payment" title="Log a payment">
+          <button type="button" class="icon-btn" data-action="log-payment" aria-label="Log a payment" title="Log a payment"${isPaidOff ? " disabled" : ""}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </button>
-          <button type="button" class="icon-btn" data-action="edit" aria-label="Edit loan" title="Edit loan">
+          <button type="button" class="icon-btn" data-action="edit" aria-label="Edit loan" title="Edit loan"${isPaidOff ? " disabled" : ""}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
           <button type="button" class="icon-btn danger" data-action="delete" aria-label="Delete loan" title="Delete loan">
@@ -3156,13 +3307,34 @@ function renderLoanBars(projections) {
 }
 
 // Real balance/cumulative-interest for one loan as of the end of calendar
-// month `ym`, derived purely from its logged LoanPayments rows — no
-// projection involved. `paymentsForLoan` must already be sorted ascending by
-// date. A loan with no payments on/before `ym` simply holds at its tracking
-// anchor (or Current Balance, if it has no history at all).
+// month `ym`. For any stretch with a logged LoanPayments row, this is a pure
+// replay of that real ledger — no projection involved. But a loan doesn't
+// sit frozen for the stretch before that (§LOAN-ACCRUAL) — every unpaid
+// month still compounds interest onto the balance, same "payment of 0 never
+// covers interest" rule this app already applies to negative-amortization
+// loans (§24.2), so the debt was smaller before a stretch of unpaid interest
+// compounded it up to what's on record now. That balance is discounted
+// *backward*, month by month, from the one figure we actually know for
+// certain — either the balance right before the first logged payment
+// (trackingStartBalance, the same anchor the real chain itself replays
+// from) or, if nothing's ever been paid, today's Current Balance (the same
+// figure the future projection starts from). Discounting backward from that
+// known point — rather than compounding forward from Original Loan Amount —
+// guarantees this line always meets the real chain/projection with no seam;
+// forward-compounding from an approximate origin can land on a different
+// number than what's actually on record today and jump at the seam.
+// `paymentsForLoan` must already be sorted ascending by date.
 function loanActualStateAtMonth(loan, paymentsForLoan, ym) {
-  let balance = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+  const monthlyRate = (loan.rate / 100) / 12;
+  const firstPaymentYM = paymentsForLoan.length > 0 ? monthKey(paymentsForLoan[0].date) : null;
+  const anchorYM = firstPaymentYM || monthKey(todayISO());
+  const anchorAmount = firstPaymentYM
+    ? (loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance)
+    : loan.balance;
+
+  let balance = ym >= anchorYM ? anchorAmount : round2(anchorAmount / Math.pow(1 + monthlyRate, monthsBetween(ym, anchorYM)));
   let cumInterest = 0;
+
   for (const p of paymentsForLoan) {
     if (monthKey(p.date) > ym) break;
     balance = p.balanceAfter;
@@ -3196,11 +3368,19 @@ function renderLoanChart(projections) {
     paymentsByLoan[l.id] = allLoanPayments.filter(p => p.loanId === l.id).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
   });
 
+  // Anchored to whichever is earlier: the loan's own recorded start date
+  // (§LOAN-START-DATE) or its first logged payment — so a loan with no
+  // payments at all still shows its actual history back to when it was
+  // added, instead of the chart starting at "Today" with nothing behind it.
   let earliestYM = todayYM;
   included.forEach(l => {
     const pmts = paymentsByLoan[l.id];
     if (pmts.length > 0) {
       const ym = monthKey(pmts[0].date);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+    if (l.dateRecorded) {
+      const ym = monthKey(l.dateRecorded);
       if (ym < earliestYM) earliestYM = ym;
     }
   });
@@ -3419,7 +3599,7 @@ async function handleLoanSubmit(e) {
   if (id) {
     ok = await updateLoan(id, { name, balance: round2(balance), payment: round2(payment), paymentDay, rate, notes });
   } else {
-    const loan = { id: generateLoanId(), name, balance: round2(balance), payment: round2(payment), paymentDay, rate, lastUpdated: todayISO(), notes, originalAmount: round2(balance) };
+    const loan = { id: generateLoanId(), name, balance: round2(balance), payment: round2(payment), paymentDay, rate, lastUpdated: todayISO(), notes, originalAmount: round2(balance), dateRecorded: todayISO() };
     ok = await appendLoan(loan);
   }
   btn.disabled = false;
@@ -3473,6 +3653,23 @@ function openPaymentModalForEdit(id) {
   show("paymentModalOverlay");
 }
 
+// Client-side mirror of checkLoanPaymentFits (§LOAN-OVERPAY), run against
+// the in-memory cache for instant feedback before the round trip through
+// saveWithFreshMerge — that call remains the authoritative check against the
+// freshest on-disk chain, this one just avoids a save-then-fail dance for
+// the common case.
+function clientCheckLoanPaymentFits(loanId, candidate, excludePaymentId) {
+  const loan = allLoans.find(l => l.id === loanId);
+  if (!loan) return null;
+  const others = allLoanPayments.filter(p => p.loanId === loanId && p.id !== (excludePaymentId || ""));
+  const payments = sortPaymentsForChain(others.concat([candidate]));
+  const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
+  const monthlyRate = (loan.rate / 100) / 12;
+  const { results } = computeLoanChain(anchor, monthlyRate, payments);
+  const slot = results.find(r => r.payment === candidate);
+  return { exceeds: slot.capped, maxAmount: slot.maxAmount };
+}
+
 async function handlePaymentSubmit(e) {
   e.preventDefault();
   hidePaymentFormErrors();
@@ -3489,6 +3686,23 @@ async function handlePaymentSubmit(e) {
     return;
   }
   if (isNaN(amount) || amount <= 0) { show("pmtAmountError"); return; }
+
+  if (!id) {
+    const loan = allLoans.find(l => l.id === loanId);
+    if (loan && loan.balance <= 0) {
+      el("paymentFormError").textContent = "This loan is already fully paid off — no more payments can be logged.";
+      show("paymentFormError");
+      return;
+    }
+  }
+
+  const candidate = { id: id || "pending", loanId, date, amount: round2(amount), lastUpdated: todayISO() };
+  const fit = clientCheckLoanPaymentFits(loanId, candidate, id || null);
+  if (fit && fit.exceeds) {
+    el("paymentFormError").textContent = `That payment is more than the loan's remaining balance — the most you can pay right now is ${formatNumber(fit.maxAmount)}.`;
+    show("paymentFormError");
+    return;
+  }
 
   const btn = el("btnSavePayment");
   btn.disabled = true;
