@@ -263,11 +263,11 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .type-Income{color:var(--income);font-weight:600;}
 .type-Expense{color:var(--expense);font-weight:600;}
 .table-type-toggle{
-  background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;
-  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;
+  background:none;border:none;padding:0;margin:0;cursor:pointer;
+  font:inherit;text-transform:inherit;letter-spacing:inherit;text-underline-offset:3px;
 }
-.table-type-toggle:hover{opacity:.75;}
-.table-type-toggle.active{text-decoration-style:solid;}
+.table-type-toggle:hover{text-decoration:underline;}
+.table-type-toggle.active{text-decoration:underline;}
 .table-scroll{overflow-x:auto;}
 .history-toggle-btn{
   display:inline-flex;align-items:center;gap:6px;margin-top:14px;
@@ -599,11 +599,11 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <h2>Transaction History</h2>
       <div class="table-category-filter-wrap">
         <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleExpense" class="table-type-toggle type-Expense" title="Click to show only Expenses · double-click to show both again">expense</button> category</div>
+          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleExpense" class="table-type-toggle type-Expense" title="Click to show only Expenses · click again to show both">expense</button> category</div>
           <div id="tableCategoryFilterExpense" class="legend-badges"></div>
         </div>
         <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleIncome" class="table-type-toggle type-Income" title="Click to show only Income · double-click to show both again">income</button> category</div>
+          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleIncome" class="table-type-toggle type-Income" title="Click to show only Income · click again to show both">income</button> category</div>
           <div id="tableCategoryFilterIncome" class="legend-badges"></div>
         </div>
       </div>
@@ -1909,23 +1909,13 @@ function wireStaticEvents() {
 }
 
 // Click the "expense"/"income" word above the Transaction History table to
-// show only that Type there; double-click (on either word) restores both.
-// Same deferred-click-vs-dblclick pattern as attachCategoryToggle, so a
-// dblclick doesn't fire the single-click handler twice first.
+// show only that Type there; click the same word again to cancel it and
+// show both again — a plain two-state toggle, no double-click involved (a
+// deferred click/dblclick pattern here turned out fragile under a rapid
+// multi-click, occasionally leaving the filter stuck).
 function attachTableTypeToggle(element, type) {
-  let pending = null;
   element.addEventListener("click", () => {
-    if (pending) { clearTimeout(pending); pending = null; return; }
-    pending = setTimeout(() => {
-      pending = null;
-      tableTypeFilter = type;
-      historyShowAll = false;
-      refreshDashboard();
-    }, 250);
-  });
-  element.addEventListener("dblclick", () => {
-    if (pending) { clearTimeout(pending); pending = null; }
-    tableTypeFilter = null;
+    tableTypeFilter = tableTypeFilter === type ? null : type;
     historyShowAll = false;
     refreshDashboard();
   });
