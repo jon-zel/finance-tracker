@@ -262,6 +262,12 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .tag.Investment .tag-dot{background:var(--invest);}
 .type-Income{color:var(--income);font-weight:600;}
 .type-Expense{color:var(--expense);font-weight:600;}
+.table-type-toggle{
+  background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;
+  text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;
+}
+.table-type-toggle:hover{opacity:.75;}
+.table-type-toggle.active{text-decoration-style:solid;}
 .table-scroll{overflow-x:auto;}
 .history-toggle-btn{
   display:inline-flex;align-items:center;gap:6px;margin-top:14px;
@@ -593,11 +599,11 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <h2>Transaction History</h2>
       <div class="table-category-filter-wrap">
         <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by expense category</div>
+          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleExpense" class="table-type-toggle type-Expense" title="Click to show only Expenses · double-click to show both again">expense</button> category</div>
           <div id="tableCategoryFilterExpense" class="legend-badges"></div>
         </div>
         <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by income category</div>
+          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleIncome" class="table-type-toggle type-Income" title="Click to show only Income · double-click to show both again">income</button> category</div>
           <div id="tableCategoryFilterIncome" class="legend-badges"></div>
         </div>
       </div>
@@ -1083,16 +1089,20 @@ let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
 const HISTORY_ROW_LIMIT = 10;
 let historyShowAll = false; // reset to false whenever the time range changes
 
-// Category visibility for the donut legends and the history table filter —
-// three independent maps (not one shared map) so isolating a category on one
-// chart can never blank out the other chart or the table, which use disjoint
-// category domains (Expense vs. Income) or a combined one (table). Keyed by
-// category name for the donuts, and "Type::Category" for the table so the
-// "Other" category (present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES)
-// never collides between an expense row and an income row.
-let expenseCategoryVisibility = {};
-let incomeCategoryVisibility = {};
-let tableCategoryVisibility = {};
+// One shared category-visibility map for the donut legends AND the history
+// table filter — toggling a category anywhere (a donut legend badge or the
+// table's own filter row) hides/shows that same category everywhere else
+// too, instead of each control keeping its own independent state. Keyed by
+// "Type::Category" (not bare category name) so the "Other" category —
+// present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES — never collides
+// between an expense row and an income row.
+let categoryVisibility = {};
+
+// Type-level quick filter for the Transaction History table only (clicking
+// the "expense"/"income" word in the filter labels above it) — null shows
+// both Types, otherwise only rows of that Type are shown, layered on top of
+// the per-category categoryVisibility filtering above.
+let tableTypeFilter = null;
 
 // ---- Loans module state ----
 let allLoans = [];              // normalized loan records
@@ -1892,7 +1902,33 @@ function wireStaticEvents() {
     refreshDashboard();
   });
 
+  attachTableTypeToggle(el("tableTypeToggleExpense"), "Expense");
+  attachTableTypeToggle(el("tableTypeToggleIncome"), "Income");
+
   wireLoanEvents();
+}
+
+// Click the "expense"/"income" word above the Transaction History table to
+// show only that Type there; double-click (on either word) restores both.
+// Same deferred-click-vs-dblclick pattern as attachCategoryToggle, so a
+// dblclick doesn't fire the single-click handler twice first.
+function attachTableTypeToggle(element, type) {
+  let pending = null;
+  element.addEventListener("click", () => {
+    if (pending) { clearTimeout(pending); pending = null; return; }
+    pending = setTimeout(() => {
+      pending = null;
+      tableTypeFilter = type;
+      historyShowAll = false;
+      refreshDashboard();
+    }, 250);
+  });
+  element.addEventListener("dblclick", () => {
+    if (pending) { clearTimeout(pending); pending = null; }
+    tableTypeFilter = null;
+    historyShowAll = false;
+    refreshDashboard();
+  });
 }
 
 async function chooseFolder() {
@@ -2873,10 +2909,10 @@ function refreshDashboard() {
   renderClassificationPanel(expenseRows);
   renderSavingsPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
-  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, expenseCategoryVisibility, (c) => (expenseDonutChart = c));
-  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, incomeCategoryVisibility, (c) => (incomeDonutChart = c));
+  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
+  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
   renderTableCategoryFilter();
-  const tableRows = rangeRows.filter(r => tableCategoryVisibility[`${r.Type}::${r.Category}`] !== false);
+  const tableRows = rangeRows.filter(r => (!tableTypeFilter || r.Type === tableTypeFilter) && categoryVisibility[`${r.Type}::${r.Category}`] !== false);
   renderHistoryTable(tableRows, rangeRows.length > 0);
 }
 
@@ -3028,7 +3064,7 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
   show(wrapId);
 
   const categories = categoryListForType(type);
-  const visibleRows = rows.filter(r => visibility[r.Category] !== false);
+  const visibleRows = rows.filter(r => visibility[`${type}::${r.Category}`] !== false);
   const chartSums = groupSumByCategory(visibleRows);
   const chartEntries = categories.map(cat => [cat, chartSums[cat] || 0]).filter(([, v]) => v > 0);
 
@@ -3070,13 +3106,15 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
 function renderDonutLegend(containerId, type, categories, visibility) {
   const container = el(containerId);
   container.innerHTML = "";
+  const keysForType = categories.map(c => `${type}::${c}`);
   categories.forEach(cat => {
+    const key = `${type}::${cat}`;
     const badge = document.createElement("button");
     badge.type = "button";
-    badge.className = "legend-badge" + (visibility[cat] !== false ? "" : " disabled");
+    badge.className = "legend-badge" + (visibility[key] !== false ? "" : " disabled");
     badge.title = "Click to toggle · double-click to show only this category";
     badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
-    attachCategoryToggle(badge, cat, visibility, () => categories, refreshDashboard);
+    attachCategoryToggle(badge, key, visibility, () => keysForType, refreshDashboard);
     container.appendChild(badge);
   });
 }
@@ -3084,11 +3122,15 @@ function renderDonutLegend(containerId, type, categories, visibility) {
 // The two filter rows above the Transaction History table (one per Type, so
 // "Other" — present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES — never
 // collides between an expense entry and an income entry). Same click/double-
-// click toggle as the donut legends, but scoped to its own visibility map so
-// filtering the table never touches the donuts or summary cards.
+// click toggle as the donut legends, and the same shared categoryVisibility
+// map — toggling a category here also hides/shows it in its donut, and vice
+// versa, since refreshDashboard re-renders every one of these together off
+// the same state.
 function renderTableCategoryFilter() {
   renderGroup("tableCategoryFilterExpense", "Expense");
   renderGroup("tableCategoryFilterIncome", "Income");
+  el("tableTypeToggleExpense").classList.toggle("active", tableTypeFilter === "Expense");
+  el("tableTypeToggleIncome").classList.toggle("active", tableTypeFilter === "Income");
 
   function renderGroup(containerId, type) {
     const container = el(containerId);
@@ -3098,10 +3140,10 @@ function renderTableCategoryFilter() {
       const key = `${type}::${cat}`;
       const badge = document.createElement("button");
       badge.type = "button";
-      badge.className = "legend-badge" + (tableCategoryVisibility[key] !== false ? "" : " disabled");
+      badge.className = "legend-badge" + (categoryVisibility[key] !== false ? "" : " disabled");
       badge.title = "Click to toggle · double-click to show only this category";
       badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
-      attachCategoryToggle(badge, key, tableCategoryVisibility, () => allKeys, refreshDashboard);
+      attachCategoryToggle(badge, key, categoryVisibility, () => allKeys, refreshDashboard);
       container.appendChild(badge);
     });
   }
