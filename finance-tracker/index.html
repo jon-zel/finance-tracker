@@ -54,6 +54,12 @@
   --loan:#c0392b;
   --loan-bg:#fbe2df;
   --loan-border:#eab3ac;
+  /* Loan CLASSIFICATION on the dashboard (§5.7): a paid loan installment is a
+     routine, healthy outflow — not an alarm. It gets a neutral orange, distinct
+     from the alarming red the Loans tab uses to encode debt severity. */
+  --loan-classif:#c9791f;
+  --loan-classif-bg:#fbeeda;
+  --loan-classif-border:#eecfa0;
   --invest:#2f8f7a;
   --invest-bg:#e4f3ef;
   --regular:#5b6472;
@@ -83,6 +89,9 @@
   --loan:#f0716c;
   --loan-bg:rgba(240,113,108,0.16);
   --loan-border:rgba(240,113,108,0.4);
+  --loan-classif:#e0983f;
+  --loan-classif-bg:rgba(224,152,63,0.16);
+  --loan-classif-border:rgba(224,152,63,0.4);
   --invest:#4fc3ac;
   --invest-bg:rgba(79,195,172,0.14);
   --regular:#acafb9;
@@ -133,6 +142,7 @@ svg{display:block;}
 .btn:active{transform:translateY(1px);filter:brightness(0.97);}
 .btn-expense{background:var(--expense);color:#fff;}
 .btn-income{background:var(--income);color:#fff;}
+.btn-loan-payment{background:var(--loan-classif);color:#fff;}
 .btn-primary{background:var(--accent);color:#fff;}
 .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border-strong);}
 .btn-secondary:hover{background:var(--surface-alt);}
@@ -183,8 +193,26 @@ svg{display:block;}
 }
 .range-btn:hover{background:var(--surface-alt);border-color:var(--border-strong);}
 .range-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+/* Export dropdown (header) */
+.export-menu-wrap{position:relative;display:inline-block;}
+.export-caret{width:15px;height:15px;margin-left:-2px;opacity:.7;}
+.export-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:270px;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;gap:2px;
+}
+.export-menu-item{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;
+  border:none;color:var(--text);padding:10px 12px;border-radius:var(--radius);cursor:pointer;
+}
+.export-menu-item:hover{background:var(--surface-alt);}
+.export-menu-item svg{width:18px;height:18px;flex:none;color:var(--text-muted);}
+.export-menu-item span{display:flex;flex-direction:column;gap:2px;}
+.export-menu-item strong{font-size:14px;font-weight:600;}
+.export-menu-item small{font-size:12px;color:var(--text-muted);}
 .custom-range{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .custom-range input[type=date]{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:14px;background:var(--panel);color:var(--text);}
+:root[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.6);}
 
 /* ---- Summary cards ---- */
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px;}
@@ -208,22 +236,23 @@ svg{display:block;}
 .classif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:14px;}
 .classif-item{border-radius:var(--radius);padding:14px;border:1px solid var(--border);transition:background-color .2s ease,border-color .2s ease;}
 .classif-item.regular{background:var(--regular-bg);}
-.classif-item.loan{background:var(--loan-bg);border-color:var(--loan-border);}
+.classif-item.loan{background:var(--loan-classif-bg);border-color:var(--loan-classif-border);}
 .classif-item.investment{background:var(--invest-bg);}
 .classif-item .name{font-weight:700;font-size:14px;margin-bottom:4px;}
 .classif-item.regular .name{color:var(--regular);}
-.classif-item.loan .name{color:var(--loan);}
+.classif-item.loan .name{color:var(--loan-classif);}
 .classif-item.investment .name{color:var(--invest);}
 .classif-item .amt{font-size:19px;font-weight:700;}
 .classif-item .pct{font-size:13px;color:var(--text-muted);}
 .classif-item.loan .badge{
-  display:inline-block;background:var(--loan);color:#fff;font-size:11px;font-weight:700;
+  display:inline-block;background:var(--loan-classif);color:#fff;font-size:11px;font-weight:700;
   padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;
 }
 .stack-bar{display:flex;height:14px;border-radius:var(--radius-pill);overflow:hidden;margin-top:14px;border:1px solid var(--border);}
 .stack-seg{transition:flex .3s ease;}
 .stack-seg.regular{background:var(--regular);}
-.stack-seg.loan{background:var(--loan);}
+.stack-seg.loan{background:var(--loan-classif);}
+.classif-note{margin-top:12px;font-size:12px;color:var(--text-muted);}
 .stack-seg.investment{background:var(--invest);}
 
 /* ---- Charts ---- */
@@ -241,6 +270,13 @@ svg{display:block;}
 .legend-badge:hover{background:var(--surface-alt);border-color:var(--border-strong);}
 .legend-badge.disabled{opacity:.45;}
 .legend-badge .swatch{width:8px;height:8px;border-radius:100%;flex:none;}
+.history-search-wrap{position:relative;margin-top:14px;}
+.history-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;}
+.history-search-wrap input{width:100%;box-sizing:border-box;padding:9px 34px 9px 36px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-alt);color:var(--text);font-size:14px;transition:border-color .15s ease;}
+.history-search-wrap input:focus{outline:none;border-color:var(--accent);}
+.history-search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;}
+.history-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:var(--radius);}
+.history-search-clear:hover{color:var(--text);background:var(--surface-alt);}
 .table-category-filter-wrap{margin-top:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:14px;}
 .table-category-filter-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
 
@@ -256,8 +292,8 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .tag .tag-dot{width:5px;height:5px;border-radius:100%;flex:none;}
 .tag.Regular{background:var(--regular-bg);color:var(--regular);border-color:var(--regular-bg);}
 .tag.Regular .tag-dot{background:var(--regular);}
-.tag.Loan{background:var(--loan-bg);color:var(--loan);border-color:var(--loan-bg);}
-.tag.Loan .tag-dot{background:var(--loan);}
+.tag.Loan{background:var(--loan-classif-bg);color:var(--loan-classif);border-color:var(--loan-classif-bg);}
+.tag.Loan .tag-dot{background:var(--loan-classif);}
 .tag.Investment{background:var(--invest-bg);color:var(--invest);border-color:var(--invest-bg);}
 .tag.Investment .tag-dot{background:var(--invest);}
 .type-Income{color:var(--income);font-weight:600;}
@@ -354,7 +390,15 @@ canvas{max-width:100%;}
 .icon-btn svg{width:15px;height:15px;}
 .icon-btn.danger:hover{background:var(--loan-bg);color:var(--loan);border-color:var(--loan-border);}
 
+/* Transaction History row actions (§4.2) */
+.row-actions-col{width:1%;white-space:nowrap;}
+td.row-actions{white-space:nowrap;text-align:right;}
+td.row-actions .icon-btn{width:28px;height:28px;}
+td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
+.row-actions-note{font-size:11px;color:var(--text-faint);white-space:nowrap;}
+
 .loan-selector-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.loan-scope-panel .loan-selector-row{margin-bottom:0;}
 .loan-selector-row label{font-size:13px;font-weight:600;color:var(--text-muted);}
 .loan-selector-row select{
   padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:14px;
@@ -450,11 +494,32 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
           Add Income
         </button>
+        <div class="export-menu-wrap" id="exportMenuWrap">
+          <button class="btn btn-secondary" id="btnExport" aria-haspopup="true" aria-expanded="false" title="Export or print a summary of the current view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Export
+            <svg class="export-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="export-menu hidden" id="exportMenu" role="menu">
+            <button type="button" class="export-menu-item" id="btnPrintSummary" role="menuitem">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+              <span><strong>Print / PDF summary</strong><small>A shareable income &amp; expenses report</small></span>
+            </button>
+            <button type="button" class="export-menu-item" id="btnExportSummary" role="menuitem">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              <span><strong>Export Excel (.xlsx)</strong><small>Same structure as your file, filtered rows</small></span>
+            </button>
+          </div>
+        </div>
       </div>
       <div class="app-actions hidden" id="loanHeaderActions">
         <button class="btn btn-expense" id="btnAddLoan">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
           Add Loan
+        </button>
+        <button class="btn btn-loan-payment" id="btnLogLoanPayment" title="Record a payment against one of your loans">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M3 6h18v12H3zM7 15h4"/></svg>
+          Log Loan Payment
         </button>
       </div>
     </div>
@@ -516,7 +581,9 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="range-bar">
         <button class="range-btn" data-range="This Month">This Month</button>
         <button class="range-btn" data-range="Last Month">Last Month</button>
+        <button class="range-btn" data-range="Last 12 Months">Last 12 Months</button>
         <button class="range-btn" data-range="This Year">This Year</button>
+        <button class="range-btn" data-range="All Time">All Time</button>
         <button class="range-btn" data-range="Custom">Custom</button>
         <div class="custom-range hidden" id="customRangeInputs">
           <label style="font-size:13px;color:var(--text-muted);">From
@@ -525,6 +592,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <label style="font-size:13px;color:var(--text-muted);">to
             <input type="date" id="customTo">
           </label>
+          <div class="field-error hidden" id="customRangeError" style="flex-basis:100%;">The “From” date is after the “to” date — swap them to see results.</div>
         </div>
       </div>
     </div>
@@ -568,6 +636,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
             <div class="pct" id="classifInvestPct">0%</div>
           </div>
         </div>
+        <div class="classif-note">Percentages show each amount as a share of your total income for this period.</div>
       </div>
     </div>
 
@@ -597,6 +666,11 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
     <!-- History table -->
     <div class="panel">
       <h2>Transaction History</h2>
+      <div class="history-search-wrap">
+        <svg class="history-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" id="historySearch" placeholder="Search description, category, amount…" aria-label="Search transactions">
+        <button type="button" class="history-search-clear hidden" id="historySearchClear" aria-label="Clear search" title="Clear search">&times;</button>
+      </div>
       <div class="table-category-filter-wrap">
         <div class="table-category-filter-group">
           <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleExpense" class="table-type-toggle type-Expense" title="Click to show only Expenses · click again to show both">expense</button> category</div>
@@ -612,7 +686,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <table id="historyTable">
           <thead>
             <tr>
-              <th>Date</th><th>Type</th><th>Category</th><th>Classification</th><th class="amount-col">Amount</th><th>Description</th>
+              <th>Date</th><th>Type</th><th>Category</th><th>Classification</th><th class="amount-col">Amount</th><th>Description</th><th class="row-actions-col" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody id="historyTableBody"></tbody>
@@ -622,7 +696,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <span id="btnShowAllHistoryLabel"></span>
         <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      <div class="table-note">To edit or delete an entry, open the Excel file directly.</div>
+      <div class="table-note">Use the edit and delete icons to correct an entry. Loan payments are managed on the Loans tab.</div>
     </div>
 
    </div>
@@ -660,16 +734,22 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
     <div id="loansContent" class="hidden">
       <div id="loansExcludedNote"></div>
 
+      <!-- Loan scope selector — top of the tab, parallel to the dashboard's
+           time-range filter. Scopes the charts and payment history below;
+           the ranked list stays a full worst-to-best overview of every loan. -->
+      <div class="panel loan-scope-panel">
+        <div class="loan-selector-row">
+          <label for="loanSelector">Show</label>
+          <select id="loanSelector"></select>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>Loans, Ranked Worst to Best</h2>
         <div class="loans-list" id="loansList"></div>
       </div>
 
       <div class="panel">
-        <div class="loan-selector-row">
-          <label for="loanSelector">Show</label>
-          <select id="loanSelector"></select>
-        </div>
         <div class="loans-bars-grid">
           <div class="loan-bar-card">
             <h3>Debt Today vs. Total You'll Actually Pay</h3>
@@ -717,6 +797,10 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
             <tbody id="paymentHistoryTableBody"></tbody>
           </table>
         </div>
+        <button type="button" class="history-toggle-btn hidden" id="btnShowAllPayments" aria-expanded="false">
+          <span id="btnShowAllPaymentsLabel"></span>
+          <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
         <div class="table-note">Editing or deleting a payment keeps its matching expense entry in Income &amp; Expenses in sync automatically.</div>
       </div>
     </div>
@@ -730,7 +814,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
      ============================================================ -->
 <div class="modal-overlay hidden" id="expenseModalOverlay">
   <div class="modal">
-    <h2>Add Expense</h2>
+    <h2 id="expenseModalTitle">Add Expense</h2>
     <form id="expenseForm">
       <div class="field">
         <label for="expDate">Date</label>
@@ -796,7 +880,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
      ============================================================ -->
 <div class="modal-overlay hidden" id="incomeModalOverlay">
   <div class="modal">
-    <h2>Add Income</h2>
+    <h2 id="incomeModalTitle">Add Income</h2>
     <form id="incomeForm">
       <div class="field">
         <label for="incDate">Date</label>
@@ -1088,6 +1172,9 @@ let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
 const HISTORY_ROW_LIMIT = 10;
 let historyShowAll = false; // reset to false whenever the time range changes
+let paymentHistoryShowAll = false; // Loan Payment History: collapsed to HISTORY_ROW_LIMIT until expanded; reset when the loan scope changes
+let historySearchQuery = ""; // free-text filter for the Transaction History table (§4.3)
+let editingTransaction = null; // when set, the expense/income modal is editing this existing row (§4.2)
 
 // One shared category-visibility map for the donut legends AND the history
 // table filter — toggling a category anywhere (a donut legend badge or the
@@ -1218,7 +1305,7 @@ Chart.register({
     const data = chart.data.datasets[0].data;
     let total = 0;
     data.forEach((v, i) => { if (chart.getDataVisibility(i)) total += v; });
-    const text = formatNumber(total);
+    const text = formatMoney(total);
 
     const { ctx, chartArea } = chart;
     const cx = (chartArea.left + chartArea.right) / 2;
@@ -1343,6 +1430,15 @@ function formatNumber(n) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
+// Money amounts always show exactly two decimals so they line up in a clean
+// right-aligned column (otherwise "3,542.4", "28" and "204.08" sit ragged).
+// Used everywhere a currency amount is displayed; formatNumber is kept for
+// chart axes and percentages/rates where fixed decimals would just add clutter.
+function formatMoney(n) {
+  if (!isFinite(n)) return "0.00";
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1462,8 +1558,66 @@ function normalizeDateValue(val) {
   if (val instanceof Date) {
     return isoFromParts(val.getUTCFullYear(), val.getUTCMonth() + 1, val.getUTCDate());
   }
-  if (typeof val === "string") return val.trim();
+  if (typeof val === "string") return parseFlexibleDateString(val);
   return "";
+}
+
+function isValidYMD(y, mo, d) {
+  if (!isFinite(y) || !isFinite(mo) || !isFinite(d)) return false;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  // Reject impossible days (e.g. 31 Feb) so a genuinely malformed date is
+  // reported as unreadable rather than silently rolling over to the next month.
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
+// Excel almost always stores dates as serials (handled above), but a user who
+// hand-types a date into a cell leaves a text string. We accept ISO first, then
+// day-first d/m/y — dd/mm/yyyy, dd.mm.yyyy, dd-mm-yyyy — per the product's
+// Israeli locale (§3.10). Anything we can't confidently read returns "" so the
+// row is COUNTED as unreadable and surfaced to the user (see readWorkbookRows),
+// never silently mis-dated. The raw cell is preserved untouched (Golden Rule);
+// only the normalized dashboard view is affected.
+function parseFlexibleDateString(val) {
+  const str = String(val).trim();
+  if (str === "") return "";
+  let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);       // ISO yyyy-mm-dd(...)
+  if (m) {
+    const y = +m[1], mo = +m[2], d = +m[3];
+    return isValidYMD(y, mo, d) ? isoFromParts(y, mo, d) : "";
+  }
+  m = str.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/); // day-first d/m/y
+  if (m) {
+    let d = +m[1], mo = +m[2], y = +m[3];
+    if (y < 100) y += 2000;
+    return isValidYMD(y, mo, d) ? isoFromParts(y, mo, d) : "";
+  }
+  return "";
+}
+
+// Known Transactions columns the app fully understands. Anything else on a raw
+// row is a user-added (Golden Rule) column.
+const KNOWN_TX_COLUMNS = new Set(COLUMNS);
+
+// A present-but-unparseable Amount cell (e.g. "₪1234", or "1,234.5" hand-typed
+// as text) must NOT be silently shown as 0 and then written back over the real
+// value on the next edit — that's silent data loss (§DATA-SAFETY). We return NaN
+// for that case so the row is (a) counted and surfaced like an unreadable date
+// (reportUnreadableAmountRows) and (b) filtered out of the editable dashboard
+// view — never overwritten — while its raw cell stays untouched in the file. A
+// genuinely blank/absent amount stays 0, exactly as before.
+function parseAmountCell(rawAmount) {
+  // A real numeric cell (the app always writes amounts as numbers) is trusted
+  // as-is. For a TEXT cell we parse STRICTLY with Number(), not parseFloat:
+  // parseFloat("1,234.5") silently returns 1 and parseFloat("50abc") returns 50
+  // — both finite, both wrong. Number() rejects the whole string ("₪1234",
+  // "1,234.5", "1234abc" → NaN), so a partially-garbled amount is flagged as
+  // unreadable instead of being quietly truncated to a plausible-looking number.
+  if (typeof rawAmount === "number") return round2(rawAmount);
+  const s = String(rawAmount == null ? "" : rawAmount).trim();
+  if (s === "") return 0;
+  const n = Number(s);
+  return isFinite(n) ? round2(n) : NaN;
 }
 
 function normalizeRow(raw) {
@@ -1474,20 +1628,25 @@ function normalizeRow(raw) {
   let classification = String(raw.Classification || "").trim();
   if (type2 === "Income" || classification === "—" || classification === "-") classification = "";
   if (type2 === "Expense" && !CLASSIFICATIONS.includes(classification)) classification = DEFAULT_CLASSIFICATION;
-  const amount = round2(parseFloat(raw.Amount));
   const description = String(raw.Description || "").trim();
   const loanId = String(raw["Loan ID"] || "").trim();
   const paymentId = String(raw["Payment ID"] || "").trim();
-  return {
+  // Carry any user-added columns onto the normalized view so row identity
+  // (transactionSignature) can tell two otherwise-identical rows apart — an
+  // edit/delete then lands on the exact physical row, not merely the first
+  // look-alike (§4.2). Known fields below always win over anything in extras.
+  const extras = {};
+  Object.keys(raw).forEach(k => { if (!KNOWN_TX_COLUMNS.has(k)) extras[k] = raw[k]; });
+  return Object.assign(extras, {
     Date: dateISO,
     Type: type2,
     Category: category,
     Classification: classification,
-    Amount: isFinite(amount) ? amount : 0,
+    Amount: parseAmountCell(raw.Amount),
     Description: description,
     "Loan ID": loanId,
     "Payment ID": paymentId
-  };
+  });
 }
 
 function buildHeaderOnlySheet(headerOrder) {
@@ -1527,19 +1686,29 @@ function parseSheetFromWorkbook(wb, sheetName, defaultColumns, fallbackToFirstSh
 
 // Reads all three worksheets from one buffer. The Loans and LoanPayments
 // sheets are looked up by exact name only (both are new — there's no legacy
-// file to fall back from); the Transactions sheet keeps its original
-// fallback-to-first-sheet behavior. `loanSheetFound`/`paymentSheetFound` are
-// surfaced separately from the row arrays so callers can tell "this file
-// genuinely has no such sheet yet" apart from "the sheet exists but happens
-// to be empty" — the two must not be treated as interchangeable, see
-// saveWithFreshMerge() below (§DATA-SAFETY).
+// file to fall back from). The Transactions sheet is ALSO looked up by name
+// first; it only falls back to the first physical sheet for a genuinely legacy
+// or foreign file — one where NONE of our three known sheet names exist (the
+// app originally shipped with a single, possibly differently-named sheet).
+// Critically, once a file already has Loans/LoanPayments, a missing or renamed
+// Transactions sheet must NOT silently adopt some other sheet (e.g. Loans) as
+// the ledger and then write that garbage back — see §3.2. `txSheetFound`/
+// `loanSheetFound`/`paymentSheetFound` are surfaced separately from the row
+// arrays so callers can tell "this file genuinely has no such sheet yet" apart
+// from "the sheet exists but happens to be empty" — the two must not be treated
+// as interchangeable, see saveWithFreshMerge() below (§DATA-SAFETY).
 function parseWorkbookBuffer(buf) {
   const wb = XLSX.read(buf, { type: "array" });
-  const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, true);
+  const hasAnyKnownSheet = [SHEET_NAME, LOANS_SHEET_NAME, LOAN_PAYMENTS_SHEET_NAME]
+    .some(name => !!wb.Sheets[name]);
+  // Legacy/foreign single-sheet file (no known sheets at all): the first
+  // physical sheet is legitimately the ledger. Otherwise never fall back.
+  const legacyLedgerFallback = !hasAnyKnownSheet && wb.SheetNames.length > 0;
+  const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, legacyLedgerFallback);
   const loans = parseSheetFromWorkbook(wb, LOANS_SHEET_NAME, LOAN_COLUMNS, false);
   const payments = parseSheetFromWorkbook(wb, LOAN_PAYMENTS_SHEET_NAME, LOAN_PAYMENT_COLUMNS, false);
   return {
-    txHeader: tx.header, txRows: tx.rows,
+    txHeader: tx.header, txRows: tx.rows, txSheetFound: tx.found || legacyLedgerFallback,
     loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found,
     paymentHeader: payments.header, paymentRows: payments.rows, paymentSheetFound: payments.found
   };
@@ -1581,7 +1750,67 @@ async function readWorkbookRows(handle) {
   rawPaymentRows = parsed.paymentRows;
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
-  return rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+  const normalized = rawRows.map(normalizeRow);
+  reportUnreadableDateRows(rawRows, normalized);
+  reportUnreadableAmountRows(rawRows, normalized);
+  return normalized.filter(r => r.Date && r.Type && isFinite(r.Amount));
+}
+
+// A transaction row with a Type but a Date cell we couldn't parse would silently
+// vanish from every range/chart (§3.10). Rather than let that happen invisibly,
+// we count those rows at load time and (after the load flow finishes clearing
+// the status area) surface a warning so the user can fix the cell in Excel.
+// The count is stashed rather than shown immediately because both load paths
+// reset "statusNotice" right after reading — see surfaceUnreadableDateNotice().
+let pendingUnreadableDateCount = 0;
+function reportUnreadableDateRows(rawTxRows, normalizedRows) {
+  let bad = 0;
+  rawTxRows.forEach((raw, i) => {
+    const rawDate = String(raw.Date == null ? "" : raw.Date).trim();
+    const type = String(raw.Type || "").trim();
+    const isTx = type === "Income" || type === "Expense";
+    if (rawDate !== "" && isTx && !normalizedRows[i].Date) bad++;
+  });
+  pendingUnreadableDateCount = bad;
+}
+
+// Exactly the same protection as unreadable dates, but for the Amount cell
+// (§DATA-SAFETY). A row whose amount the app can't parse to a number is now
+// excluded from the editable dashboard view (isFinite(r.Amount)) so it can
+// never be edited-then-written-back-as-0, silently destroying the real figure.
+// We still count and surface it so the user knows to fix the cell in Excel;
+// the raw row itself is preserved untouched in the file (Golden Rule).
+let pendingUnreadableAmountCount = 0;
+function reportUnreadableAmountRows(rawTxRows, normalizedRows) {
+  let bad = 0;
+  rawTxRows.forEach((raw, i) => {
+    const rawAmt = String(raw.Amount == null ? "" : raw.Amount).trim();
+    const type = String(raw.Type || "").trim();
+    const isTx = type === "Income" || type === "Expense";
+    if (rawAmt !== "" && isTx && !isFinite(normalizedRows[i].Amount)) bad++;
+  });
+  pendingUnreadableAmountCount = bad;
+}
+
+function surfaceUnreadableDateNotice() {
+  const badDates = pendingUnreadableDateCount;
+  const badAmounts = pendingUnreadableAmountCount;
+  const parts = [];
+  if (badDates > 0) {
+    parts.push(
+      `${badDates} ${badDates === 1 ? "row has" : "rows have"} a date the app couldn't read ` +
+      `(re-enter as a real date — e.g. 2024-05-06 or 06/05/2024, day/month/year)`);
+  }
+  if (badAmounts > 0) {
+    parts.push(
+      `${badAmounts} ${badAmounts === 1 ? "row has" : "rows have"} an amount the app couldn't read ` +
+      `(a currency symbol or letters in the cell — re-enter as a plain number like 1234.5)`);
+  }
+  if (parts.length === 0) return;
+  const total = badDates + badAmounts;
+  setNotice("statusNotice",
+    `Some transaction rows aren't shown in charts or totals until fixed — they are NOT removed from your file. ` +
+    parts.join("; ") + `. Open finances.xlsx to correct ${total === 1 ? "it" : "them"}.`, true);
 }
 
 // Reads the CURRENT on-disk file fresh, independent of whatever is currently
@@ -1596,7 +1825,7 @@ async function peekFreshWorkbookState() {
       rawRows: [], sourceHeader: COLUMNS.slice(),
       rawLoanRows: [], sourceLoanHeader: LOAN_COLUMNS.slice(),
       rawPaymentRows: [], sourcePaymentHeader: LOAN_PAYMENT_COLUMNS.slice(),
-      loanSheetFound: false, paymentSheetFound: false, bytes: null
+      txSheetFound: false, loanSheetFound: false, paymentSheetFound: false, bytes: null
     };
   }
   const buf = await file.arrayBuffer();
@@ -1605,6 +1834,7 @@ async function peekFreshWorkbookState() {
     rawRows: parsed.txRows, sourceHeader: parsed.txHeader,
     rawLoanRows: parsed.loanRows, sourceLoanHeader: parsed.loanHeader,
     rawPaymentRows: parsed.paymentRows, sourcePaymentHeader: parsed.paymentHeader,
+    txSheetFound: parsed.txSheetFound,
     loanSheetFound: parsed.loanSheetFound, paymentSheetFound: parsed.paymentSheetFound, bytes: buf
   };
 }
@@ -1661,7 +1891,24 @@ function downloadWorkbook(bytes) {
 // Only on a successful write do the in-memory globals adopt the merged result
 // — a failed save leaves them untouched, and a save from a stale tab can never
 // again blow away rows another session already persisted. See §DATA-SAFETY.
-const SILENT_SAVE_ERRORS = new Set(["LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING"]);
+const SILENT_SAVE_ERRORS = new Set(["TRANSACTIONS_SHEET_MISSING", "LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING"]);
+
+// Rolling backup (§5.2 / global data-loss rule): before every overwrite of
+// finances.xlsx we copy the exact bytes about to be replaced into a sibling
+// finances.backup.xlsx. It's one file behind at all times, so any future save
+// bug is recoverable ("one file away from fixed") instead of unrecoverable.
+// Best-effort by design: a backup that can't be written must never block the
+// user's real save, but we do warn to the console.
+const BACKUP_FILENAME = "finances.backup.xlsx";
+async function writeRollingBackup(bytes) {
+  if (!bytes || !dirHandle) return;
+  try {
+    const backupHandle = await dirHandle.getFileHandle(BACKUP_FILENAME, { create: true });
+    await writeBytesToHandle(backupHandle, bytes);
+  } catch (e) {
+    console.warn("Rolling backup could not be written (primary save still proceeding):", e);
+  }
+}
 
 async function saveWithFreshMerge(mutate) {
   let state;
@@ -1676,6 +1923,16 @@ async function saveWithFreshMerge(mutate) {
     };
   } else {
     state = await peekFreshWorkbookState();
+    // The Transactions sheet is the PRIMARY ledger and deserves at least the
+    // same protection the loan sheets have (§3.1). If a fresh read can't locate
+    // it while this session holds transaction records, treat that as an error
+    // to surface — never as "zero rows" to blindly save over.
+    if (!state.txSheetFound && allRows.length > 0) {
+      setNotice("statusNotice",
+        "Couldn't save — the “Transactions” sheet is missing from finances.xlsx right now, but this session has " +
+        "income/expense records. Nothing was changed. Reconnect to the right data folder before saving again.", true);
+      throw new Error("TRANSACTIONS_SHEET_MISSING");
+    }
     if (!state.loanSheetFound && allLoans.length > 0) {
       setNotice("statusNotice",
         "Couldn't save — the “Loans” sheet is missing from finances.xlsx right now, but this session has loan " +
@@ -1709,6 +1966,8 @@ async function saveWithFreshMerge(mutate) {
   if (usingFallback) {
     downloadWorkbook(newBytes);
   } else {
+    // Snapshot the about-to-be-replaced content first (§5.2), then overwrite.
+    await writeRollingBackup(state.bytes);
     await writeBytesToHandle(fileHandle, newBytes);
   }
 
@@ -1718,7 +1977,7 @@ async function saveWithFreshMerge(mutate) {
   sourceLoanHeader = state.sourceLoanHeader;
   rawPaymentRows = state.rawPaymentRows;
   sourcePaymentHeader = state.sourcePaymentHeader;
-  allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+  allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type && isFinite(r.Amount));
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
 }
@@ -1812,6 +2071,7 @@ async function openDataFile() {
   show("dashboard");
   show("loansModule");
   setNotice("statusNotice", "", false);
+  surfaceUnreadableDateNotice(); // after the clear above, so the warning survives (§3.10)
   initCrossTabNotice();
   refreshDashboard();
   refreshLoansModule();
@@ -1865,6 +2125,7 @@ function wireStaticEvents() {
 
   el("btnAddExpense").addEventListener("click", () => openModal("expenseModalOverlay"));
   el("btnAddIncome").addEventListener("click", () => openModal("incomeModalOverlay"));
+  el("btnLogLoanPayment").addEventListener("click", openLogLoanPayment);
   el("btnCancelExpense").addEventListener("click", () => closeModal("expenseModalOverlay"));
   el("btnCancelIncome").addEventListener("click", () => closeModal("incomeModalOverlay"));
 
@@ -1897,9 +2158,41 @@ function wireStaticEvents() {
   el("customFrom").addEventListener("change", () => setRange("Custom"));
   el("customTo").addEventListener("change", () => setRange("Custom"));
 
+  // Single "Export" button opens a menu with the two export options.
+  const exportMenu = el("exportMenu");
+  const setExportMenuOpen = (open) => {
+    exportMenu.classList.toggle("hidden", !open);
+    el("btnExport").setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  el("btnExport").addEventListener("click", (e) => {
+    e.stopPropagation();
+    setExportMenuOpen(exportMenu.classList.contains("hidden"));
+  });
+  el("btnPrintSummary").addEventListener("click", () => { setExportMenuOpen(false); printSummary(); });
+  el("btnExportSummary").addEventListener("click", () => { setExportMenuOpen(false); exportFilteredWorkbook(); });
+  // Dismiss on outside click or Escape.
+  document.addEventListener("click", (e) => {
+    if (!el("exportMenuWrap").contains(e.target)) setExportMenuOpen(false);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setExportMenuOpen(false); });
+
   el("btnShowAllHistory").addEventListener("click", () => {
     historyShowAll = !historyShowAll;
     refreshDashboard();
+  });
+
+  el("historySearch").addEventListener("input", (e) => {
+    historySearchQuery = e.target.value;
+    historyShowAll = false; // a new search should start from the top window
+    el("historySearchClear").classList.toggle("hidden", historySearchQuery === "");
+    refreshDashboard();
+  });
+  el("historySearchClear").addEventListener("click", () => {
+    el("historySearch").value = "";
+    historySearchQuery = "";
+    el("historySearchClear").classList.add("hidden");
+    refreshDashboard();
+    el("historySearch").focus();
   });
 
   attachTableTypeToggle(el("tableTypeToggleExpense"), "Expense");
@@ -1956,11 +2249,20 @@ async function handleImportFile(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   try {
+    // Importing a standalone file gives us no directory/file handle to write
+    // back to, so every subsequent save must go through the download path.
+    // (In a browser without the File System Access API this is already the
+    // case; this guards the defensive path where import is reached with a
+    // handle-less session so a later edit/delete can't throw on a null handle.)
+    if (!fileHandle) usingFallback = true;
     const buf = await file.arrayBuffer();
     const parsed = parseWorkbookBuffer(buf);
     sourceHeader = parsed.txHeader;
     rawRows = parsed.txRows;
-    allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type);
+    const normalizedTx = rawRows.map(normalizeRow);
+    reportUnreadableDateRows(rawRows, normalizedTx);
+    reportUnreadableAmountRows(rawRows, normalizedTx);
+    allRows = normalizedTx.filter(r => r.Date && r.Type && isFinite(r.Amount));
     sourceLoanHeader = parsed.loanHeader;
     rawLoanRows = parsed.loanRows;
     allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
@@ -1975,6 +2277,7 @@ async function handleImportFile(e) {
     refreshLoansModule();
     show("mainTabBar");
     applyActiveTab();
+    surfaceUnreadableDateNotice(); // §3.10
   } catch (err) {
     console.error(err);
     setNotice("statusNotice", "Couldn't read that file &mdash; make sure it's a valid finances.xlsx file.", true);
@@ -1999,6 +2302,163 @@ async function appendRow(row) {
     }
     return false;
   }
+}
+
+/* ============================================================
+   IN-APP EDIT / DELETE OF ORDINARY TRANSACTIONS (§4.2)
+   ------------------------------------------------------------
+   Plain income/expense rows only. Loan-linked rows (those carrying a
+   Payment ID / Loan ID) stay read-only here and are edited/deleted on the
+   Loans tab, so the loan payment ledger can never desync.
+
+   Transactions have no stable ID column, so a row is located by a content
+   signature over its normalized fields, matched only against plain raw rows,
+   first match. Two genuinely identical rows are interchangeable, so acting on
+   "a" match is correct. Every change goes through saveWithFreshMerge, so an
+   edit/delete is applied on top of the freshest on-disk state and can never
+   blow away another session's rows (§DATA-SAFETY). Unknown columns a human
+   added in Excel are preserved on edit (Golden Rule) — only the known fields
+   the user changed are overwritten.
+   ============================================================ */
+function isPlainTransactionRaw(raw) {
+  return !String(raw["Payment ID"] || "").trim() && !String(raw["Loan ID"] || "").trim();
+}
+
+function isPlainTransaction(r) {
+  return !(r["Loan ID"] || r["Payment ID"]);
+}
+
+function transactionSignature(r) {
+  const base = [r.Date, r.Type, r.Category, r.Classification || "", round2(r.Amount), r.Description || ""];
+  // Fold in any user-added (unknown) columns, deterministically ordered, so two
+  // rows identical on every known field but differing in a manually-added Excel
+  // column get distinct signatures — an edit/delete then lands on the exact row
+  // the user acted on, not just the first look-alike (§4.2). normalizeRow now
+  // carries these extras onto both the displayed row and the raw-row match side,
+  // so the two signatures are computed over the same data.
+  const extras = Object.keys(r)
+    .filter(k => !KNOWN_TX_COLUMNS.has(k))
+    .sort()
+    .map(k => `${k}=${r[k] == null ? "" : r[k]}`);
+  return base.concat(extras).join("␟");
+}
+
+function findRawTxIndexBySignature(rows, sig) {
+  for (let i = 0; i < rows.length; i++) {
+    if (!isPlainTransactionRaw(rows[i])) continue;
+    if (transactionSignature(normalizeRow(rows[i])) === sig) return i;
+  }
+  return -1;
+}
+
+async function updateTransaction(origSig, newFields) {
+  let found = true;
+  try {
+    await saveWithFreshMerge(state => {
+      const idx = findRawTxIndexBySignature(state.rawRows, origSig);
+      if (idx === -1) { found = false; return; }
+      state.rawRows[idx] = Object.assign({}, state.rawRows[idx], newFields);
+    });
+    if (!found) {
+      setNotice("statusNotice", "That entry no longer exists &mdash; it may have been changed or deleted from another session. The list has been refreshed.", true);
+    }
+    refreshDashboard();
+    return found;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't update your entry &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
+    return false;
+  }
+}
+
+async function deleteTransaction(sig) {
+  let found = true;
+  try {
+    await saveWithFreshMerge(state => {
+      const idx = findRawTxIndexBySignature(state.rawRows, sig);
+      if (idx === -1) { found = false; return; }
+      state.rawRows.splice(idx, 1);
+    });
+    if (!found) {
+      setNotice("statusNotice", "That entry no longer exists &mdash; it may have been changed or deleted from another session. The list has been refreshed.", true);
+    }
+    refreshDashboard();
+    return found;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't delete your entry &mdash; click “Open data folder” to reconnect and try again.", true);
+    }
+    return false;
+  }
+}
+
+// Prefills the Add-Expense / Add-Income modal for an edit, then flags edit mode
+// so the submit handler updates the located row instead of appending a new one.
+// Categories a user typed directly into Excel aren't in our predefined <select>
+// lists but must still be editable (Golden Rule preserves them). If the row's
+// category isn't an existing option, inject it so the select can show it and a
+// blind edit doesn't blank it out.
+function ensureSelectOption(selectEl, value) {
+  if (!value) return;
+  const exists = Array.from(selectEl.options).some(o => o.value === value);
+  if (!exists) {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = value;
+    selectEl.appendChild(o);
+  }
+}
+
+// Fills the Add-Income / Add-Expense modal with an existing row's values. Shared
+// by Edit (which then flags edit mode) and Duplicate (which leaves edit mode off
+// so submit appends a brand-new row).
+function prefillTransactionModal(r) {
+  if (r.Type === "Income") {
+    openModal("incomeModalOverlay");
+    el("incDate").value = r.Date;
+    ensureSelectOption(el("incCategory"), r.Category);
+    el("incCategory").value = r.Category;
+    el("incAmount").value = r.Amount;
+    el("incDescription").value = r.Description;
+  } else {
+    openModal("expenseModalOverlay");
+    el("expDate").value = r.Date;
+    ensureSelectOption(el("expCategory"), r.Category);
+    el("expCategory").value = r.Category;
+    syncExpenseCategoryLock();
+    if (!el("expClassification").disabled) el("expClassification").value = r.Classification || DEFAULT_CLASSIFICATION;
+    el("expAmount").value = r.Amount;
+    el("expDescription").value = r.Description;
+  }
+}
+
+function openEditTransaction(r) {
+  if (!isPlainTransaction(r)) return; // loan-linked rows are managed on the Loans tab
+  prefillTransactionModal(r);
+  el(r.Type === "Income" ? "incomeModalTitle" : "expenseModalTitle").textContent =
+    r.Type === "Income" ? "Edit Income" : "Edit Expense";
+  editingTransaction = { sig: transactionSignature(r), type: r.Type };
+}
+
+// Duplicate: same prefilled form as the creation modal, but it saves as a NEW
+// entry (editingTransaction stays null). Doubles as a "repeat this entry"
+// shortcut for the many recurring rows this app sees month to month.
+function openDuplicateTransaction(r) {
+  if (!isPlainTransaction(r)) return;
+  prefillTransactionModal(r);
+  el(r.Type === "Income" ? "incomeModalTitle" : "expenseModalTitle").textContent =
+    r.Type === "Income" ? "Duplicate Income" : "Duplicate Expense";
+  // editingTransaction intentionally left null → handleSubmit appends a new row.
+}
+
+async function confirmDeleteTransaction(r) {
+  if (!isPlainTransaction(r)) return;
+  const label = `${r.Type} · ${r.Category} · ${formatMoney(r.Amount)}${r.Description ? ` · ${r.Description}` : ""}`;
+  if (!window.confirm(`Delete this entry?\n\n${label}\n\nThis can't be undone.`)) return;
+  await deleteTransaction(transactionSignature(r));
 }
 
 /* ============================================================
@@ -2185,6 +2645,17 @@ async function updateLoan(id, fields) {
       const prevLoan = normalizeLoanRow(state.rawLoanRows[rawIdx]);
       const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
       state.rawLoanRows[rawIdx] = Object.assign({}, state.rawLoanRows[rawIdx], loanToRawRow(updatedLoan));
+
+      // If this loan has logged payment history, its Current Balance is
+      // derived from the amortization chain, not free-typed. An edit that
+      // changes the interest rate (the balance field is locked in that case)
+      // must replay the chain now so the new rate is reflected immediately —
+      // otherwise the stored balance silently diverges from the ledger and
+      // then "jumps" retroactively the next time any payment is touched. The
+      // fixed Tracking Start Balance anchor is preserved through the edit, so
+      // the replay stays consistent with every prior recompute (§LOAN-PAYMENTS).
+      const hasPayments = state.rawPaymentRows.some(r => String(r["Loan ID"] || "").trim() === id);
+      if (hasPayments) recomputeLoanPaymentChain(state, id);
     });
     if (!found) {
       setNotice("statusNotice", "That loan no longer exists &mdash; it may have been deleted from another session. The list has been refreshed.", true);
@@ -2657,8 +3128,11 @@ function syncExpenseCategoryLock() {
 
 function openModal(id) {
   if (id === "expenseModalOverlay") {
+    editingTransaction = null; // a plain "Add" open is never an edit (§4.2)
+    el("expenseModalTitle").textContent = "Add Expense";
     el("expenseForm").reset();
     el("expDate").value = todayISO();
+    el("expCategory").disabled = false;
     el("expClassification").disabled = false;
     el("expClassification").value = DEFAULT_CLASSIFICATION;
     syncExpenseCategoryLock();
@@ -2668,6 +3142,8 @@ function openModal(id) {
     hide("expenseFormError");
     el("divResult").textContent = "—";
   } else {
+    editingTransaction = null;
+    el("incomeModalTitle").textContent = "Add Income";
     el("incomeForm").reset();
     el("incDate").value = todayISO();
     hide("incAmountError");
@@ -2676,25 +3152,57 @@ function openModal(id) {
   show(id);
 }
 
-function closeModal(id) { hide(id); }
+// Header "Log Loan Payment" entry point (§4.7): reuses the Add-Expense modal
+// with the Loan Payments category preselected, so this customer's most
+// consequential recurring action is a first-class button next to Add Expense /
+// Add Income instead of being buried on the Loans tab.
+function openLogLoanPayment() {
+  openModal("expenseModalOverlay");
+  el("expenseModalTitle").textContent = "Log Loan Payment";
+  el("expCategory").value = LOAN_LOCKED_CATEGORY;
+  syncExpenseCategoryLock();
+  // Lock the category too: this entry point is specifically for loan payments,
+  // so the user shouldn't be able to switch it to something else. (openModal
+  // re-enables the select for the ordinary Add-Expense flow.) The submit
+  // handler reads .value directly, so a disabled select still submits fine.
+  el("expCategory").disabled = true;
+}
+
+function closeModal(id) {
+  if (id === "expenseModalOverlay" || id === "incomeModalOverlay") editingTransaction = null;
+  hide(id);
+}
+
+// A valid split needs a non-negative Total and a positive divisor. The Total
+// sign is guarded here (§3.14), not just downstream at the amount>0 check, so
+// the Result never previews a negative number.
+function divideInputError(total, by) {
+  if (isNaN(total) || total < 0) return "Enter a Total of 0 or more.";
+  if (!by || by <= 0) return "Enter a \"Divide by\" value greater than 0.";
+  return "";
+}
 
 function updateDivideResult() {
   const total = parseFloat(el("divTotal").value);
   const by = parseFloat(el("divBy").value);
-  if (!by || by <= 0 || isNaN(total)) {
+  const err = divideInputError(total, by);
+  if (err) {
     el("divResult").textContent = "—";
+    el("divError").textContent = err;
     show("divError");
     return;
   }
   hide("divError");
   const result = round2(total / by);
-  el("divResult").textContent = formatNumber(result);
+  el("divResult").textContent = formatMoney(result);
 }
 
 function applyDivideResult() {
   const total = parseFloat(el("divTotal").value);
   const by = parseFloat(el("divBy").value);
-  if (!by || by <= 0 || isNaN(total)) {
+  const err = divideInputError(total, by);
+  if (err) {
+    el("divError").textContent = err;
     show("divError");
     return;
   }
@@ -2725,6 +3233,18 @@ async function handleExpenseSubmit(e) {
   }
 
   const btn = e.target.querySelector('button[type="submit"]');
+
+  // Edit mode (§4.2): update the located plain row in place. Never routes
+  // through the loan-payment flow even if the category reads "Loan Payments" —
+  // editing a plain row must not spawn a new loan payment.
+  if (editingTransaction && editingTransaction.type === "Expense") {
+    const fields = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description };
+    btn.disabled = true;
+    const ok = await updateTransaction(editingTransaction.sig, fields);
+    btn.disabled = false;
+    if (ok) { editingTransaction = null; closeModal("expenseModalOverlay"); }
+    return;
+  }
 
   if (category === LOAN_LOCKED_CATEGORY) {
     const loanId = el("expLoanId").value;
@@ -2772,8 +3292,18 @@ async function handleIncomeSubmit(e) {
     return;
   }
 
-  const row = { Date: date, Type: "Income", Category: category, Classification: "", Amount: round2(amount), Description: description };
   const btn = e.target.querySelector('button[type="submit"]');
+
+  if (editingTransaction && editingTransaction.type === "Income") {
+    const fields = { Date: date, Type: "Income", Category: category, Classification: "", Amount: round2(amount), Description: description };
+    btn.disabled = true;
+    const ok = await updateTransaction(editingTransaction.sig, fields);
+    btn.disabled = false;
+    if (ok) { editingTransaction = null; closeModal("incomeModalOverlay"); }
+    return;
+  }
+
+  const row = { Date: date, Type: "Income", Category: category, Classification: "", Amount: round2(amount), Description: description };
   btn.disabled = true;
   const ok = await appendRow(row);
   btn.disabled = false;
@@ -2813,8 +3343,24 @@ function computeRangeBounds(rangeType) {
     const ly = lm.getFullYear(), lmo = lm.getMonth();
     return { from: isoFromParts(ly, lmo + 1, 1), to: isoFromParts(ly, lmo + 1, new Date(ly, lmo + 1, 0).getDate()) };
   }
+  if (rangeType === "Last 12 Months") {
+    // Trailing twelve calendar months, current month included (§4.4) — the
+    // standard window for smoothing one-off months and seeing a full cycle.
+    const start = new Date(y, m - 11, 1);
+    return { from: isoFromParts(start.getFullYear(), start.getMonth() + 1, 1), to: todayISO() };
+  }
   if (rangeType === "This Year") {
     return { from: isoFromParts(y, 1, 1), to: isoFromParts(y, 12, 31) };
+  }
+  if (rangeType === "All Time") {
+    // Earliest→latest across every transaction (lifetime view, §4.4). Falls
+    // back to today when there's no data yet so bounds stay valid.
+    let earliest = todayISO(), latest = todayISO();
+    allRows.forEach(r => {
+      if (r.Date && r.Date < earliest) earliest = r.Date;
+      if (r.Date && r.Date > latest) latest = r.Date;
+    });
+    return { from: earliest, to: latest };
   }
   // Custom
   const from = el("customFrom").value || isoFromParts(y, m + 1, 1);
@@ -2891,18 +3437,27 @@ function bucketKeyForRow(row, granularity) {
    ============================================================ */
 function refreshDashboard() {
   const { from, to } = computeRangeBounds(currentRangeType);
+  // Inverted custom range (§3.9): rather than silently showing empty charts,
+  // tell the user their dates are backwards.
+  if (el("customRangeError")) {
+    el("customRangeError").classList.toggle("hidden", !(currentRangeType === "Custom" && from > to));
+  }
   const rangeRows = filterByRange(allRows, from, to);
   const incomeRows = rangeRows.filter(r => r.Type === "Income");
   const expenseRows = rangeRows.filter(r => r.Type === "Expense");
 
   renderSummaryCards(incomeRows, expenseRows);
-  renderClassificationPanel(expenseRows);
+  renderClassificationPanel(expenseRows, sumAmount(incomeRows));
   renderSavingsPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
   renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
   renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
   renderTableCategoryFilter();
-  const tableRows = rangeRows.filter(r => (!tableTypeFilter || r.Type === tableTypeFilter) && categoryVisibility[`${r.Type}::${r.Category}`] !== false);
+  const q = historySearchQuery.trim().toLowerCase();
+  const tableRows = rangeRows.filter(r =>
+    (!tableTypeFilter || r.Type === tableTypeFilter) &&
+    categoryVisibility[`${r.Type}::${r.Category}`] !== false &&
+    (!q || rowMatchesSearch(r, q)));
   renderHistoryTable(tableRows, rangeRows.length > 0);
 }
 
@@ -2910,15 +3465,15 @@ function renderSummaryCards(incomeRows, expenseRows) {
   const totalIncome = sumAmount(incomeRows);
   const totalExpense = sumAmount(expenseRows);
   const balance = round2(totalIncome - totalExpense);
-  el("sumIncome").textContent = formatNumber(totalIncome);
-  el("sumExpense").textContent = formatNumber(totalExpense);
+  el("sumIncome").textContent = formatMoney(totalIncome);
+  el("sumExpense").textContent = formatMoney(totalExpense);
   const balEl = el("sumBalance");
-  balEl.textContent = formatNumber(balance);
+  balEl.textContent = formatMoney(balance);
   balEl.classList.toggle("positive", balance >= 0);
   balEl.classList.toggle("negative", balance < 0);
 }
 
-function renderClassificationPanel(expenseRows) {
+function renderClassificationPanel(expenseRows, totalIncome) {
   const totalExpense = sumAmount(expenseRows);
   const sums = groupSumByClassification(expenseRows);
 
@@ -2930,12 +3485,18 @@ function renderClassificationPanel(expenseRows) {
   hide("classifEmpty");
   show("classifContent");
 
-  el("classifRegularAmt").textContent = formatNumber(sums.Regular);
-  el("classifRegularPct").textContent = `${formatNumber(totalExpense > 0 ? (sums.Regular / totalExpense) * 100 : 0)}%`;
-  el("classifLoanAmt").textContent = formatNumber(sums.Loan);
-  el("classifLoanPct").textContent = `${formatNumber(totalExpense > 0 ? (sums.Loan / totalExpense) * 100 : 0)}%`;
-  el("classifInvestAmt").textContent = formatNumber(sums.Investment);
-  el("classifInvestPct").textContent = `${formatNumber(totalExpense > 0 ? (sums.Investment / totalExpense) * 100 : 0)}%`;
+  // Percentages are shown as a share of total INCOME (not expenses) — the
+  // denominator the user actually steers by: "loans eat X% of my income, I save
+  // Y% of my income." Whole numbers, consistent with the Savings panel (§3.12).
+  // When there's no income in range, a percentage of income is meaningless, so
+  // show an em dash rather than a misleading 0%.
+  const pctText = (amt) => (totalIncome > 0 ? `${Math.round((amt / totalIncome) * 100)}%` : "—");
+  el("classifRegularAmt").textContent = formatMoney(sums.Regular);
+  el("classifRegularPct").textContent = pctText(sums.Regular);
+  el("classifLoanAmt").textContent = formatMoney(sums.Loan);
+  el("classifLoanPct").textContent = pctText(sums.Loan);
+  el("classifInvestAmt").textContent = formatMoney(sums.Investment);
+  el("classifInvestPct").textContent = pctText(sums.Investment);
 
   const bar = el("classifStackBar");
   bar.innerHTML = "";
@@ -2954,7 +3515,7 @@ function renderSavingsPanel(expenseRows, totalIncome) {
   const allTimeSaved = sumAmount(allRows.filter(r => r.Type === "Expense" && r.Classification === "Investment"));
 
   el("savingsRangeLabel").textContent = currentRangeType === "This Month" ? "This month" : "Selected range";
-  el("savingsAllTime").textContent = formatNumber(allTimeSaved);
+  el("savingsAllTime").textContent = formatMoney(allTimeSaved);
 
   if (target <= 0) {
     show("savingsEmpty");
@@ -2970,8 +3531,8 @@ function renderSavingsPanel(expenseRows, totalIncome) {
   el("savingsPct").textContent = `${pct}%`;
   el("savingsGoalNote").textContent = pct >= 100 ? "of your goal — reached!" : "of your goal";
   el("savingsBarFill").style.width = `${barPct}%`;
-  el("savingsSaved").textContent = formatNumber(saved);
-  el("savingsTarget").textContent = formatNumber(target);
+  el("savingsSaved").textContent = formatMoney(saved);
+  el("savingsTarget").textContent = formatMoney(target);
 }
 
 function renderTrendChart(from, to, incomeRows, expenseRows) {
@@ -3021,7 +3582,7 @@ function renderTrendChart(from, to, incomeRows, expenseRows) {
           backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
           titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
           displayColors: true, boxPadding: 4,
-          callbacks: { label: (c) => `${c.dataset.label}: ${formatNumber(c.parsed.y)}` }
+          callbacks: { label: (c) => `${c.dataset.label}: ${formatMoney(c.parsed.y)}` }
         }
       }
     }
@@ -3079,7 +3640,7 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
           backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
           titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
           displayColors: true, boxPadding: 4,
-          callbacks: { label: (ctx) => `${ctx.label}: ${formatNumber(ctx.parsed)}` }
+          callbacks: { label: (ctx) => `${ctx.label}: ${formatMoney(ctx.parsed)}` }
         },
         centerText: { enabled: true, color: theme.heading }
       }
@@ -3139,13 +3700,26 @@ function renderTableCategoryFilter() {
   }
 }
 
+// Free-text match across the visible columns (§4.3) — description, category,
+// type, classification, amount (as shown and raw), and the date in both the
+// friendly and ISO forms so either spelling of a date finds a row.
+function rowMatchesSearch(r, q) {
+  return [
+    r.Category, r.Type, r.Classification, r.Description,
+    friendlyDate(r.Date), r.Date, formatNumber(r.Amount), formatMoney(r.Amount), String(r.Amount)
+  ].some(f => String(f == null ? "" : f).toLowerCase().includes(q));
+}
+
 function renderHistoryTable(rangeRows, hasRowsInRange) {
   const body = el("historyTableBody");
   body.innerHTML = "";
   if (rangeRows.length === 0) {
-    el("historyEmpty").textContent = hasRowsInRange
-      ? "No transactions match the selected category filters."
-      : "No transactions yet — add your first one above.";
+    const searching = historySearchQuery.trim() !== "";
+    el("historyEmpty").textContent = searching
+      ? "No transactions match your search."
+      : hasRowsInRange
+        ? "No transactions match the selected category filters."
+        : "No transactions yet — add your first one above.";
     show("historyEmpty");
     body.parentElement.parentElement.classList.add("hidden");
     hide("btnShowAllHistory");
@@ -3175,9 +3749,41 @@ function renderHistoryTable(rangeRows, hasRowsInRange) {
       <td class="type-${r.Type}">${r.Type}</td>
       <td>${escapeHtml(r.Category)}</td>
       <td>${r.Classification ? `<span class="tag ${r.Classification}"><span class="tag-dot"></span>${r.Classification}</span>` : "&mdash;"}</td>
-      <td class="amount-col">${formatNumber(r.Amount)}</td>
+      <td class="amount-col">${formatMoney(r.Amount)}</td>
       <td>${escapeHtml(r.Description)}</td>
     `;
+    const actionsTd = document.createElement("td");
+    actionsTd.className = "row-actions";
+    if (isPlainTransaction(r)) {
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "icon-btn";
+      editBtn.title = "Edit this entry";
+      editBtn.setAttribute("aria-label", "Edit this entry");
+      editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
+      editBtn.addEventListener("click", () => openEditTransaction(r));
+      const dupBtn = document.createElement("button");
+      dupBtn.type = "button";
+      dupBtn.className = "icon-btn";
+      dupBtn.title = "Duplicate this entry";
+      dupBtn.setAttribute("aria-label", "Duplicate this entry");
+      dupBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      dupBtn.addEventListener("click", () => openDuplicateTransaction(r));
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "icon-btn danger";
+      delBtn.title = "Delete this entry";
+      delBtn.setAttribute("aria-label", "Delete this entry");
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>`;
+      delBtn.addEventListener("click", () => confirmDeleteTransaction(r));
+      actionsTd.appendChild(editBtn);
+      actionsTd.appendChild(dupBtn);
+      actionsTd.appendChild(delBtn);
+    } else {
+      // Loan-linked row: managed on the Loans tab so the payment ledger stays in sync.
+      actionsTd.innerHTML = `<span class="row-actions-note" title="This is a loan payment — edit or delete it on the Loans tab.">Loans&nbsp;tab</span>`;
+    }
+    tr.appendChild(actionsTd);
     body.appendChild(tr);
   });
 }
@@ -3186,6 +3792,172 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s == null ? "" : String(s);
   return div.innerHTML;
+}
+
+/* ============================================================
+   SHAREABLE / EXPORTABLE SUMMARY (§5.6)
+   ------------------------------------------------------------
+   Two ways to hand this month to a partner or accountant: a printable report
+   (Print / PDF) and a summary spreadsheet (.xlsx download). Both are read-only
+   snapshots of the CURRENTLY SELECTED range — neither touches finances.xlsx.
+   ============================================================ */
+function rangeDisplayLabel(from, to) {
+  return `${currentRangeType} · ${friendlyDate(from)} – ${friendlyDate(to)}`;
+}
+
+function sortedEntriesDesc(map) {
+  return Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+}
+
+function buildSummaryData() {
+  const { from, to } = computeRangeBounds(currentRangeType);
+  const rangeRows = filterByRange(allRows, from, to);
+  const incomeRows = rangeRows.filter(r => r.Type === "Income");
+  const expenseRows = rangeRows.filter(r => r.Type === "Expense");
+  const totalIncome = sumAmount(incomeRows);
+  const totalExpense = sumAmount(expenseRows);
+  const byClass = groupSumByClassification(expenseRows);
+  return {
+    from, to,
+    label: rangeDisplayLabel(from, to),
+    generated: friendlyDate(todayISO()),
+    totalIncome, totalExpense,
+    net: round2(totalIncome - totalExpense),
+    byClass,
+    expenseByCat: sortedEntriesDesc(groupSumByCategory(expenseRows)),
+    incomeByCat: sortedEntriesDesc(groupSumByCategory(incomeRows)),
+    invested: byClass.Investment,
+    loanPaid: byClass.Loan,
+    // Total outstanding debt across all loans — the denominator for "loan
+    // payments as a share of total loans". Loans aren't otherwise shown in the
+    // report (per request: income & expenses only), this is just context for
+    // the loan-payment figure.
+    totalLoanBalance: round2(allLoans.reduce((s, l) => s + (l.balance > 0 ? l.balance : 0), 0))
+  };
+}
+
+function buildReportHtml(d) {
+  const pctStr = (part, whole) => whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—";
+  // Fixed 2 decimals so every amount lines up in a clean right-aligned column —
+  // otherwise "3,542.4", "28" and "204.08" have their digits/decimal points at
+  // different positions and the column looks ragged.
+  const money = (n) => (isFinite(n) ? n : 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Category rows: amount + share of that side's total, largest first.
+  const catRows = (entries, total) => entries.length
+    ? entries.map(([c, v]) =>
+        `<tr><td>${escapeHtml(c)}</td><td class="num">${money(v)}</td><td class="num pctcol">${pctStr(v, total)}</td></tr>`).join("")
+    : `<tr><td colspan="3" class="muted">None in this range.</td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Finance Summary — ${escapeHtml(d.label)}</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1d24;margin:32px;max-width:760px;}
+  h1{font-size:22px;margin:0 0 4px;} h2{font-size:15px;margin:26px 0 8px;border-bottom:2px solid #e5e7eb;padding-bottom:4px;}
+  .sub{color:#6b7280;font-size:13px;margin-bottom:4px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;}
+  td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eef0f2;}
+  th{color:#6b7280;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+  td.pctcol,th.pctcol{width:64px;color:#6b7280;}
+  .cards{display:flex;gap:12px;margin-top:12px;}
+  .card{flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:12px;}
+  .card .l{font-size:12px;color:#6b7280;} .card .v{font-size:20px;font-weight:700;margin-top:4px;}
+  .kv{display:flex;gap:12px;margin-top:8px;}
+  .kv .box{flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:12px;}
+  .kv .l{font-size:12px;color:#6b7280;} .kv .v{font-size:18px;font-weight:700;margin-top:4px;}
+  .kv .pct{font-size:12px;color:#6b7280;margin-top:2px;}
+  .pos{color:#1a9c6b;} .neg{color:#c0392b;} .muted{color:#9aa3af;}
+  .foot{margin-top:28px;color:#9aa3af;font-size:11px;}
+  @media print{body{margin:0;}}
+</style></head><body>
+  <h1>Income &amp; Expenses Summary</h1>
+  <div class="sub">${escapeHtml(d.label)}</div>
+  <div class="sub">Generated ${escapeHtml(d.generated)}</div>
+  <div class="cards">
+    <div class="card"><div class="l">Total Income</div><div class="v pos">${money(d.totalIncome)}</div></div>
+    <div class="card"><div class="l">Total Expenses</div><div class="v neg">${money(d.totalExpense)}</div></div>
+    <div class="card"><div class="l">Net</div><div class="v ${d.net >= 0 ? "pos" : "neg"}">${money(d.net)}</div></div>
+  </div>
+  <h2>Expenses by category</h2>
+  <table><tr><th>Category</th><th class="num">Amount</th><th class="num pctcol">%</th></tr>${catRows(d.expenseByCat, d.totalExpense)}</table>
+  <h2>Income by category</h2>
+  <table><tr><th>Category</th><th class="num">Amount</th><th class="num pctcol">%</th></tr>${catRows(d.incomeByCat, d.totalIncome)}</table>
+  <h2>Investment &amp; loans</h2>
+  <div class="kv">
+    <div class="box">
+      <div class="l">Invested this period</div>
+      <div class="v">${money(d.invested)}</div>
+      <div class="pct">${pctStr(d.invested, d.totalIncome)} of total income</div>
+    </div>
+    <div class="box">
+      <div class="l">Loan payments this period</div>
+      <div class="v">${money(d.loanPaid)}</div>
+      <div class="pct">${pctStr(d.loanPaid, d.totalLoanBalance)} of total loan balance</div>
+    </div>
+  </div>
+  <div class="foot">Finance Tracker · amounts in your own currency · this report is a snapshot and does not modify your data file.</div>
+</body></html>`;
+}
+
+function printSummary() {
+  const html = buildReportHtml(buildSummaryData());
+  const w = window.open("", "_blank");
+  if (!w) {
+    setNotice("statusNotice", "Couldn't open the summary — your browser blocked the pop-up. Allow pop-ups for this page and try again.", true);
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  // Let the new document lay out before invoking the print dialog.
+  setTimeout(() => { try { w.print(); } catch (e) { /* user can print manually */ } }, 250);
+}
+
+function downloadBytes(bytes, filename) {
+  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// The .xlsx export is a STRUCTURALLY IDENTICAL copy of finances.xlsx — same
+// three sheets, same columns, same raw rows (unknown/manually-added columns
+// preserved, Golden Rule) — with exactly one difference: the Transactions sheet
+// contains only the rows that pass the currently-selected date range and the
+// active table filters (type, category toggles, search). The Loans and
+// LoanPayments sheets, which those filters don't touch, are copied in full so
+// the file stays a drop-in-shaped finances.xlsx. It is a separate download and
+// never modifies the real file.
+function exportFilteredWorkbook() {
+  const { from, to } = computeRangeBounds(currentRangeType);
+  const q = historySearchQuery.trim().toLowerCase();
+
+  // Same predicate as the visible Transaction History table, applied to the RAW
+  // rows (via their normalized view) so the file we write keeps every original
+  // column untouched.
+  const keptRawRows = rawRows.filter(raw => {
+    const r = normalizeRow(raw);
+    if (!(r.Date && r.Type && isFinite(r.Amount))) return false;    // skip blank/unreadable rows
+    if (!(r.Date >= from && r.Date <= to)) return false;            // selected date range
+    if (tableTypeFilter && r.Type !== tableTypeFilter) return false; // Income/Expense toggle
+    if (categoryVisibility[`${r.Type}::${r.Category}`] === false) return false; // category filters
+    if (q && !rowMatchesSearch(r, q)) return false;                 // search box
+    return true;
+  });
+
+  const txHeader = computeFinalHeader(sourceHeader, keptRawRows, COLUMNS);
+  const loanHeader = computeFinalHeader(sourceLoanHeader, rawLoanRows, LOAN_COLUMNS);
+  const payHeader = computeFinalHeader(sourcePaymentHeader, rawPaymentRows, LOAN_PAYMENT_COLUMNS);
+  const bytes = buildWorkbookBytesFrom(
+    keptRawRows, txHeader,
+    rawLoanRows, loanHeader,
+    rawPaymentRows, payHeader
+  );
+  const slug = currentRangeType.replace(/\s+/g, "-").toLowerCase();
+  downloadBytes(bytes, `finances-${slug}.xlsx`);
 }
 
 /* ============================================================
@@ -3518,15 +4290,28 @@ function renderPaymentHistoryTable() {
   if (rows.length === 0) {
     show("paymentHistoryEmpty");
     hide("paymentHistoryWrap");
+    hide("btnShowAllPayments");
     return;
   }
   hide("paymentHistoryEmpty");
   show("paymentHistoryWrap");
 
+  // Same collapse/expand behavior as the Transaction History table: show the
+  // 10 most recent payments by default, with a toggle to reveal all of them.
+  const hasMore = rows.length > HISTORY_ROW_LIMIT;
+  const visible = (paymentHistoryShowAll || !hasMore) ? rows : rows.slice(0, HISTORY_ROW_LIMIT);
+  if (hasMore) {
+    el("btnShowAllPaymentsLabel").textContent = paymentHistoryShowAll ? "Show fewer" : `Show all ${rows.length} payments`;
+    el("btnShowAllPayments").setAttribute("aria-expanded", paymentHistoryShowAll ? "true" : "false");
+    show("btnShowAllPayments");
+  } else {
+    hide("btnShowAllPayments");
+  }
+
   const loanNameById = {};
   allLoans.forEach(l => { loanNameById[l.id] = l.name; });
 
-  rows.forEach(p => {
+  visible.forEach(p => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${friendlyDate(p.date)}</td>
@@ -3761,8 +4546,14 @@ function wireLoanEvents() {
   el("btnCancelPayment").addEventListener("click", () => closeModal("paymentModalOverlay"));
   el("paymentForm").addEventListener("submit", handlePaymentSubmit);
 
+  el("btnShowAllPayments").addEventListener("click", () => {
+    paymentHistoryShowAll = !paymentHistoryShowAll;
+    renderPaymentHistoryTable();
+  });
+
   el("loanSelector").addEventListener("change", () => {
     selectedLoanId = el("loanSelector").value === "all" ? null : el("loanSelector").value;
+    paymentHistoryShowAll = false; // new scope → start collapsed
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
@@ -3783,6 +4574,7 @@ function wireLoanEvents() {
     }
     selectedLoanId = id;
     el("loanSelector").value = id;
+    paymentHistoryShowAll = false; // new scope → start collapsed
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
