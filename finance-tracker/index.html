@@ -710,7 +710,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
        <div id="savingsContent">
          <div class="savings-pct-row">
            <span class="savings-pct" id="savingsPct">0%</span>
-           <span class="savings-pct-note" id="savingsGoalNote">of your goal</span>
+           <span class="savings-pct-note" id="savingsGoalNote">of your income</span>
          </div>
          <div class="savings-bar-track">
            <div class="savings-bar-fill" id="savingsBarFill" style="width:0%"></div>
@@ -924,7 +924,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <label for="loanBalance">Current Balance</label>
         <input type="number" id="loanBalance" min="0.01" step="0.01" required>
         <div class="field-error hidden" id="loanBalanceError">Enter a balance greater than 0.</div>
-        <div class="field-hint hidden" id="loanBalanceTrackedHint">Tracked automatically from payment history — log, edit, or delete a payment below to change it.</div>
+        <div class="field-hint hidden" id="loanBalanceTrackedHint">This balance is tracked from the loan's payment history. Editing it here re-aligns that tracking so the balance matches the number you enter — your logged payments are all kept.</div>
       </div>
       <div class="field">
         <label for="loanPayment">Monthly Payment</label>
@@ -2155,8 +2155,11 @@ function wireStaticEvents() {
   document.querySelectorAll(".range-btn").forEach(btn => {
     btn.addEventListener("click", () => setRange(btn.dataset.range));
   });
-  el("customFrom").addEventListener("change", () => setRange("Custom"));
-  el("customTo").addEventListener("change", () => setRange("Custom"));
+  // `true` marks the change as coming from the user editing a date field, so
+  // setRange won't re-seed / overwrite the fields (which used to wipe the value
+  // just typed in the other field). See setRange().
+  el("customFrom").addEventListener("change", () => setRange("Custom", true));
+  el("customTo").addEventListener("change", () => setRange("Custom", true));
 
   // Single "Export" button opens a menu with the two export options.
   const exportMenu = el("exportMenu");
@@ -2646,16 +2649,21 @@ async function updateLoan(id, fields) {
       const updatedLoan = Object.assign({}, prevLoan, fields, { lastUpdated: todayISO() });
       state.rawLoanRows[rawIdx] = Object.assign({}, state.rawLoanRows[rawIdx], loanToRawRow(updatedLoan));
 
-      // If this loan has logged payment history, its Current Balance is
-      // derived from the amortization chain, not free-typed. An edit that
-      // changes the interest rate (the balance field is locked in that case)
-      // must replay the chain now so the new rate is reflected immediately —
-      // otherwise the stored balance silently diverges from the ledger and
-      // then "jumps" retroactively the next time any payment is touched. The
-      // fixed Tracking Start Balance anchor is preserved through the edit, so
-      // the replay stays consistent with every prior recompute (§LOAN-PAYMENTS).
+      // A loan with logged payment history has its Current Balance derived from
+      // the amortization chain, not free-typed. Two cases on edit:
+      //  - Balance manually changed → the user is correcting the current balance
+      //    (§LOAN-MANUAL-BALANCE). Re-anchor the chain so the entered number
+      //    becomes the current balance exactly, keeping every payment + its
+      //    linked expense. Uses the loan's (possibly just-edited) rate.
+      //  - Balance unchanged (e.g. only the rate/name changed) → just replay the
+      //    chain from the existing fixed anchor so an edited rate is reflected
+      //    immediately instead of "jumping" the next time a payment is touched.
       const hasPayments = state.rawPaymentRows.some(r => String(r["Loan ID"] || "").trim() === id);
-      if (hasPayments) recomputeLoanPaymentChain(state, id);
+      if (hasPayments) {
+        const balanceChanged = fields.balance != null && round2(fields.balance) !== prevLoan.balance;
+        if (balanceChanged) reanchorLoanToBalance(state, id, round2(fields.balance));
+        else recomputeLoanPaymentChain(state, id);
+      }
     });
     if (!found) {
       setNotice("statusNotice", "That loan no longer exists &mdash; it may have been deleted from another session. The list has been refreshed.", true);
@@ -2807,6 +2815,44 @@ function recomputeLoanPaymentChain(state, loanId) {
     "Last Updated": last.date,
     "Tracking Start Balance": anchor
   });
+}
+
+// Manual balance correction on a loan that has logged payments
+// (§LOAN-MANUAL-BALANCE). The user typed a Current Balance and expects it to
+// stick; the chain derives Current Balance from a fixed anchor, so we solve for
+// the anchor that makes replaying the existing payments land on exactly
+// `targetBalance`, set it, and recompute. Every payment row and its linked
+// expense is preserved untouched (only the derived Principal/Interest splits
+// re-settle to stay consistent). Closed form from the chain recurrence
+//   balanceₙ = anchor·gⁿ − Σ amountᵢ·g^(n−i),  g = 1 + monthlyRate
+// ⇒ anchor = (target + Σ amountᵢ·g^(n−i)) / gⁿ. For g = 1 (0% rate) this is
+// simply target + Σ amountᵢ. Must run inside saveWithFreshMerge's mutate().
+function reanchorLoanToBalance(state, loanId, targetBalance) {
+  const loanIdx = findRawLoanIndex(state.rawLoanRows, loanId);
+  if (loanIdx === -1) return;
+  const loan = normalizeLoanRow(state.rawLoanRows[loanIdx]);
+  const payments = sortPaymentsForChain(
+    state.rawPaymentRows
+      .filter(r => String(r["Loan ID"] || "").trim() === loanId)
+      .map(normalizeLoanPaymentRow)
+  );
+  if (payments.length === 0) {
+    // No chain to solve — treat it as a plain free-typed balance.
+    state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], {
+      "Current Balance": round2(targetBalance), "Last Updated": todayISO(), "Tracking Start Balance": ""
+    });
+    return;
+  }
+  const g = 1 + (loan.rate / 100) / 12;
+  const n = payments.length;
+  let sum = 0;
+  payments.forEach((p, i) => { sum += p.amount * Math.pow(g, n - 1 - i); }); // exponent n-(i+1)
+  const anchor = round2((targetBalance + sum) / Math.pow(g, n));
+  state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], { "Tracking Start Balance": anchor });
+  recomputeLoanPaymentChain(state, loanId);
+  // Guarantee the headline balance is exactly what the user typed (per-step
+  // rounding in the replay can otherwise leave it a cent off).
+  state.rawLoanRows[loanIdx] = Object.assign({}, state.rawLoanRows[loanIdx], { "Current Balance": round2(targetBalance) });
 }
 
 // Dry-runs one candidate payment (new or edited) against the loan's real
@@ -3313,7 +3359,7 @@ async function handleIncomeSubmit(e) {
 /* ============================================================
    TIME RANGE
    ============================================================ */
-function setRange(rangeType) {
+function setRange(rangeType, fromDateInput) {
   currentRangeType = rangeType;
   historyShowAll = false;
   document.querySelectorAll(".range-btn").forEach(btn => {
@@ -3321,10 +3367,18 @@ function setRange(rangeType) {
   });
   if (rangeType === "Custom") {
     show("customRangeInputs");
-    if (!el("customFrom").value || !el("customTo").value) {
-      const { from, to } = computeRangeBounds("This Month");
-      el("customFrom").value = from;
-      el("customTo").value = to;
+    // Seed default dates ONLY when the user first switches to Custom via the
+    // button (fromDateInput is falsy) — never while they're editing a field.
+    // Re-seeding on every input change, and overwriting BOTH fields whenever
+    // either was momentarily empty, was wiping the date just typed in the other
+    // field (typing/clearing "From" reset "To", and vice-versa). We also fill
+    // only the field that's actually empty, never clobber one that has a value.
+    if (!fromDateInput) {
+      if (!el("customFrom").value || !el("customTo").value) {
+        const { from, to } = computeRangeBounds("This Month");
+        if (!el("customFrom").value) el("customFrom").value = from;
+        if (!el("customTo").value) el("customTo").value = to;
+      }
     }
   } else {
     hide("customRangeInputs");
@@ -3525,11 +3579,19 @@ function renderSavingsPanel(expenseRows, totalIncome) {
   hide("savingsEmpty");
   show("savingsContent");
 
-  const pct = Math.round((saved / target) * 100);
-  const barPct = Math.max(0, Math.min(pct, 100));
+  // The headline uses the SAME baseline as the Expense Classification card — the
+  // share of this range's income that went into savings/investment — so the two
+  // panels can never present the same figure as two wildly different percentages.
+  // (They used to: e.g. 292% of income on the classification card vs 2922% of the
+  // 10%-of-income goal here, which reads like a bug.) The 10% target is still the
+  // goal: it drives the "reached" state, the progress bar (capped at 100%), and
+  // the "saved of target" line below.
+  const incomePct = totalIncome > 0 ? Math.round((saved / totalIncome) * 100) : 0;
+  const goalReached = saved >= target;
+  const barPct = Math.max(0, Math.min(Math.round((saved / target) * 100), 100));
 
-  el("savingsPct").textContent = `${pct}%`;
-  el("savingsGoalNote").textContent = pct >= 100 ? "of your goal — reached!" : "of your goal";
+  el("savingsPct").textContent = `${incomePct}%`;
+  el("savingsGoalNote").textContent = goalReached ? "of your income — goal reached!" : "of your income";
   el("savingsBarFill").style.width = `${barPct}%`;
   el("savingsSaved").textContent = formatMoney(saved);
   el("savingsTarget").textContent = formatMoney(target);
@@ -4380,11 +4442,12 @@ function openLoanModalForEdit(id) {
   hideLoanFormErrors();
   updateLoanNegAmortWarning();
 
-  // Once a loan has any logged payment history, its Current Balance is
-  // derived from that ledger (recomputeLoanPaymentChain) rather than
-  // free-typed — log/edit/delete a payment to change it instead.
+  // The balance is always editable. When a loan has logged payment history its
+  // balance is normally derived from that ledger, so we surface a hint that a
+  // manual edit re-aligns the tracking (see reanchorLoanToBalance) — the number
+  // you type becomes the balance and every payment/expense is kept.
+  el("loanBalance").disabled = false;
   const hasPayments = allLoanPayments.some(p => p.loanId === loan.id);
-  el("loanBalance").disabled = hasPayments;
   el("loanBalanceTrackedHint").classList.toggle("hidden", !hasPayments);
 
   show("loanModalOverlay");
