@@ -158,6 +158,16 @@ svg{display:block;}
 .notice.error{background:var(--expense-bg);border-color:#f3b8b8;color:#8a2b2b;}
 :root[data-theme="dark"] .notice{background:rgba(240,180,60,.14);border-color:rgba(240,180,60,.35);color:#e8c76b;}
 :root[data-theme="dark"] .notice.error{color:#f4a8a4;border-color:rgba(240,113,108,.4);}
+/* Transient confirmation (flashNotice): fades in, then fades/collapses away on
+   its own after a few seconds so brief "done" messages don't linger. Errors use
+   the plain .notice and stay put. */
+.notice.notice-flash{animation:noticeIn .25s ease;}
+.notice.notice-flash.notice-out{
+  opacity:0;transform:translateY(-4px);margin-top:0;margin-bottom:0;
+  padding-top:0;padding-bottom:0;max-height:0;overflow:hidden;
+  transition:opacity .35s ease,transform .35s ease,max-height .35s ease,padding .35s ease,margin .35s ease;
+}
+@keyframes noticeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
 
 /* ---- Panels / cards ---- */
 .panel{
@@ -469,6 +479,146 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .modal-error{color:var(--expense);font-size:13px;margin-top:-6px;margin-bottom:14px;}
 
 footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margin-top:30px;}
+
+/* ---- Monthly Planning (§PLAN) ---- */
+.plan-grid-scroll{overflow-x:auto;}
+.plan-table{border-collapse:separate;border-spacing:0;font-size:13px;min-width:520px;}
+.plan-table th,.plan-table td{padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.plan-table thead th{
+  position:sticky;top:0;z-index:3;background:var(--panel);color:var(--text-muted);
+  font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;text-align:right;
+  border-bottom:2px solid var(--border);
+}
+.plan-table thead th.plan-rowlabel-col{text-align:left;}
+.plan-table thead th.plan-current-month{color:var(--text);}
+/* First column (the item label) sticks while months scroll horizontally. */
+.plan-rowlabel-col{
+  position:sticky;left:0;z-index:2;background:var(--panel);text-align:left;
+  min-width:150px;max-width:220px;white-space:normal;
+}
+.plan-table thead th.plan-rowlabel-col{z-index:4;}
+.plan-month-cell{text-align:right;font-variant-numeric:tabular-nums;min-width:76px;}
+.plan-min-col{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted);width:72px;min-width:72px;}
+.plan-table thead th.plan-min-col{color:var(--text-muted);}
+
+/* Group header + its per-month subtotal row */
+.plan-group-row td{
+  background:var(--surface-alt);font-weight:700;color:var(--text);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+}
+.plan-group-row .plan-rowlabel-col{background:var(--surface-alt);}
+.plan-group-title{display:flex;align-items:center;gap:8px;}
+.plan-subtotal{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;color:var(--text-muted);}
+
+/* Item rows: the amount cells are inline-editable inputs styled as plain cells */
+.plan-item-row:hover td{background:var(--surface-alt);}
+.plan-item-row:hover .plan-rowlabel-col{background:var(--surface-alt);}
+.plan-item-row .plan-rowlabel-col{display:flex;align-items:center;gap:4px;}
+.plan-drag-handle{
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:26px;margin-left:-4px;cursor:grab;color:var(--text-muted);opacity:.4;
+  border-radius:5px;touch-action:none;
+  transition:opacity .12s ease,color .12s ease,background-color .12s ease;
+}
+.plan-drag-handle svg{width:16px;height:16px;pointer-events:none;}
+.plan-item-row:hover .plan-drag-handle{opacity:.85;}
+.plan-drag-handle:hover{opacity:1;color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);}
+.plan-drag-handle:active{cursor:grabbing;}
+
+/* SortableJS drag states.
+   - chosen: the row you grabbed (its real spot in the list)
+   - ghost:  the translucent placeholder showing where it will land
+   - drag:   the floating clone that follows the pointer (forceFallback) */
+.plan-item-row.plan-row-chosen td{background:color-mix(in srgb,var(--accent) 9%,transparent);}
+.plan-item-row.plan-row-ghost td{opacity:.35;}
+.plan-item-row.plan-row-ghost td *{visibility:hidden;}
+.plan-item-row.plan-row-ghost{box-shadow:inset 0 0 0 2px var(--accent);border-radius:6px;}
+/* The floating clone that follows the pointer. A table row dragged outside its
+   <table> loses column widths and wraps (looked "twice as wide"). So we collapse
+   the clone to a compact single-line pill showing just the handle + name + tag —
+   width/height:auto!important override the inline sizes SortableJS copies on. */
+.plan-row-drag,.sortable-fallback{
+  display:inline-flex!important;align-items:center;
+  width:auto!important;height:auto!important;
+  background:var(--panel)!important;border:1px solid var(--border);
+  box-shadow:0 10px 26px rgba(0,0,0,.4);border-radius:8px;
+  padding:3px 12px 3px 4px;opacity:.98;overflow:hidden;
+}
+.plan-row-drag td,.sortable-fallback td{border:none!important;background:transparent!important;padding:0!important;}
+.plan-row-drag td:not(.plan-rowlabel-col),.sortable-fallback td:not(.plan-rowlabel-col){display:none!important;}
+.plan-row-drag .plan-rowlabel-col,.sortable-fallback .plan-rowlabel-col{display:flex!important;align-items:center;gap:6px;white-space:nowrap;}
+.plan-row-drag .plan-label-input,.sortable-fallback .plan-label-input{
+  border:none!important;background:transparent!important;box-shadow:none!important;
+  flex:0 0 auto;width:auto!important;min-width:110px;max-width:240px;
+  padding:0!important;color:var(--text);font-weight:500;text-overflow:ellipsis;
+}
+.plan-row-drag .plan-drag-handle,.sortable-fallback .plan-drag-handle{cursor:grabbing;color:var(--accent);opacity:1;}
+.plan-cell-input{
+  width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;
+  color:var(--text);font:inherit;text-align:right;font-variant-numeric:tabular-nums;
+  padding:3px 5px;border-radius:5px;
+}
+.plan-label-input{text-align:left;}
+.plan-cell-input:hover{border-color:var(--border);}
+.plan-cell-input:focus{outline:none;border-color:var(--accent);background:var(--panel);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent);}
+.plan-loan-chip{
+  display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);
+  border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;
+}
+.plan-row-del{
+  background:none;border:none;color:var(--text-muted);cursor:pointer;opacity:0;
+  padding:2px;border-radius:4px;line-height:0;transition:opacity .12s ease,color .12s ease;
+}
+.plan-item-row:hover .plan-row-del{opacity:1;}
+.plan-row-del:hover{color:var(--expense);background:color-mix(in srgb,var(--expense) 12%,transparent);}
+.plan-row-del svg{width:15px;height:15px;}
+.plan-actions-col{width:26px;text-align:center;}
+.plan-additem-row td{border-bottom:1px solid var(--border);}
+.plan-additem-btn{background:none;border:none;color:var(--copper);cursor:pointer;font-size:12px;padding:3px 5px;}
+.plan-additem-btn:hover{text-decoration:underline;}
+
+/* Income / total / money-left summary rows in the grid */
+.plan-income-row td{background:color-mix(in srgb,var(--income) 8%,transparent);font-weight:600;border-bottom:2px solid var(--border);}
+.plan-income-row .plan-rowlabel-col{background:color-mix(in srgb,var(--income) 8%,transparent);color:var(--income);}
+.plan-total-row td{border-top:2px solid var(--border);font-weight:700;}
+.plan-total-row .plan-rowlabel-col{font-weight:700;}
+.plan-total-row .plan-subtotal{color:var(--text);}
+.plan-left-row td{font-weight:700;border-bottom:none;}
+.plan-left-row .plan-rowlabel-col{font-weight:700;}
+.plan-left-pos{color:var(--income);}
+.plan-left-neg{color:var(--expense);}
+.plan-grid-actions{display:flex;gap:16px;margin-top:12px;}
+
+/* Advisor side panel */
+.plan-summary-panel{text-align:left;}
+.plan-summary-month{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:10px;font-weight:600;}
+.plan-left-label{font-size:13px;color:var(--text-muted);}
+.plan-left-value{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;margin:2px 0 2px;}
+.plan-left-sub{font-size:12px;color:var(--text-muted);margin-bottom:12px;}
+.plan-breakdown{display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--border);padding-top:12px;}
+.plan-breakdown-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;}
+.plan-breakdown-row .plan-bd-label{color:var(--text-muted);display:flex;align-items:center;gap:7px;}
+.plan-breakdown-row .plan-bd-val{font-variant-numeric:tabular-nums;font-weight:600;}
+.plan-bd-swatch{width:9px;height:9px;border-radius:2px;flex:none;}
+.plan-bd-income .plan-bd-swatch{background:var(--income);}
+.plan-bd-fixed .plan-bd-swatch{background:var(--accent);}
+.plan-bd-cards .plan-bd-swatch{background:var(--loan);}
+.plan-bd-canwait .plan-bd-swatch{background:var(--copper);}
+
+.plan-advisor-list{display:flex;flex-direction:column;gap:10px;}
+.plan-advisor-empty{color:var(--text-muted);font-size:13px;}
+.plan-tip{
+  border:1px solid var(--border);border-left-width:3px;border-radius:8px;padding:10px 12px;
+  font-size:12.5px;line-height:1.5;background:var(--surface-alt);
+}
+.plan-tip strong{display:block;margin-bottom:2px;font-size:13px;}
+.plan-tip.good{border-left-color:var(--income);}
+.plan-tip.warn{border-left-color:var(--expense);}
+.plan-tip.info{border-left-color:var(--accent);}
+.plan-commit-bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin:8px 0 4px;}
+.plan-commit-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .25s ease,background-color .25s ease;}
+.plan-commit-fill.over{background:var(--expense);}
 </style>
 </head>
 <body>
@@ -522,6 +672,16 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           Log Loan Payment
         </button>
       </div>
+      <div class="app-actions hidden" id="planHeaderActions">
+        <button class="btn btn-secondary" id="btnPlanPullLoans" title="Import this month's loan payments from your Loans tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Import loans
+        </button>
+        <button class="btn btn-secondary" id="btnPlanImportFixed" title="Import last month's spending totals (Housing, Food, Transport, Bills, Health, Mom Bills, Savings) into Can Wait">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Import expenses
+        </button>
+      </div>
     </div>
   </div>
 
@@ -536,6 +696,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
   <div class="main-tab-bar hidden" id="mainTabBar">
     <button type="button" class="main-tab-btn" data-tab="dashboard">Income &amp; Expenses</button>
     <button type="button" class="main-tab-btn" data-tab="loans">Loans</button>
+    <button type="button" class="main-tab-btn" data-tab="planning">Monthly Planning</button>
   </div>
 
   <!-- ============================================================
@@ -804,6 +965,50 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="table-note">Editing or deleting a payment keeps its matching expense entry in Income &amp; Expenses in sync automatically.</div>
       </div>
     </div>
+  </div>
+
+  <!-- ============================================================
+       MONTHLY PLANNING MODULE (§PLAN)
+       A forward-looking cash-flow planner. Independent of
+       Transactions/Loans (those record what happened; this plans
+       what's next). Persisted to its own three sheets — see §PLAN.
+       ============================================================ -->
+  <div id="planningModule" class="hidden">
+   <div class="layout">
+    <div class="main-col">
+
+      <div class="panel">
+        <div class="plan-grid-scroll table-scroll">
+          <table id="planTable" class="plan-table">
+            <thead id="planTableHead"></thead>
+            <tbody id="planTableBody"></tbody>
+          </table>
+        </div>
+        <div class="plan-grid-actions">
+          <button type="button" class="btn-link" id="btnPlanShrinkMonth">&minus; Fewer months</button>
+          <button type="button" class="btn-link" id="btnPlanGrowMonth">+ More months</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Advisor side panel — reads the FIRST (current) month as "this month" -->
+    <aside class="side-col">
+      <div class="panel plan-summary-panel">
+        <div class="plan-summary-month" id="planSummaryMonth">This month</div>
+        <div class="plan-left-label">Left after bills</div>
+        <div class="plan-left-value" id="planLeftValue">0.00</div>
+        <div class="plan-left-sub" id="planLeftSub"></div>
+
+        <div class="plan-breakdown" id="planBreakdown"></div>
+      </div>
+
+      <div class="panel plan-advisor-panel">
+        <h2>Advisor</h2>
+        <div id="planAdvisorList" class="plan-advisor-list"></div>
+      </div>
+    </aside>
+   </div>
   </div>
 
   <footer class="app-footer">Your data stays on your computer. Nothing is ever sent anywhere.</footer>
@@ -1092,6 +1297,72 @@ const LOAN_COLUMNS = ["Loan ID", "Name", "Current Balance", "Monthly Payment", "
 const LOAN_PAYMENTS_SHEET_NAME = "LoanPayments";
 const LOAN_PAYMENT_COLUMNS = ["Payment ID", "Loan ID", "Date", "Amount Paid", "Category", "Principal Portion", "Interest Portion", "Balance After", "Notes", "Last Updated"];
 
+// ---- Monthly Planning module (§PLAN) — a forward-looking cash-flow planner,
+// stored as THREE more independent worksheets in the same .xlsx file. It never
+// touches Transactions/Loans/LoanPayments; those remain the record of what
+// actually happened, while these hold what you INTEND to happen next.
+//
+// Three sheets, kept normalized so Excel can read them plainly:
+//   • MonthlyPlan        — one row per planned line item (the grid's rows):
+//                          which group it's in, its label, a card's minimum,
+//                          and an optional Loan ID linking it back to a real
+//                          loan so a loan's monthly payment can be pre-filled.
+//   • MonthlyPlanCells   — the multi-month grid values: one row per
+//                          (item × month), holding the planned amount for that
+//                          item in that month. Normalized (not a wide sheet of
+//                          dynamic month columns) so the header stays fixed and
+//                          the header-name parser never has to guess.
+//   • MonthlyPlanIncome  — one row per month: the estimated income for it.
+//
+// These sheets are NEW, so an older finances.xlsx simply won't have them yet —
+// unlike the Loans guard, a missing plan sheet on a file that never had one is
+// normal and means "no plan yet", not an error (see saveWithFreshMerge §PLAN).
+const PLAN_SHEET_NAME = "MonthlyPlan";
+const PLAN_COLUMNS = ["Row ID", "Group", "Label", "Minimum", "Loan ID", "Sort Order"];
+const PLAN_CELLS_SHEET_NAME = "MonthlyPlanCells";
+const PLAN_CELL_COLUMNS = ["Row ID", "Month", "Amount"];
+const PLAN_INCOME_SHEET_NAME = "MonthlyPlanIncome";
+const PLAN_INCOME_COLUMNS = ["Month", "Estimated Income"];
+
+// The three planning groups, ranked by how negotiable the money is — the same
+// mental model as the user's manual spreadsheet (fixed commitments first,
+// credit cards second, deferrable "can wait" spending last). "cards" is the
+// only group whose rows carry a separate Minimum figure. Order here is the
+// order they render top-to-bottom in the grid.
+// NB: `key` is the stable value persisted in the sheet's Group column — never
+// rename a key, only its display `label`. "Cards" now also holds pulled-in loan
+// payments (they land here, not in Fixed), hence the "& Loans" label.
+const PLAN_GROUPS = [
+  { key: "Fixed",   label: "Fixed / Committed",  hint: "Rent, bills, salaries, auto-deducts — money you can't skip." },
+  { key: "Cards",   label: "Credit Cards & Loans", hint: "Credit-card and loan payments. Paying only a card's minimum keeps its balance — and interest — growing." },
+  { key: "CanWait", label: "Can Wait",           hint: "Discretionary or deferrable — the first place to cut if a month comes up short." }
+];
+const PLAN_GROUP_KEYS = PLAN_GROUPS.map(g => g.key);
+// View preference (localStorage only) — how many month columns the grid shows by
+// default. Declared here in the config block so getStoredPlanHorizon() can read
+// it while the `let planHorizon = …` global initializes further below.
+const PLAN_HORIZON_STORAGE_KEY = "finance_tracker_plan_horizon";
+const PLAN_HORIZON_DEFAULT = 6;
+
+// "Import Fixed Expenses" (§PLAN): last month's real spending, summed into one
+// Can Wait row per entry below. `categories` must match EXPENSE_CATEGORIES
+// exactly; a row can merge several categories under one plan label — "Food"
+// combines groceries and eating out. Order here is the order rows are created.
+const PLAN_FIXED_IMPORT_ROWS = [
+  { label: "Housing (Rent/Mortgage)",     categories: ["Housing (Rent/Mortgage)"] },
+  { label: "Food",                        categories: ["Food & Groceries", "Restaurants & Cafés"] },
+  { label: "Transportation",              categories: ["Transportation"] },
+  { label: "Bills & Utilities",           categories: ["Bills & Utilities"] },
+  { label: "Subscriptions",               categories: ["Subscriptions"] },
+  { label: "Health",                      categories: ["Health"] },
+  { label: "Mom Bills",                   categories: ["Mom Bills"] },
+  { label: "Investment / Savings Deposit", categories: ["Investment / Savings Deposit"] }
+];
+
+// Labels the advisor treats as an essential "you still have to eat" floor — it
+// will never tell you to cut these to zero to pay debt (see renderPlanAdvisor).
+const PLAN_FOOD_LABELS = new Set(["food", "food & groceries", "restaurants & cafés", "restaurants & cafes"]);
+
 // Maps the Annual Effective Interest Rate (%/year) to a severity tier used for
 // ranking color intensity. Tune these without touching the calculation logic.
 const SEVERITY_BANDS = [
@@ -1152,6 +1423,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
 </script>
 
+<!-- SortableJS (vendored inline, offline, no CDN) — smooth pointer-based
+     drag-and-drop for the Monthly Planning grid rows. MIT licensed. -->
+<script>
+/*! Sortable 1.15.6 - MIT | git://github.com/SortableJS/Sortable.git */
+!function(t,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):(t=t||self).Sortable=e()}(this,function(){"use strict";function e(e,t){var n,o=Object.keys(e);return Object.getOwnPropertySymbols&&(n=Object.getOwnPropertySymbols(e),t&&(n=n.filter(function(t){return Object.getOwnPropertyDescriptor(e,t).enumerable})),o.push.apply(o,n)),o}function I(o){for(var t=1;t<arguments.length;t++){var i=null!=arguments[t]?arguments[t]:{};t%2?e(Object(i),!0).forEach(function(t){var e,n;e=o,t=i[n=t],n in e?Object.defineProperty(e,n,{value:t,enumerable:!0,configurable:!0,writable:!0}):e[n]=t}):Object.getOwnPropertyDescriptors?Object.defineProperties(o,Object.getOwnPropertyDescriptors(i)):e(Object(i)).forEach(function(t){Object.defineProperty(o,t,Object.getOwnPropertyDescriptor(i,t))})}return o}function o(t){return(o="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t})(t)}function a(){return(a=Object.assign||function(t){for(var e=1;e<arguments.length;e++){var n,o=arguments[e];for(n in o)Object.prototype.hasOwnProperty.call(o,n)&&(t[n]=o[n])}return t}).apply(this,arguments)}function i(t,e){if(null==t)return{};var n,o=function(t,e){if(null==t)return{};for(var n,o={},i=Object.keys(t),r=0;r<i.length;r++)n=i[r],0<=e.indexOf(n)||(o[n]=t[n]);return o}(t,e);if(Object.getOwnPropertySymbols)for(var i=Object.getOwnPropertySymbols(t),r=0;r<i.length;r++)n=i[r],0<=e.indexOf(n)||Object.prototype.propertyIsEnumerable.call(t,n)&&(o[n]=t[n]);return o}function r(t){return function(t){if(Array.isArray(t))return l(t)}(t)||function(t){if("undefined"!=typeof Symbol&&null!=t[Symbol.iterator]||null!=t["@@iterator"])return Array.from(t)}(t)||function(t,e){if(t){if("string"==typeof t)return l(t,e);var n=Object.prototype.toString.call(t).slice(8,-1);return"Map"===(n="Object"===n&&t.constructor?t.constructor.name:n)||"Set"===n?Array.from(t):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?l(t,e):void 0}}(t)||function(){throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()}function l(t,e){(null==e||e>t.length)&&(e=t.length);for(var n=0,o=new Array(e);n<e;n++)o[n]=t[n];return o}function t(t){if("undefined"!=typeof window&&window.navigator)return!!navigator.userAgent.match(t)}var y=t(/(?:Trident.*rv[ :]?11\.|msie|iemobile|Windows Phone)/i),w=t(/Edge/i),s=t(/firefox/i),u=t(/safari/i)&&!t(/chrome/i)&&!t(/android/i),c=t(/iP(ad|od|hone)/i),n=t(/chrome/i)&&t(/android/i),d={capture:!1,passive:!1};function h(t,e,n){t.addEventListener(e,n,!y&&d)}function p(t,e,n){t.removeEventListener(e,n,!y&&d)}function f(t,e){if(e&&(">"===e[0]&&(e=e.substring(1)),t))try{if(t.matches)return t.matches(e);if(t.msMatchesSelector)return t.msMatchesSelector(e);if(t.webkitMatchesSelector)return t.webkitMatchesSelector(e)}catch(t){return}}function g(t){return t.host&&t!==document&&t.host.nodeType?t.host:t.parentNode}function P(t,e,n,o){if(t){n=n||document;do{if(null!=e&&(">"!==e[0]||t.parentNode===n)&&f(t,e)||o&&t===n)return t}while(t!==n&&(t=g(t)))}return null}var m,v=/\s+/g;function k(t,e,n){var o;t&&e&&(t.classList?t.classList[n?"add":"remove"](e):(o=(" "+t.className+" ").replace(v," ").replace(" "+e+" "," "),t.className=(o+(n?" "+e:"")).replace(v," ")))}function R(t,e,n){var o=t&&t.style;if(o){if(void 0===n)return document.defaultView&&document.defaultView.getComputedStyle?n=document.defaultView.getComputedStyle(t,""):t.currentStyle&&(n=t.currentStyle),void 0===e?n:n[e];o[e=!(e in o||-1!==e.indexOf("webkit"))?"-webkit-"+e:e]=n+("string"==typeof n?"":"px")}}function b(t,e){var n="";if("string"==typeof t)n=t;else do{var o=R(t,"transform")}while(o&&"none"!==o&&(n=o+" "+n),!e&&(t=t.parentNode));var i=window.DOMMatrix||window.WebKitCSSMatrix||window.CSSMatrix||window.MSCSSMatrix;return i&&new i(n)}function D(t,e,n){if(t){var o=t.getElementsByTagName(e),i=0,r=o.length;if(n)for(;i<r;i++)n(o[i],i);return o}return[]}function O(){var t=document.scrollingElement;return t||document.documentElement}function X(t,e,n,o,i){if(t.getBoundingClientRect||t===window){var r,a,l,s,c,u,d=t!==window&&t.parentNode&&t!==O()?(a=(r=t.getBoundingClientRect()).top,l=r.left,s=r.bottom,c=r.right,u=r.height,r.width):(l=a=0,s=window.innerHeight,c=window.innerWidth,u=window.innerHeight,window.innerWidth);if((e||n)&&t!==window&&(i=i||t.parentNode,!y))do{if(i&&i.getBoundingClientRect&&("none"!==R(i,"transform")||n&&"static"!==R(i,"position"))){var h=i.getBoundingClientRect();a-=h.top+parseInt(R(i,"border-top-width")),l-=h.left+parseInt(R(i,"border-left-width")),s=a+r.height,c=l+r.width;break}}while(i=i.parentNode);return o&&t!==window&&(o=(e=b(i||t))&&e.a,t=e&&e.d,e&&(s=(a/=t)+(u/=t),c=(l/=o)+(d/=o))),{top:a,left:l,bottom:s,right:c,width:d,height:u}}}function Y(t,e,n){for(var o=M(t,!0),i=X(t)[e];o;){var r=X(o)[n];if(!("top"===n||"left"===n?r<=i:i<=r))return o;if(o===O())break;o=M(o,!1)}return!1}function B(t,e,n,o){for(var i=0,r=0,a=t.children;r<a.length;){if("none"!==a[r].style.display&&a[r]!==jt.ghost&&(o||a[r]!==jt.dragged)&&P(a[r],n.draggable,t,!1)){if(i===e)return a[r];i++}r++}return null}function F(t,e){for(var n=t.lastElementChild;n&&(n===jt.ghost||"none"===R(n,"display")||e&&!f(n,e));)n=n.previousElementSibling;return n||null}function j(t,e){var n=0;if(!t||!t.parentNode)return-1;for(;t=t.previousElementSibling;)"TEMPLATE"===t.nodeName.toUpperCase()||t===jt.clone||e&&!f(t,e)||n++;return n}function E(t){var e=0,n=0,o=O();if(t)do{var i=b(t),r=i.a,i=i.d}while(e+=t.scrollLeft*r,n+=t.scrollTop*i,t!==o&&(t=t.parentNode));return[e,n]}function M(t,e){if(!t||!t.getBoundingClientRect)return O();var n=t,o=!1;do{if(n.clientWidth<n.scrollWidth||n.clientHeight<n.scrollHeight){var i=R(n);if(n.clientWidth<n.scrollWidth&&("auto"==i.overflowX||"scroll"==i.overflowX)||n.clientHeight<n.scrollHeight&&("auto"==i.overflowY||"scroll"==i.overflowY)){if(!n.getBoundingClientRect||n===document.body)return O();if(o||e)return n;o=!0}}}while(n=n.parentNode);return O()}function S(t,e){return Math.round(t.top)===Math.round(e.top)&&Math.round(t.left)===Math.round(e.left)&&Math.round(t.height)===Math.round(e.height)&&Math.round(t.width)===Math.round(e.width)}function _(e,n){return function(){var t;m||(1===(t=arguments).length?e.call(this,t[0]):e.apply(this,t),m=setTimeout(function(){m=void 0},n))}}function H(t,e,n){t.scrollLeft+=e,t.scrollTop+=n}function C(t){var e=window.Polymer,n=window.jQuery||window.Zepto;return e&&e.dom?e.dom(t).cloneNode(!0):n?n(t).clone(!0)[0]:t.cloneNode(!0)}function T(t,e){R(t,"position","absolute"),R(t,"top",e.top),R(t,"left",e.left),R(t,"width",e.width),R(t,"height",e.height)}function x(t){R(t,"position",""),R(t,"top",""),R(t,"left",""),R(t,"width",""),R(t,"height","")}function L(n,o,i){var r={};return Array.from(n.children).forEach(function(t){var e;P(t,o.draggable,n,!1)&&!t.animated&&t!==i&&(e=X(t),r.left=Math.min(null!==(t=r.left)&&void 0!==t?t:1/0,e.left),r.top=Math.min(null!==(t=r.top)&&void 0!==t?t:1/0,e.top),r.right=Math.max(null!==(t=r.right)&&void 0!==t?t:-1/0,e.right),r.bottom=Math.max(null!==(t=r.bottom)&&void 0!==t?t:-1/0,e.bottom))}),r.width=r.right-r.left,r.height=r.bottom-r.top,r.x=r.left,r.y=r.top,r}var K="Sortable"+(new Date).getTime();function A(){var e,o=[];return{captureAnimationState:function(){o=[],this.options.animation&&[].slice.call(this.el.children).forEach(function(t){var e,n;"none"!==R(t,"display")&&t!==jt.ghost&&(o.push({target:t,rect:X(t)}),e=I({},o[o.length-1].rect),!t.thisAnimationDuration||(n=b(t,!0))&&(e.top-=n.f,e.left-=n.e),t.fromRect=e)})},addAnimationState:function(t){o.push(t)},removeAnimationState:function(t){o.splice(function(t,e){for(var n in t)if(t.hasOwnProperty(n))for(var o in e)if(e.hasOwnProperty(o)&&e[o]===t[n][o])return Number(n);return-1}(o,{target:t}),1)},animateAll:function(t){var c=this;if(!this.options.animation)return clearTimeout(e),void("function"==typeof t&&t());var u=!1,d=0;o.forEach(function(t){var e=0,n=t.target,o=n.fromRect,i=X(n),r=n.prevFromRect,a=n.prevToRect,l=t.rect,s=b(n,!0);s&&(i.top-=s.f,i.left-=s.e),n.toRect=i,n.thisAnimationDuration&&S(r,i)&&!S(o,i)&&(l.top-i.top)/(l.left-i.left)==(o.top-i.top)/(o.left-i.left)&&(t=l,s=r,r=a,a=c.options,e=Math.sqrt(Math.pow(s.top-t.top,2)+Math.pow(s.left-t.left,2))/Math.sqrt(Math.pow(s.top-r.top,2)+Math.pow(s.left-r.left,2))*a.animation),S(i,o)||(n.prevFromRect=o,n.prevToRect=i,e=e||c.options.animation,c.animate(n,l,i,e)),e&&(u=!0,d=Math.max(d,e),clearTimeout(n.animationResetTimer),n.animationResetTimer=setTimeout(function(){n.animationTime=0,n.prevFromRect=null,n.fromRect=null,n.prevToRect=null,n.thisAnimationDuration=null},e),n.thisAnimationDuration=e)}),clearTimeout(e),u?e=setTimeout(function(){"function"==typeof t&&t()},d):"function"==typeof t&&t(),o=[]},animate:function(t,e,n,o){var i,r;o&&(R(t,"transition",""),R(t,"transform",""),i=(r=b(this.el))&&r.a,r=r&&r.d,i=(e.left-n.left)/(i||1),r=(e.top-n.top)/(r||1),t.animatingX=!!i,t.animatingY=!!r,R(t,"transform","translate3d("+i+"px,"+r+"px,0)"),this.forRepaintDummy=t.offsetWidth,R(t,"transition","transform "+o+"ms"+(this.options.easing?" "+this.options.easing:"")),R(t,"transform","translate3d(0,0,0)"),"number"==typeof t.animated&&clearTimeout(t.animated),t.animated=setTimeout(function(){R(t,"transition",""),R(t,"transform",""),t.animated=!1,t.animatingX=!1,t.animatingY=!1},o))}}}var N=[],W={initializeByDefault:!0},z={mount:function(e){for(var t in W)!W.hasOwnProperty(t)||t in e||(e[t]=W[t]);N.forEach(function(t){if(t.pluginName===e.pluginName)throw"Sortable: Cannot mount plugin ".concat(e.pluginName," more than once")}),N.push(e)},pluginEvent:function(e,n,o){var t=this;this.eventCanceled=!1,o.cancel=function(){t.eventCanceled=!0};var i=e+"Global";N.forEach(function(t){n[t.pluginName]&&(n[t.pluginName][i]&&n[t.pluginName][i](I({sortable:n},o)),n.options[t.pluginName]&&n[t.pluginName][e]&&n[t.pluginName][e](I({sortable:n},o)))})},initializePlugins:function(n,o,i,t){for(var e in N.forEach(function(t){var e=t.pluginName;(n.options[e]||t.initializeByDefault)&&((t=new t(n,o,n.options)).sortable=n,t.options=n.options,n[e]=t,a(i,t.defaults))}),n.options){var r;n.options.hasOwnProperty(e)&&(void 0!==(r=this.modifyOption(n,e,n.options[e]))&&(n.options[e]=r))}},getEventProperties:function(e,n){var o={};return N.forEach(function(t){"function"==typeof t.eventProperties&&a(o,t.eventProperties.call(n[t.pluginName],e))}),o},modifyOption:function(e,n,o){var i;return N.forEach(function(t){e[t.pluginName]&&t.optionListeners&&"function"==typeof t.optionListeners[n]&&(i=t.optionListeners[n].call(e[t.pluginName],o))}),i}};function G(t){var e=t.sortable,n=t.rootEl,o=t.name,i=t.targetEl,r=t.cloneEl,a=t.toEl,l=t.fromEl,s=t.oldIndex,c=t.newIndex,u=t.oldDraggableIndex,d=t.newDraggableIndex,h=t.originalEvent,p=t.putSortable,f=t.extraEventProperties;if(e=e||n&&n[K]){var g,m=e.options,t="on"+o.charAt(0).toUpperCase()+o.substr(1);!window.CustomEvent||y||w?(g=document.createEvent("Event")).initEvent(o,!0,!0):g=new CustomEvent(o,{bubbles:!0,cancelable:!0}),g.to=a||n,g.from=l||n,g.item=i||n,g.clone=r,g.oldIndex=s,g.newIndex=c,g.oldDraggableIndex=u,g.newDraggableIndex=d,g.originalEvent=h,g.pullMode=p?p.lastPutMode:void 0;var v,b=I(I({},f),z.getEventProperties(o,e));for(v in b)g[v]=b[v];n&&n.dispatchEvent(g),m[t]&&m[t].call(e,g)}}function U(t,e){var n=(o=2<arguments.length&&void 0!==arguments[2]?arguments[2]:{}).evt,o=i(o,q);z.pluginEvent.bind(jt)(t,e,I({dragEl:Z,parentEl:$,ghostEl:Q,rootEl:J,nextEl:tt,lastDownEl:et,cloneEl:nt,cloneHidden:ot,dragStarted:mt,putSortable:ct,activeSortable:jt.active,originalEvent:n,oldIndex:it,oldDraggableIndex:at,newIndex:rt,newDraggableIndex:lt,hideGhostForTarget:Xt,unhideGhostForTarget:Yt,cloneNowHidden:function(){ot=!0},cloneNowShown:function(){ot=!1},dispatchSortableEvent:function(t){V({sortable:e,name:t,originalEvent:n})}},o))}var q=["evt"];function V(t){G(I({putSortable:ct,cloneEl:nt,targetEl:Z,rootEl:J,oldIndex:it,oldDraggableIndex:at,newIndex:rt,newDraggableIndex:lt},t))}var Z,$,Q,J,tt,et,nt,ot,it,rt,at,lt,st,ct,ut,dt,ht,pt,ft,gt,mt,vt,bt,yt,wt,Dt=!1,Et=!1,St=[],_t=!1,Ct=!1,Tt=[],xt=!1,Ot=[],Mt="undefined"!=typeof document,At=c,Nt=w||y?"cssFloat":"float",It=Mt&&!n&&!c&&"draggable"in document.createElement("div"),Pt=function(){if(Mt){if(y)return!1;var t=document.createElement("x");return t.style.cssText="pointer-events:auto","auto"===t.style.pointerEvents}}(),kt=function(t,e){var n=R(t),o=parseInt(n.width)-parseInt(n.paddingLeft)-parseInt(n.paddingRight)-parseInt(n.borderLeftWidth)-parseInt(n.borderRightWidth),i=B(t,0,e),r=B(t,1,e),a=i&&R(i),l=r&&R(r),s=a&&parseInt(a.marginLeft)+parseInt(a.marginRight)+X(i).width,t=l&&parseInt(l.marginLeft)+parseInt(l.marginRight)+X(r).width;if("flex"===n.display)return"column"===n.flexDirection||"column-reverse"===n.flexDirection?"vertical":"horizontal";if("grid"===n.display)return n.gridTemplateColumns.split(" ").length<=1?"vertical":"horizontal";if(i&&a.float&&"none"!==a.float){e="left"===a.float?"left":"right";return!r||"both"!==l.clear&&l.clear!==e?"horizontal":"vertical"}return i&&("block"===a.display||"flex"===a.display||"table"===a.display||"grid"===a.display||o<=s&&"none"===n[Nt]||r&&"none"===n[Nt]&&o<s+t)?"vertical":"horizontal"},Rt=function(t){function l(r,a){return function(t,e,n,o){var i=t.options.group.name&&e.options.group.name&&t.options.group.name===e.options.group.name;if(null==r&&(a||i))return!0;if(null==r||!1===r)return!1;if(a&&"clone"===r)return r;if("function"==typeof r)return l(r(t,e,n,o),a)(t,e,n,o);e=(a?t:e).options.group.name;return!0===r||"string"==typeof r&&r===e||r.join&&-1<r.indexOf(e)}}var e={},n=t.group;n&&"object"==o(n)||(n={name:n}),e.name=n.name,e.checkPull=l(n.pull,!0),e.checkPut=l(n.put),e.revertClone=n.revertClone,t.group=e},Xt=function(){!Pt&&Q&&R(Q,"display","none")},Yt=function(){!Pt&&Q&&R(Q,"display","")};Mt&&!n&&document.addEventListener("click",function(t){if(Et)return t.preventDefault(),t.stopPropagation&&t.stopPropagation(),t.stopImmediatePropagation&&t.stopImmediatePropagation(),Et=!1},!0);function Bt(t){if(Z){t=t.touches?t.touches[0]:t;var e=(i=t.clientX,r=t.clientY,St.some(function(t){var e=t[K].options.emptyInsertThreshold;if(e&&!F(t)){var n=X(t),o=i>=n.left-e&&i<=n.right+e,e=r>=n.top-e&&r<=n.bottom+e;return o&&e?a=t:void 0}}),a);if(e){var n,o={};for(n in t)t.hasOwnProperty(n)&&(o[n]=t[n]);o.target=o.rootEl=e,o.preventDefault=void 0,o.stopPropagation=void 0,e[K]._onDragOver(o)}}var i,r,a}function Ft(t){Z&&Z.parentNode[K]._isOutsideThisEl(t.target)}function jt(t,e){if(!t||!t.nodeType||1!==t.nodeType)throw"Sortable: `el` must be an HTMLElement, not ".concat({}.toString.call(t));this.el=t,this.options=e=a({},e),t[K]=this;var n,o,i={group:null,sort:!0,disabled:!1,store:null,handle:null,draggable:/^[uo]l$/i.test(t.nodeName)?">li":">*",swapThreshold:1,invertSwap:!1,invertedSwapThreshold:null,removeCloneOnHide:!0,direction:function(){return kt(t,this.options)},ghostClass:"sortable-ghost",chosenClass:"sortable-chosen",dragClass:"sortable-drag",ignore:"a, img",filter:null,preventOnFilter:!0,animation:0,easing:null,setData:function(t,e){t.setData("Text",e.textContent)},dropBubble:!1,dragoverBubble:!1,dataIdAttr:"data-id",delay:0,delayOnTouchOnly:!1,touchStartThreshold:(Number.parseInt?Number:window).parseInt(window.devicePixelRatio,10)||1,forceFallback:!1,fallbackClass:"sortable-fallback",fallbackOnBody:!1,fallbackTolerance:0,fallbackOffset:{x:0,y:0},supportPointer:!1!==jt.supportPointer&&"PointerEvent"in window&&(!u||c),emptyInsertThreshold:5};for(n in z.initializePlugins(this,t,i),i)n in e||(e[n]=i[n]);for(o in Rt(e),this)"_"===o.charAt(0)&&"function"==typeof this[o]&&(this[o]=this[o].bind(this));this.nativeDraggable=!e.forceFallback&&It,this.nativeDraggable&&(this.options.touchStartThreshold=1),e.supportPointer?h(t,"pointerdown",this._onTapStart):(h(t,"mousedown",this._onTapStart),h(t,"touchstart",this._onTapStart)),this.nativeDraggable&&(h(t,"dragover",this),h(t,"dragenter",this)),St.push(this.el),e.store&&e.store.get&&this.sort(e.store.get(this)||[]),a(this,A())}function Ht(t,e,n,o,i,r,a,l){var s,c,u=t[K],d=u.options.onMove;return!window.CustomEvent||y||w?(s=document.createEvent("Event")).initEvent("move",!0,!0):s=new CustomEvent("move",{bubbles:!0,cancelable:!0}),s.to=e,s.from=t,s.dragged=n,s.draggedRect=o,s.related=i||e,s.relatedRect=r||X(e),s.willInsertAfter=l,s.originalEvent=a,t.dispatchEvent(s),c=d?d.call(u,s,a):c}function Lt(t){t.draggable=!1}function Kt(){xt=!1}function Wt(t){return setTimeout(t,0)}function zt(t){return clearTimeout(t)}jt.prototype={constructor:jt,_isOutsideThisEl:function(t){this.el.contains(t)||t===this.el||(vt=null)},_getDirection:function(t,e){return"function"==typeof this.options.direction?this.options.direction.call(this,t,e,Z):this.options.direction},_onTapStart:function(e){if(e.cancelable){var n=this,o=this.el,t=this.options,i=t.preventOnFilter,r=e.type,a=e.touches&&e.touches[0]||e.pointerType&&"touch"===e.pointerType&&e,l=(a||e).target,s=e.target.shadowRoot&&(e.path&&e.path[0]||e.composedPath&&e.composedPath()[0])||l,c=t.filter;if(!function(t){Ot.length=0;var e=t.getElementsByTagName("input"),n=e.length;for(;n--;){var o=e[n];o.checked&&Ot.push(o)}}(o),!Z&&!(/mousedown|pointerdown/.test(r)&&0!==e.button||t.disabled)&&!s.isContentEditable&&(this.nativeDraggable||!u||!l||"SELECT"!==l.tagName.toUpperCase())&&!((l=P(l,t.draggable,o,!1))&&l.animated||et===l)){if(it=j(l),at=j(l,t.draggable),"function"==typeof c){if(c.call(this,e,l,this))return V({sortable:n,rootEl:s,name:"filter",targetEl:l,toEl:o,fromEl:o}),U("filter",n,{evt:e}),void(i&&e.preventDefault())}else if(c=c&&c.split(",").some(function(t){if(t=P(s,t.trim(),o,!1))return V({sortable:n,rootEl:t,name:"filter",targetEl:l,fromEl:o,toEl:o}),U("filter",n,{evt:e}),!0}))return void(i&&e.preventDefault());t.handle&&!P(s,t.handle,o,!1)||this._prepareDragStart(e,a,l)}}},_prepareDragStart:function(t,e,n){var o,i=this,r=i.el,a=i.options,l=r.ownerDocument;n&&!Z&&n.parentNode===r&&(o=X(n),J=r,$=(Z=n).parentNode,tt=Z.nextSibling,et=n,st=a.group,ut={target:jt.dragged=Z,clientX:(e||t).clientX,clientY:(e||t).clientY},ft=ut.clientX-o.left,gt=ut.clientY-o.top,this._lastX=(e||t).clientX,this._lastY=(e||t).clientY,Z.style["will-change"]="all",o=function(){U("delayEnded",i,{evt:t}),jt.eventCanceled?i._onDrop():(i._disableDelayedDragEvents(),!s&&i.nativeDraggable&&(Z.draggable=!0),i._triggerDragStart(t,e),V({sortable:i,name:"choose",originalEvent:t}),k(Z,a.chosenClass,!0))},a.ignore.split(",").forEach(function(t){D(Z,t.trim(),Lt)}),h(l,"dragover",Bt),h(l,"mousemove",Bt),h(l,"touchmove",Bt),a.supportPointer?(h(l,"pointerup",i._onDrop),this.nativeDraggable||h(l,"pointercancel",i._onDrop)):(h(l,"mouseup",i._onDrop),h(l,"touchend",i._onDrop),h(l,"touchcancel",i._onDrop)),s&&this.nativeDraggable&&(this.options.touchStartThreshold=4,Z.draggable=!0),U("delayStart",this,{evt:t}),!a.delay||a.delayOnTouchOnly&&!e||this.nativeDraggable&&(w||y)?o():jt.eventCanceled?this._onDrop():(a.supportPointer?(h(l,"pointerup",i._disableDelayedDrag),h(l,"pointercancel",i._disableDelayedDrag)):(h(l,"mouseup",i._disableDelayedDrag),h(l,"touchend",i._disableDelayedDrag),h(l,"touchcancel",i._disableDelayedDrag)),h(l,"mousemove",i._delayedDragTouchMoveHandler),h(l,"touchmove",i._delayedDragTouchMoveHandler),a.supportPointer&&h(l,"pointermove",i._delayedDragTouchMoveHandler),i._dragStartTimer=setTimeout(o,a.delay)))},_delayedDragTouchMoveHandler:function(t){t=t.touches?t.touches[0]:t;Math.max(Math.abs(t.clientX-this._lastX),Math.abs(t.clientY-this._lastY))>=Math.floor(this.options.touchStartThreshold/(this.nativeDraggable&&window.devicePixelRatio||1))&&this._disableDelayedDrag()},_disableDelayedDrag:function(){Z&&Lt(Z),clearTimeout(this._dragStartTimer),this._disableDelayedDragEvents()},_disableDelayedDragEvents:function(){var t=this.el.ownerDocument;p(t,"mouseup",this._disableDelayedDrag),p(t,"touchend",this._disableDelayedDrag),p(t,"touchcancel",this._disableDelayedDrag),p(t,"pointerup",this._disableDelayedDrag),p(t,"pointercancel",this._disableDelayedDrag),p(t,"mousemove",this._delayedDragTouchMoveHandler),p(t,"touchmove",this._delayedDragTouchMoveHandler),p(t,"pointermove",this._delayedDragTouchMoveHandler)},_triggerDragStart:function(t,e){e=e||"touch"==t.pointerType&&t,!this.nativeDraggable||e?this.options.supportPointer?h(document,"pointermove",this._onTouchMove):h(document,e?"touchmove":"mousemove",this._onTouchMove):(h(Z,"dragend",this),h(J,"dragstart",this._onDragStart));try{document.selection?Wt(function(){document.selection.empty()}):window.getSelection().removeAllRanges()}catch(t){}},_dragStarted:function(t,e){var n;Dt=!1,J&&Z?(U("dragStarted",this,{evt:e}),this.nativeDraggable&&h(document,"dragover",Ft),n=this.options,t||k(Z,n.dragClass,!1),k(Z,n.ghostClass,!0),jt.active=this,t&&this._appendGhost(),V({sortable:this,name:"start",originalEvent:e})):this._nulling()},_emulateDragOver:function(){if(dt){this._lastX=dt.clientX,this._lastY=dt.clientY,Xt();for(var t=document.elementFromPoint(dt.clientX,dt.clientY),e=t;t&&t.shadowRoot&&(t=t.shadowRoot.elementFromPoint(dt.clientX,dt.clientY))!==e;)e=t;if(Z.parentNode[K]._isOutsideThisEl(t),e)do{if(e[K])if(e[K]._onDragOver({clientX:dt.clientX,clientY:dt.clientY,target:t,rootEl:e})&&!this.options.dragoverBubble)break}while(e=g(t=e));Yt()}},_onTouchMove:function(t){if(ut){var e=this.options,n=e.fallbackTolerance,o=e.fallbackOffset,i=t.touches?t.touches[0]:t,r=Q&&b(Q,!0),a=Q&&r&&r.a,l=Q&&r&&r.d,e=At&&wt&&E(wt),a=(i.clientX-ut.clientX+o.x)/(a||1)+(e?e[0]-Tt[0]:0)/(a||1),l=(i.clientY-ut.clientY+o.y)/(l||1)+(e?e[1]-Tt[1]:0)/(l||1);if(!jt.active&&!Dt){if(n&&Math.max(Math.abs(i.clientX-this._lastX),Math.abs(i.clientY-this._lastY))<n)return;this._onDragStart(t,!0)}Q&&(r?(r.e+=a-(ht||0),r.f+=l-(pt||0)):r={a:1,b:0,c:0,d:1,e:a,f:l},r="matrix(".concat(r.a,",").concat(r.b,",").concat(r.c,",").concat(r.d,",").concat(r.e,",").concat(r.f,")"),R(Q,"webkitTransform",r),R(Q,"mozTransform",r),R(Q,"msTransform",r),R(Q,"transform",r),ht=a,pt=l,dt=i),t.cancelable&&t.preventDefault()}},_appendGhost:function(){if(!Q){var t=this.options.fallbackOnBody?document.body:J,e=X(Z,!0,At,!0,t),n=this.options;if(At){for(wt=t;"static"===R(wt,"position")&&"none"===R(wt,"transform")&&wt!==document;)wt=wt.parentNode;wt!==document.body&&wt!==document.documentElement?(wt===document&&(wt=O()),e.top+=wt.scrollTop,e.left+=wt.scrollLeft):wt=O(),Tt=E(wt)}k(Q=Z.cloneNode(!0),n.ghostClass,!1),k(Q,n.fallbackClass,!0),k(Q,n.dragClass,!0),R(Q,"transition",""),R(Q,"transform",""),R(Q,"box-sizing","border-box"),R(Q,"margin",0),R(Q,"top",e.top),R(Q,"left",e.left),R(Q,"width",e.width),R(Q,"height",e.height),R(Q,"opacity","0.8"),R(Q,"position",At?"absolute":"fixed"),R(Q,"zIndex","100000"),R(Q,"pointerEvents","none"),jt.ghost=Q,t.appendChild(Q),R(Q,"transform-origin",ft/parseInt(Q.style.width)*100+"% "+gt/parseInt(Q.style.height)*100+"%")}},_onDragStart:function(t,e){var n=this,o=t.dataTransfer,i=n.options;U("dragStart",this,{evt:t}),jt.eventCanceled?this._onDrop():(U("setupClone",this),jt.eventCanceled||((nt=C(Z)).removeAttribute("id"),nt.draggable=!1,nt.style["will-change"]="",this._hideClone(),k(nt,this.options.chosenClass,!1),jt.clone=nt),n.cloneId=Wt(function(){U("clone",n),jt.eventCanceled||(n.options.removeCloneOnHide||J.insertBefore(nt,Z),n._hideClone(),V({sortable:n,name:"clone"}))}),e||k(Z,i.dragClass,!0),e?(Et=!0,n._loopId=setInterval(n._emulateDragOver,50)):(p(document,"mouseup",n._onDrop),p(document,"touchend",n._onDrop),p(document,"touchcancel",n._onDrop),o&&(o.effectAllowed="move",i.setData&&i.setData.call(n,o,Z)),h(document,"drop",n),R(Z,"transform","translateZ(0)")),Dt=!0,n._dragStartId=Wt(n._dragStarted.bind(n,e,t)),h(document,"selectstart",n),mt=!0,window.getSelection().removeAllRanges(),u&&R(document.body,"user-select","none"))},_onDragOver:function(n){var o,i,r,t,e,a=this.el,l=n.target,s=this.options,c=s.group,u=jt.active,d=st===c,h=s.sort,p=ct||u,f=this,g=!1;if(!xt){if(void 0!==n.preventDefault&&n.cancelable&&n.preventDefault(),l=P(l,s.draggable,a,!0),O("dragOver"),jt.eventCanceled)return g;if(Z.contains(n.target)||l.animated&&l.animatingX&&l.animatingY||f._ignoreWhileAnimating===l)return A(!1);if(Et=!1,u&&!s.disabled&&(d?h||(i=$!==J):ct===this||(this.lastPutMode=st.checkPull(this,u,Z,n))&&c.checkPut(this,u,Z,n))){if(r="vertical"===this._getDirection(n,l),o=X(Z),O("dragOverValid"),jt.eventCanceled)return g;if(i)return $=J,M(),this._hideClone(),O("revert"),jt.eventCanceled||(tt?J.insertBefore(Z,tt):J.appendChild(Z)),A(!0);var m=F(a,s.draggable);if(m&&(S=n,c=r,x=X(F((E=this).el,E.options.draggable)),E=L(E.el,E.options,Q),!(c?S.clientX>E.right+10||S.clientY>x.bottom&&S.clientX>x.left:S.clientY>E.bottom+10||S.clientX>x.right&&S.clientY>x.top)||m.animated)){if(m&&(t=n,e=r,C=X(B((_=this).el,0,_.options,!0)),_=L(_.el,_.options,Q),e?t.clientX<_.left-10||t.clientY<C.top&&t.clientX<C.right:t.clientY<_.top-10||t.clientY<C.bottom&&t.clientX<C.left)){var v=B(a,0,s,!0);if(v===Z)return A(!1);if(D=X(l=v),!1!==Ht(J,a,Z,o,l,D,n,!1))return M(),a.insertBefore(Z,v),$=a,N(),A(!0)}else if(l.parentNode===a){var b,y,w,D=X(l),E=Z.parentNode!==a,S=(S=Z.animated&&Z.toRect||o,x=l.animated&&l.toRect||D,_=(e=r)?S.left:S.top,t=e?S.right:S.bottom,C=e?S.width:S.height,v=e?x.left:x.top,S=e?x.right:x.bottom,x=e?x.width:x.height,!(_===v||t===S||_+C/2===v+x/2)),_=r?"top":"left",C=Y(l,"top","top")||Y(Z,"top","top"),v=C?C.scrollTop:void 0;if(vt!==l&&(y=D[_],_t=!1,Ct=!S&&s.invertSwap||E),0!==(b=function(t,e,n,o,i,r,a,l){var s=o?t.clientY:t.clientX,c=o?n.height:n.width,t=o?n.top:n.left,o=o?n.bottom:n.right,n=!1;if(!a)if(l&&yt<c*i){if(_t=!_t&&(1===bt?t+c*r/2<s:s<o-c*r/2)?!0:_t)n=!0;else if(1===bt?s<t+yt:o-yt<s)return-bt}else if(t+c*(1-i)/2<s&&s<o-c*(1-i)/2)return function(t){return j(Z)<j(t)?1:-1}(e);if((n=n||a)&&(s<t+c*r/2||o-c*r/2<s))return t+c/2<s?1:-1;return 0}(n,l,D,r,S?1:s.swapThreshold,null==s.invertedSwapThreshold?s.swapThreshold:s.invertedSwapThreshold,Ct,vt===l)))for(var T=j(Z);(w=$.children[T-=b])&&("none"===R(w,"display")||w===Q););if(0===b||w===l)return A(!1);bt=b;var x=(vt=l).nextElementSibling,E=!1,S=Ht(J,a,Z,o,l,D,n,E=1===b);if(!1!==S)return 1!==S&&-1!==S||(E=1===S),xt=!0,setTimeout(Kt,30),M(),E&&!x?a.appendChild(Z):l.parentNode.insertBefore(Z,E?x:l),C&&H(C,0,v-C.scrollTop),$=Z.parentNode,void 0===y||Ct||(yt=Math.abs(y-X(l)[_])),N(),A(!0)}}else{if(m===Z)return A(!1);if((l=m&&a===n.target?m:l)&&(D=X(l)),!1!==Ht(J,a,Z,o,l,D,n,!!l))return M(),m&&m.nextSibling?a.insertBefore(Z,m.nextSibling):a.appendChild(Z),$=a,N(),A(!0)}if(a.contains(Z))return A(!1)}return!1}function O(t,e){U(t,f,I({evt:n,isOwner:d,axis:r?"vertical":"horizontal",revert:i,dragRect:o,targetRect:D,canSort:h,fromSortable:p,target:l,completed:A,onMove:function(t,e){return Ht(J,a,Z,o,t,X(t),n,e)},changed:N},e))}function M(){O("dragOverAnimationCapture"),f.captureAnimationState(),f!==p&&p.captureAnimationState()}function A(t){return O("dragOverCompleted",{insertion:t}),t&&(d?u._hideClone():u._showClone(f),f!==p&&(k(Z,(ct||u).options.ghostClass,!1),k(Z,s.ghostClass,!0)),ct!==f&&f!==jt.active?ct=f:f===jt.active&&ct&&(ct=null),p===f&&(f._ignoreWhileAnimating=l),f.animateAll(function(){O("dragOverAnimationComplete"),f._ignoreWhileAnimating=null}),f!==p&&(p.animateAll(),p._ignoreWhileAnimating=null)),(l===Z&&!Z.animated||l===a&&!l.animated)&&(vt=null),s.dragoverBubble||n.rootEl||l===document||(Z.parentNode[K]._isOutsideThisEl(n.target),t||Bt(n)),!s.dragoverBubble&&n.stopPropagation&&n.stopPropagation(),g=!0}function N(){rt=j(Z),lt=j(Z,s.draggable),V({sortable:f,name:"change",toEl:a,newIndex:rt,newDraggableIndex:lt,originalEvent:n})}},_ignoreWhileAnimating:null,_offMoveEvents:function(){p(document,"mousemove",this._onTouchMove),p(document,"touchmove",this._onTouchMove),p(document,"pointermove",this._onTouchMove),p(document,"dragover",Bt),p(document,"mousemove",Bt),p(document,"touchmove",Bt)},_offUpEvents:function(){var t=this.el.ownerDocument;p(t,"mouseup",this._onDrop),p(t,"touchend",this._onDrop),p(t,"pointerup",this._onDrop),p(t,"pointercancel",this._onDrop),p(t,"touchcancel",this._onDrop),p(document,"selectstart",this)},_onDrop:function(t){var e=this.el,n=this.options;rt=j(Z),lt=j(Z,n.draggable),U("drop",this,{evt:t}),$=Z&&Z.parentNode,rt=j(Z),lt=j(Z,n.draggable),jt.eventCanceled||(_t=Ct=Dt=!1,clearInterval(this._loopId),clearTimeout(this._dragStartTimer),zt(this.cloneId),zt(this._dragStartId),this.nativeDraggable&&(p(document,"drop",this),p(e,"dragstart",this._onDragStart)),this._offMoveEvents(),this._offUpEvents(),u&&R(document.body,"user-select",""),R(Z,"transform",""),t&&(mt&&(t.cancelable&&t.preventDefault(),n.dropBubble||t.stopPropagation()),Q&&Q.parentNode&&Q.parentNode.removeChild(Q),(J===$||ct&&"clone"!==ct.lastPutMode)&&nt&&nt.parentNode&&nt.parentNode.removeChild(nt),Z&&(this.nativeDraggable&&p(Z,"dragend",this),Lt(Z),Z.style["will-change"]="",mt&&!Dt&&k(Z,(ct||this).options.ghostClass,!1),k(Z,this.options.chosenClass,!1),V({sortable:this,name:"unchoose",toEl:$,newIndex:null,newDraggableIndex:null,originalEvent:t}),J!==$?(0<=rt&&(V({rootEl:$,name:"add",toEl:$,fromEl:J,originalEvent:t}),V({sortable:this,name:"remove",toEl:$,originalEvent:t}),V({rootEl:$,name:"sort",toEl:$,fromEl:J,originalEvent:t}),V({sortable:this,name:"sort",toEl:$,originalEvent:t})),ct&&ct.save()):rt!==it&&0<=rt&&(V({sortable:this,name:"update",toEl:$,originalEvent:t}),V({sortable:this,name:"sort",toEl:$,originalEvent:t})),jt.active&&(null!=rt&&-1!==rt||(rt=it,lt=at),V({sortable:this,name:"end",toEl:$,originalEvent:t}),this.save())))),this._nulling()},_nulling:function(){U("nulling",this),J=Z=$=Q=tt=nt=et=ot=ut=dt=mt=rt=lt=it=at=vt=bt=ct=st=jt.dragged=jt.ghost=jt.clone=jt.active=null,Ot.forEach(function(t){t.checked=!0}),Ot.length=ht=pt=0},handleEvent:function(t){switch(t.type){case"drop":case"dragend":this._onDrop(t);break;case"dragenter":case"dragover":Z&&(this._onDragOver(t),function(t){t.dataTransfer&&(t.dataTransfer.dropEffect="move");t.cancelable&&t.preventDefault()}(t));break;case"selectstart":t.preventDefault()}},toArray:function(){for(var t,e=[],n=this.el.children,o=0,i=n.length,r=this.options;o<i;o++)P(t=n[o],r.draggable,this.el,!1)&&e.push(t.getAttribute(r.dataIdAttr)||function(t){var e=t.tagName+t.className+t.src+t.href+t.textContent,n=e.length,o=0;for(;n--;)o+=e.charCodeAt(n);return o.toString(36)}(t));return e},sort:function(t,e){var n={},o=this.el;this.toArray().forEach(function(t,e){e=o.children[e];P(e,this.options.draggable,o,!1)&&(n[t]=e)},this),e&&this.captureAnimationState(),t.forEach(function(t){n[t]&&(o.removeChild(n[t]),o.appendChild(n[t]))}),e&&this.animateAll()},save:function(){var t=this.options.store;t&&t.set&&t.set(this)},closest:function(t,e){return P(t,e||this.options.draggable,this.el,!1)},option:function(t,e){var n=this.options;if(void 0===e)return n[t];var o=z.modifyOption(this,t,e);n[t]=void 0!==o?o:e,"group"===t&&Rt(n)},destroy:function(){U("destroy",this);var t=this.el;t[K]=null,p(t,"mousedown",this._onTapStart),p(t,"touchstart",this._onTapStart),p(t,"pointerdown",this._onTapStart),this.nativeDraggable&&(p(t,"dragover",this),p(t,"dragenter",this)),Array.prototype.forEach.call(t.querySelectorAll("[draggable]"),function(t){t.removeAttribute("draggable")}),this._onDrop(),this._disableDelayedDragEvents(),St.splice(St.indexOf(this.el),1),this.el=t=null},_hideClone:function(){ot||(U("hideClone",this),jt.eventCanceled||(R(nt,"display","none"),this.options.removeCloneOnHide&&nt.parentNode&&nt.parentNode.removeChild(nt),ot=!0))},_showClone:function(t){"clone"===t.lastPutMode?ot&&(U("showClone",this),jt.eventCanceled||(Z.parentNode!=J||this.options.group.revertClone?tt?J.insertBefore(nt,tt):J.appendChild(nt):J.insertBefore(nt,Z),this.options.group.revertClone&&this.animate(Z,nt),R(nt,"display",""),ot=!1)):this._hideClone()}},Mt&&h(document,"touchmove",function(t){(jt.active||Dt)&&t.cancelable&&t.preventDefault()}),jt.utils={on:h,off:p,css:R,find:D,is:function(t,e){return!!P(t,e,t,!1)},extend:function(t,e){if(t&&e)for(var n in e)e.hasOwnProperty(n)&&(t[n]=e[n]);return t},throttle:_,closest:P,toggleClass:k,clone:C,index:j,nextTick:Wt,cancelNextTick:zt,detectDirection:kt,getChild:B,expando:K},jt.get=function(t){return t[K]},jt.mount=function(){for(var t=arguments.length,e=new Array(t),n=0;n<t;n++)e[n]=arguments[n];(e=e[0].constructor===Array?e[0]:e).forEach(function(t){if(!t.prototype||!t.prototype.constructor)throw"Sortable: Mounted plugin must be a constructor function, not ".concat({}.toString.call(t));t.utils&&(jt.utils=I(I({},jt.utils),t.utils)),z.mount(t)})},jt.create=function(t,e){return new jt(t,e)};var Gt,Ut,qt,Vt,Zt,$t,Qt=[],Jt=!(jt.version="1.15.6");function te(){Qt.forEach(function(t){clearInterval(t.pid)}),Qt=[]}function ee(){clearInterval($t)}var ne,oe=_(function(n,t,e,o){if(t.scroll){var i,r=(n.touches?n.touches[0]:n).clientX,a=(n.touches?n.touches[0]:n).clientY,l=t.scrollSensitivity,s=t.scrollSpeed,c=O(),u=!1;Ut!==e&&(Ut=e,te(),Gt=t.scroll,i=t.scrollFn,!0===Gt&&(Gt=M(e,!0)));var d=0,h=Gt;do{var p=h,f=X(p),g=f.top,m=f.bottom,v=f.left,b=f.right,y=f.width,w=f.height,D=void 0,E=void 0,S=p.scrollWidth,_=p.scrollHeight,C=R(p),T=p.scrollLeft,f=p.scrollTop,E=p===c?(D=y<S&&("auto"===C.overflowX||"scroll"===C.overflowX||"visible"===C.overflowX),w<_&&("auto"===C.overflowY||"scroll"===C.overflowY||"visible"===C.overflowY)):(D=y<S&&("auto"===C.overflowX||"scroll"===C.overflowX),w<_&&("auto"===C.overflowY||"scroll"===C.overflowY)),T=D&&(Math.abs(b-r)<=l&&T+y<S)-(Math.abs(v-r)<=l&&!!T),f=E&&(Math.abs(m-a)<=l&&f+w<_)-(Math.abs(g-a)<=l&&!!f);if(!Qt[d])for(var x=0;x<=d;x++)Qt[x]||(Qt[x]={});Qt[d].vx==T&&Qt[d].vy==f&&Qt[d].el===p||(Qt[d].el=p,Qt[d].vx=T,Qt[d].vy=f,clearInterval(Qt[d].pid),0==T&&0==f||(u=!0,Qt[d].pid=setInterval(function(){o&&0===this.layer&&jt.active._onTouchMove(Zt);var t=Qt[this.layer].vy?Qt[this.layer].vy*s:0,e=Qt[this.layer].vx?Qt[this.layer].vx*s:0;"function"==typeof i&&"continue"!==i.call(jt.dragged.parentNode[K],e,t,n,Zt,Qt[this.layer].el)||H(Qt[this.layer].el,e,t)}.bind({layer:d}),24))),d++}while(t.bubbleScroll&&h!==c&&(h=M(h,!1)));Jt=u}},30),n=function(t){var e=t.originalEvent,n=t.putSortable,o=t.dragEl,i=t.activeSortable,r=t.dispatchSortableEvent,a=t.hideGhostForTarget,t=t.unhideGhostForTarget;e&&(i=n||i,a(),e=e.changedTouches&&e.changedTouches.length?e.changedTouches[0]:e,e=document.elementFromPoint(e.clientX,e.clientY),t(),i&&!i.el.contains(e)&&(r("spill"),this.onSpill({dragEl:o,putSortable:n})))};function ie(){}function re(){}ie.prototype={startIndex:null,dragStart:function(t){t=t.oldDraggableIndex;this.startIndex=t},onSpill:function(t){var e=t.dragEl,n=t.putSortable;this.sortable.captureAnimationState(),n&&n.captureAnimationState();t=B(this.sortable.el,this.startIndex,this.options);t?this.sortable.el.insertBefore(e,t):this.sortable.el.appendChild(e),this.sortable.animateAll(),n&&n.animateAll()},drop:n},a(ie,{pluginName:"revertOnSpill"}),re.prototype={onSpill:function(t){var e=t.dragEl,t=t.putSortable||this.sortable;t.captureAnimationState(),e.parentNode&&e.parentNode.removeChild(e),t.animateAll()},drop:n},a(re,{pluginName:"removeOnSpill"});var ae,le,se,ce,ue,de=[],he=[],pe=!1,fe=!1,ge=!1;function me(n,o){he.forEach(function(t,e){e=o.children[t.sortableIndex+(n?Number(e):0)];e?o.insertBefore(t,e):o.appendChild(t)})}function ve(){de.forEach(function(t){t!==se&&t.parentNode&&t.parentNode.removeChild(t)})}return jt.mount(new function(){function t(){for(var t in this.defaults={scroll:!0,forceAutoScrollFallback:!1,scrollSensitivity:30,scrollSpeed:10,bubbleScroll:!0},this)"_"===t.charAt(0)&&"function"==typeof this[t]&&(this[t]=this[t].bind(this))}return t.prototype={dragStarted:function(t){t=t.originalEvent;this.sortable.nativeDraggable?h(document,"dragover",this._handleAutoScroll):this.options.supportPointer?h(document,"pointermove",this._handleFallbackAutoScroll):t.touches?h(document,"touchmove",this._handleFallbackAutoScroll):h(document,"mousemove",this._handleFallbackAutoScroll)},dragOverCompleted:function(t){t=t.originalEvent;this.options.dragOverBubble||t.rootEl||this._handleAutoScroll(t)},drop:function(){this.sortable.nativeDraggable?p(document,"dragover",this._handleAutoScroll):(p(document,"pointermove",this._handleFallbackAutoScroll),p(document,"touchmove",this._handleFallbackAutoScroll),p(document,"mousemove",this._handleFallbackAutoScroll)),ee(),te(),clearTimeout(m),m=void 0},nulling:function(){Zt=Ut=Gt=Jt=$t=qt=Vt=null,Qt.length=0},_handleFallbackAutoScroll:function(t){this._handleAutoScroll(t,!0)},_handleAutoScroll:function(e,n){var o,i=this,r=(e.touches?e.touches[0]:e).clientX,a=(e.touches?e.touches[0]:e).clientY,t=document.elementFromPoint(r,a);Zt=e,n||this.options.forceAutoScrollFallback||w||y||u?(oe(e,this.options,t,n),o=M(t,!0),!Jt||$t&&r===qt&&a===Vt||($t&&ee(),$t=setInterval(function(){var t=M(document.elementFromPoint(r,a),!0);t!==o&&(o=t,te()),oe(e,i.options,t,n)},10),qt=r,Vt=a)):this.options.bubbleScroll&&M(t,!0)!==O()?oe(e,this.options,M(t,!1),!1):te()}},a(t,{pluginName:"scroll",initializeByDefault:!0})}),jt.mount(re,ie),jt.mount(new function(){function t(){this.defaults={swapClass:"sortable-swap-highlight"}}return t.prototype={dragStart:function(t){t=t.dragEl;ne=t},dragOverValid:function(t){var e=t.completed,n=t.target,o=t.onMove,i=t.activeSortable,r=t.changed,a=t.cancel;i.options.swap&&(t=this.sortable.el,i=this.options,n&&n!==t&&(t=ne,ne=!1!==o(n)?(k(n,i.swapClass,!0),n):null,t&&t!==ne&&k(t,i.swapClass,!1)),r(),e(!0),a())},drop:function(t){var e,n,o=t.activeSortable,i=t.putSortable,r=t.dragEl,a=i||this.sortable,l=this.options;ne&&k(ne,l.swapClass,!1),ne&&(l.swap||i&&i.options.swap)&&r!==ne&&(a.captureAnimationState(),a!==o&&o.captureAnimationState(),n=ne,t=(e=r).parentNode,l=n.parentNode,t&&l&&!t.isEqualNode(n)&&!l.isEqualNode(e)&&(i=j(e),r=j(n),t.isEqualNode(l)&&i<r&&r++,t.insertBefore(n,t.children[i]),l.insertBefore(e,l.children[r])),a.animateAll(),a!==o&&o.animateAll())},nulling:function(){ne=null}},a(t,{pluginName:"swap",eventProperties:function(){return{swapItem:ne}}})}),jt.mount(new function(){function t(o){for(var t in this)"_"===t.charAt(0)&&"function"==typeof this[t]&&(this[t]=this[t].bind(this));o.options.avoidImplicitDeselect||(o.options.supportPointer?h(document,"pointerup",this._deselectMultiDrag):(h(document,"mouseup",this._deselectMultiDrag),h(document,"touchend",this._deselectMultiDrag))),h(document,"keydown",this._checkKeyDown),h(document,"keyup",this._checkKeyUp),this.defaults={selectedClass:"sortable-selected",multiDragKey:null,avoidImplicitDeselect:!1,setData:function(t,e){var n="";de.length&&le===o?de.forEach(function(t,e){n+=(e?", ":"")+t.textContent}):n=e.textContent,t.setData("Text",n)}}}return t.prototype={multiDragKeyDown:!1,isMultiDrag:!1,delayStartGlobal:function(t){t=t.dragEl;se=t},delayEnded:function(){this.isMultiDrag=~de.indexOf(se)},setupClone:function(t){var e=t.sortable,t=t.cancel;if(this.isMultiDrag){for(var n=0;n<de.length;n++)he.push(C(de[n])),he[n].sortableIndex=de[n].sortableIndex,he[n].draggable=!1,he[n].style["will-change"]="",k(he[n],this.options.selectedClass,!1),de[n]===se&&k(he[n],this.options.chosenClass,!1);e._hideClone(),t()}},clone:function(t){var e=t.sortable,n=t.rootEl,o=t.dispatchSortableEvent,t=t.cancel;this.isMultiDrag&&(this.options.removeCloneOnHide||de.length&&le===e&&(me(!0,n),o("clone"),t()))},showClone:function(t){var e=t.cloneNowShown,n=t.rootEl,t=t.cancel;this.isMultiDrag&&(me(!1,n),he.forEach(function(t){R(t,"display","")}),e(),ue=!1,t())},hideClone:function(t){var e=this,n=(t.sortable,t.cloneNowHidden),t=t.cancel;this.isMultiDrag&&(he.forEach(function(t){R(t,"display","none"),e.options.removeCloneOnHide&&t.parentNode&&t.parentNode.removeChild(t)}),n(),ue=!0,t())},dragStartGlobal:function(t){t.sortable;!this.isMultiDrag&&le&&le.multiDrag._deselectMultiDrag(),de.forEach(function(t){t.sortableIndex=j(t)}),de=de.sort(function(t,e){return t.sortableIndex-e.sortableIndex}),ge=!0},dragStarted:function(t){var e,n=this,t=t.sortable;this.isMultiDrag&&(this.options.sort&&(t.captureAnimationState(),this.options.animation&&(de.forEach(function(t){t!==se&&R(t,"position","absolute")}),e=X(se,!1,!0,!0),de.forEach(function(t){t!==se&&T(t,e)}),pe=fe=!0)),t.animateAll(function(){pe=fe=!1,n.options.animation&&de.forEach(function(t){x(t)}),n.options.sort&&ve()}))},dragOver:function(t){var e=t.target,n=t.completed,t=t.cancel;fe&&~de.indexOf(e)&&(n(!1),t())},revert:function(t){var n,o,e=t.fromSortable,i=t.rootEl,r=t.sortable,a=t.dragRect;1<de.length&&(de.forEach(function(t){r.addAnimationState({target:t,rect:fe?X(t):a}),x(t),t.fromRect=a,e.removeAnimationState(t)}),fe=!1,n=!this.options.removeCloneOnHide,o=i,de.forEach(function(t,e){e=o.children[t.sortableIndex+(n?Number(e):0)];e?o.insertBefore(t,e):o.appendChild(t)}))},dragOverCompleted:function(t){var e,n=t.sortable,o=t.isOwner,i=t.insertion,r=t.activeSortable,a=t.parentEl,l=t.putSortable,t=this.options;i&&(o&&r._hideClone(),pe=!1,t.animation&&1<de.length&&(fe||!o&&!r.options.sort&&!l)&&(e=X(se,!1,!0,!0),de.forEach(function(t){t!==se&&(T(t,e),a.appendChild(t))}),fe=!0),o||(fe||ve(),1<de.length?(o=ue,r._showClone(n),r.options.animation&&!ue&&o&&he.forEach(function(t){r.addAnimationState({target:t,rect:ce}),t.fromRect=ce,t.thisAnimationDuration=null})):r._showClone(n)))},dragOverAnimationCapture:function(t){var e=t.dragRect,n=t.isOwner,t=t.activeSortable;de.forEach(function(t){t.thisAnimationDuration=null}),t.options.animation&&!n&&t.multiDrag.isMultiDrag&&(ce=a({},e),e=b(se,!0),ce.top-=e.f,ce.left-=e.e)},dragOverAnimationComplete:function(){fe&&(fe=!1,ve())},drop:function(t){var o,i,r,a,n,e,l,s=t.originalEvent,c=t.rootEl,u=t.parentEl,d=t.sortable,h=t.dispatchSortableEvent,p=t.oldIndex,t=t.putSortable,f=t||this.sortable;s&&(o=this.options,i=u.children,ge||(o.multiDragKey&&!this.multiDragKeyDown&&this._deselectMultiDrag(),k(se,o.selectedClass,!~de.indexOf(se)),~de.indexOf(se)?(de.splice(de.indexOf(se),1),ae=null,G({sortable:d,rootEl:c,name:"deselect",targetEl:se,originalEvent:s})):(de.push(se),G({sortable:d,rootEl:c,name:"select",targetEl:se,originalEvent:s}),s.shiftKey&&ae&&d.el.contains(ae)?(r=j(ae),a=j(se),~r&&~a&&r!==a&&function(){for(var e,t=r<a?(e=r,a):(e=a,r+1),n=o.filter;e<t;e++)~de.indexOf(i[e])||P(i[e],o.draggable,u,!1)&&(n&&("function"==typeof n?n.call(d,s,i[e],d):n.split(",").some(function(t){return P(i[e],t.trim(),u,!1)}))||(k(i[e],o.selectedClass,!0),de.push(i[e]),G({sortable:d,rootEl:c,name:"select",targetEl:i[e],originalEvent:s})))}()):ae=se,le=f)),ge&&this.isMultiDrag&&(fe=!1,(u[K].options.sort||u!==c)&&1<de.length&&(n=X(se),e=j(se,":not(."+this.options.selectedClass+")"),!pe&&o.animation&&(se.thisAnimationDuration=null),f.captureAnimationState(),pe||(o.animation&&(se.fromRect=n,de.forEach(function(t){var e;t.thisAnimationDuration=null,t!==se&&(e=fe?X(t):n,t.fromRect=e,f.addAnimationState({target:t,rect:e}))})),ve(),de.forEach(function(t){i[e]?u.insertBefore(t,i[e]):u.appendChild(t),e++}),p===j(se)&&(l=!1,de.forEach(function(t){t.sortableIndex!==j(t)&&(l=!0)}),l&&(h("update"),h("sort")))),de.forEach(function(t){x(t)}),f.animateAll()),le=f),(c===u||t&&"clone"!==t.lastPutMode)&&he.forEach(function(t){t.parentNode&&t.parentNode.removeChild(t)}))},nullingGlobal:function(){this.isMultiDrag=ge=!1,he.length=0},destroyGlobal:function(){this._deselectMultiDrag(),p(document,"pointerup",this._deselectMultiDrag),p(document,"mouseup",this._deselectMultiDrag),p(document,"touchend",this._deselectMultiDrag),p(document,"keydown",this._checkKeyDown),p(document,"keyup",this._checkKeyUp)},_deselectMultiDrag:function(t){if(!(void 0!==ge&&ge||le!==this.sortable||t&&P(t.target,this.options.draggable,this.sortable.el,!1)||t&&0!==t.button))for(;de.length;){var e=de[0];k(e,this.options.selectedClass,!1),de.shift(),G({sortable:this.sortable,rootEl:this.sortable.el,name:"deselect",targetEl:e,originalEvent:t})}},_checkKeyDown:function(t){t.key===this.options.multiDragKey&&(this.multiDragKeyDown=!0)},_checkKeyUp:function(t){t.key===this.options.multiDragKey&&(this.multiDragKeyDown=!1)}},a(t,{pluginName:"multiDrag",utils:{select:function(t){var e=t.parentNode[K];e&&e.options.multiDrag&&!~de.indexOf(t)&&(le&&le!==e&&(le.multiDrag._deselectMultiDrag(),le=e),k(t,e.options.selectedClass,!0),de.push(t))},deselect:function(t){var e=t.parentNode[K],n=de.indexOf(t);e&&e.options.multiDrag&&~n&&(k(t,e.options.selectedClass,!1),de.splice(n,1))}},eventProperties:function(){var n=this,o=[],i=[];return de.forEach(function(t){var e;o.push({multiDragElement:t,index:t.sortableIndex}),e=fe&&t!==se?-1:fe?j(t,":not(."+n.options.selectedClass+")"):j(t),i.push({multiDragElement:t,index:e})}),{items:r(de),clones:[].concat(he),oldIndicies:o,newIndicies:i}},optionListeners:{multiDragKey:function(t){return"ctrl"===(t=t.toLowerCase())?t="Control":1<t.length&&(t=t.charAt(0).toUpperCase()+t.substr(1)),t}}})}),jt});
+</script>
+
 <!-- ============================================================
      APPLICATION LOGIC
      ============================================================ -->
@@ -1203,8 +1481,18 @@ let allLoanPayments = [];              // normalized payment records
 let rawPaymentRows = [];               // raw sheet rows for the LoanPayments sheet
 let sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
 
-// ---- Main tabs (Income & Expenses / Loans) — UI state only, never the DB ----
-let activeTab = getStoredTab() || "dashboard"; // "dashboard" | "loans"
+// ---- Monthly Planning state (§PLAN) — three raw-row arrays mirroring the
+// three plan sheets, preserved Golden-Rule style (unknown columns kept). The
+// derived, UI-facing model (grouped items + a cells map + an income map) is
+// rebuilt from these by derivePlanModel() on every load/save. ----
+let rawPlanRows = [];                  let sourcePlanHeader = PLAN_COLUMNS.slice();
+let rawPlanCellRows = [];              let sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
+let rawPlanIncomeRows = [];            let sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
+let planModel = { items: [], cells: new Map(), income: new Map() };
+let planHorizon = getStoredPlanHorizon(); // how many months of columns to show
+
+// ---- Main tabs (Income & Expenses / Loans / Monthly Planning) — UI state only, never the DB ----
+let activeTab = getStoredTab() || "dashboard"; // "dashboard" | "loans" | "planning"
 
 // Categorical palette for the category donuts (8 fixed hues, assigned in order —
 // never cycled by rank). Each mode is its own validated instance (lightness/chroma
@@ -1363,12 +1651,27 @@ const TAB_STORAGE_KEY = "finance_tracker_active_tab";
 function getStoredTab() {
   try {
     const v = localStorage.getItem(TAB_STORAGE_KEY);
-    return (v === "dashboard" || v === "loans") ? v : null;
+    return (v === "dashboard" || v === "loans" || v === "planning") ? v : null;
   } catch (e) { return null; }
 }
 
 function storeTab(tab) {
   try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch (e) { /* ignore */ }
+}
+
+// How many months of columns the planning grid shows, remembered per browser
+// (never in the file — it's a view preference, like the active tab). The
+// PLAN_HORIZON_* constants are defined up in the config block so this helper can
+// be called during state initialization above. Clamped to a sane 1–12 so a
+// corrupted value can't render hundreds of columns.
+function getStoredPlanHorizon() {
+  try {
+    const v = parseInt(localStorage.getItem(PLAN_HORIZON_STORAGE_KEY), 10);
+    return (isFinite(v) && v >= 1 && v <= 12) ? v : PLAN_HORIZON_DEFAULT;
+  } catch (e) { return PLAN_HORIZON_DEFAULT; }
+}
+function storePlanHorizon(n) {
+  try { localStorage.setItem(PLAN_HORIZON_STORAGE_KEY, String(n)); } catch (e) { /* ignore */ }
 }
 
 function updateTabButtonStyles() {
@@ -1385,12 +1688,14 @@ function updateTabButtonStyles() {
 // Loans — so both tabs feel like the same app, not one bolted onto the other.
 function applyActiveTab() {
   updateTabButtonStyles();
+  hide("dashboard"); hide("loansModule"); hide("planningModule");
+  hide("headerActions"); hide("loanHeaderActions"); hide("planHeaderActions");
   if (activeTab === "loans") {
-    hide("dashboard"); show("loansModule");
-    hide("headerActions"); show("loanHeaderActions");
+    show("loansModule"); show("loanHeaderActions");
+  } else if (activeTab === "planning") {
+    show("planningModule"); show("planHeaderActions");
   } else {
-    show("dashboard"); hide("loansModule");
-    show("headerActions"); hide("loanHeaderActions");
+    show("dashboard"); show("headerActions");
   }
 }
 
@@ -1401,7 +1706,9 @@ function switchTab(tab) {
   // Charts skip re-rendering while their tab is hidden (rerenderChartsForTheme),
   // so re-render whichever tab we just switched into in case the theme
   // changed while it was in the background.
-  if (tab === "loans") refreshLoansModule(); else refreshDashboard();
+  if (tab === "loans") refreshLoansModule();
+  else if (tab === "planning") refreshPlanning();
+  else refreshDashboard();
 }
 
 function getChartThemeColors() {
@@ -1487,6 +1794,27 @@ function setNotice(target, message, isError) {
   const box = el(target);
   if (!message) { box.innerHTML = ""; return; }
   box.innerHTML = `<div class="notice${isError ? " error" : ""}">${message}</div>`;
+}
+
+// A transient, self-dismissing confirmation (e.g. "Imported 4 categories…").
+// Shows for `ms`, then fades/collapses away. Safe by design: it only clears the
+// exact node it created, so if some other code (an error, a later flash)
+// replaces the message in the meantime, this timer leaves that alone.
+const flashTimers = {};
+function flashNotice(target, message, ms) {
+  const box = el(target);
+  if (!box || !message) return;
+  const prev = flashTimers[target];
+  if (prev) { clearTimeout(prev.hide); clearTimeout(prev.remove); }
+  box.innerHTML = `<div class="notice notice-flash">${message}</div>`;
+  const node = box.firstElementChild;
+  const hide = setTimeout(() => {
+    if (box.firstElementChild !== node) return; // superseded — leave it be
+    node.classList.add("notice-out");
+    const remove = setTimeout(() => { if (box.firstElementChild === node) box.innerHTML = ""; }, 400);
+    flashTimers[target] = Object.assign(flashTimers[target] || {}, { remove });
+  }, ms || 4500);
+  flashTimers[target] = { hide };
 }
 
 function populateSelect(selectEl, options) {
@@ -1707,10 +2035,19 @@ function parseWorkbookBuffer(buf) {
   const tx = parseSheetFromWorkbook(wb, SHEET_NAME, COLUMNS, legacyLedgerFallback);
   const loans = parseSheetFromWorkbook(wb, LOANS_SHEET_NAME, LOAN_COLUMNS, false);
   const payments = parseSheetFromWorkbook(wb, LOAN_PAYMENTS_SHEET_NAME, LOAN_PAYMENT_COLUMNS, false);
+  // Planning sheets (§PLAN) — brand new, looked up by exact name only, never a
+  // fallback. Absent on any file that predates the planner, which is fine: they
+  // parse to zero rows and mean "no plan yet".
+  const plan = parseSheetFromWorkbook(wb, PLAN_SHEET_NAME, PLAN_COLUMNS, false);
+  const planCells = parseSheetFromWorkbook(wb, PLAN_CELLS_SHEET_NAME, PLAN_CELL_COLUMNS, false);
+  const planIncome = parseSheetFromWorkbook(wb, PLAN_INCOME_SHEET_NAME, PLAN_INCOME_COLUMNS, false);
   return {
     txHeader: tx.header, txRows: tx.rows, txSheetFound: tx.found || legacyLedgerFallback,
     loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found,
-    paymentHeader: payments.header, paymentRows: payments.rows, paymentSheetFound: payments.found
+    paymentHeader: payments.header, paymentRows: payments.rows, paymentSheetFound: payments.found,
+    planHeader: plan.header, planRows: plan.rows, planSheetFound: plan.found,
+    planCellHeader: planCells.header, planCellRows: planCells.rows, planCellSheetFound: planCells.found,
+    planIncomeHeader: planIncome.header, planIncomeRows: planIncome.rows, planIncomeSheetFound: planIncome.found
   };
 }
 
@@ -1737,7 +2074,11 @@ async function readWorkbookRows(handle) {
     rawRows = []; sourceHeader = COLUMNS.slice();
     rawLoanRows = []; sourceLoanHeader = LOAN_COLUMNS.slice();
     rawPaymentRows = []; sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
+    rawPlanRows = []; sourcePlanHeader = PLAN_COLUMNS.slice();
+    rawPlanCellRows = []; sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
+    rawPlanIncomeRows = []; sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
     allLoans = []; allLoanPayments = [];
+    rebuildPlanModel();
     return [];
   }
   const buf = await file.arrayBuffer();
@@ -1748,8 +2089,15 @@ async function readWorkbookRows(handle) {
   rawLoanRows = parsed.loanRows;
   sourcePaymentHeader = parsed.paymentHeader;
   rawPaymentRows = parsed.paymentRows;
+  sourcePlanHeader = parsed.planHeader;
+  rawPlanRows = parsed.planRows;
+  sourcePlanCellHeader = parsed.planCellHeader;
+  rawPlanCellRows = parsed.planCellRows;
+  sourcePlanIncomeHeader = parsed.planIncomeHeader;
+  rawPlanIncomeRows = parsed.planIncomeRows;
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
+  rebuildPlanModel();
   const normalized = rawRows.map(normalizeRow);
   reportUnreadableDateRows(rawRows, normalized);
   reportUnreadableAmountRows(rawRows, normalized);
@@ -1825,7 +2173,10 @@ async function peekFreshWorkbookState() {
       rawRows: [], sourceHeader: COLUMNS.slice(),
       rawLoanRows: [], sourceLoanHeader: LOAN_COLUMNS.slice(),
       rawPaymentRows: [], sourcePaymentHeader: LOAN_PAYMENT_COLUMNS.slice(),
-      txSheetFound: false, loanSheetFound: false, paymentSheetFound: false, bytes: null
+      rawPlanRows: [], sourcePlanHeader: PLAN_COLUMNS.slice(),
+      rawPlanCellRows: [], sourcePlanCellHeader: PLAN_CELL_COLUMNS.slice(),
+      rawPlanIncomeRows: [], sourcePlanIncomeHeader: PLAN_INCOME_COLUMNS.slice(),
+      txSheetFound: false, loanSheetFound: false, paymentSheetFound: false, planSheetFound: false, bytes: null
     };
   }
   const buf = await file.arrayBuffer();
@@ -1834,8 +2185,12 @@ async function peekFreshWorkbookState() {
     rawRows: parsed.txRows, sourceHeader: parsed.txHeader,
     rawLoanRows: parsed.loanRows, sourceLoanHeader: parsed.loanHeader,
     rawPaymentRows: parsed.paymentRows, sourcePaymentHeader: parsed.paymentHeader,
+    rawPlanRows: parsed.planRows, sourcePlanHeader: parsed.planHeader,
+    rawPlanCellRows: parsed.planCellRows, sourcePlanCellHeader: parsed.planCellHeader,
+    rawPlanIncomeRows: parsed.planIncomeRows, sourcePlanIncomeHeader: parsed.planIncomeHeader,
     txSheetFound: parsed.txSheetFound,
-    loanSheetFound: parsed.loanSheetFound, paymentSheetFound: parsed.paymentSheetFound, bytes: buf
+    loanSheetFound: parsed.loanSheetFound, paymentSheetFound: parsed.paymentSheetFound,
+    planSheetFound: parsed.planSheetFound, bytes: buf
   };
 }
 
@@ -1847,16 +2202,31 @@ function rowsToWorksheet(rows, headerOrder) {
 // Both sheets are always written together so neither one is ever left stale —
 // the Transactions sheet (append-only), the Loans sheet (mutable), completely
 // independent of each other's content but sharing one physical .xlsx file.
-function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentRows, paymentHeader) {
+// buildWorkbookBytesFrom rebuilds the whole .xlsx from scratch — so EVERY sheet
+// the app owns must be appended here, or it would be silently dropped on save.
+// The planning sheets (§PLAN) ride alongside the original three. `plan` bundles
+// the three planning sheets' rows+headers to keep the signature readable.
+function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentRows, paymentHeader, plan) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(txRows, txHeader), SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(loanRows, loanHeader), LOANS_SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(paymentRows, paymentHeader), LOAN_PAYMENTS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.rows, plan.header), PLAN_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.cellRows, plan.cellHeader), PLAN_CELLS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.incomeRows, plan.incomeHeader), PLAN_INCOME_SHEET_NAME);
   return XLSX.write(wb, { bookType: "xlsx", type: "array" });
 }
 
+function currentPlanBundle() {
+  return {
+    rows: rawPlanRows, header: sourcePlanHeader,
+    cellRows: rawPlanCellRows, cellHeader: sourcePlanCellHeader,
+    incomeRows: rawPlanIncomeRows, incomeHeader: sourcePlanIncomeHeader
+  };
+}
+
 function buildWorkbookBytes() {
-  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader, rawPaymentRows, sourcePaymentHeader);
+  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader, rawPaymentRows, sourcePaymentHeader, currentPlanBundle());
 }
 
 async function writeWorkbookToHandle(handle) {
@@ -1891,7 +2261,7 @@ function downloadWorkbook(bytes) {
 // Only on a successful write do the in-memory globals adopt the merged result
 // — a failed save leaves them untouched, and a save from a stale tab can never
 // again blow away rows another session already persisted. See §DATA-SAFETY.
-const SILENT_SAVE_ERRORS = new Set(["TRANSACTIONS_SHEET_MISSING", "LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING"]);
+const SILENT_SAVE_ERRORS = new Set(["TRANSACTIONS_SHEET_MISSING", "LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING", "PLAN_SHEET_MISSING"]);
 
 // Rolling backup (§5.2 / global data-loss rule): before every overwrite of
 // finances.xlsx we copy the exact bytes about to be replaced into a sibling
@@ -1919,7 +2289,10 @@ async function saveWithFreshMerge(mutate) {
       rawRows: rawRows.slice(), sourceHeader: sourceHeader.slice(),
       rawLoanRows: rawLoanRows.slice(), sourceLoanHeader: sourceLoanHeader.slice(),
       rawPaymentRows: rawPaymentRows.slice(), sourcePaymentHeader: sourcePaymentHeader.slice(),
-      bytes: null
+      rawPlanRows: rawPlanRows.slice(), sourcePlanHeader: sourcePlanHeader.slice(),
+      rawPlanCellRows: rawPlanCellRows.slice(), sourcePlanCellHeader: sourcePlanCellHeader.slice(),
+      rawPlanIncomeRows: rawPlanIncomeRows.slice(), sourcePlanIncomeHeader: sourcePlanIncomeHeader.slice(),
+      planSheetFound: true, bytes: null
     };
   } else {
     state = await peekFreshWorkbookState();
@@ -1945,6 +2318,17 @@ async function saveWithFreshMerge(mutate) {
         "logged payment history. Nothing was changed. Reconnect to the right data folder before saving again.", true);
       throw new Error("LOAN_PAYMENTS_SHEET_MISSING");
     }
+    // Planning sheets (§PLAN): a MISSING plan sheet is only alarming if this
+    // session already had a PERSISTED plan (rawPlanRows, adopted from the last
+    // successful save) — that means the file lost a sheet it used to have.
+    // The first-ever plan save legitimately starts from no sheet, so we key off
+    // the persisted rawPlanRows, never the not-yet-saved in-memory planModel.
+    if (!state.planSheetFound && rawPlanRows.length > 0) {
+      setNotice("statusNotice",
+        "Couldn't save — the “MonthlyPlan” sheet is missing from finances.xlsx right now, but this session has a " +
+        "saved plan. Nothing was changed. Reconnect to the right data folder before saving again.", true);
+      throw new Error("PLAN_SHEET_MISSING");
+    }
   }
 
   // Runs against the state exactly as it stood before this save's own
@@ -1957,10 +2341,18 @@ async function saveWithFreshMerge(mutate) {
   state.sourceHeader = computeFinalHeader(state.sourceHeader, state.rawRows, COLUMNS);
   state.sourceLoanHeader = computeFinalHeader(state.sourceLoanHeader, state.rawLoanRows, LOAN_COLUMNS);
   state.sourcePaymentHeader = computeFinalHeader(state.sourcePaymentHeader, state.rawPaymentRows, LOAN_PAYMENT_COLUMNS);
+  state.sourcePlanHeader = computeFinalHeader(state.sourcePlanHeader, state.rawPlanRows, PLAN_COLUMNS);
+  state.sourcePlanCellHeader = computeFinalHeader(state.sourcePlanCellHeader, state.rawPlanCellRows, PLAN_CELL_COLUMNS);
+  state.sourcePlanIncomeHeader = computeFinalHeader(state.sourcePlanIncomeHeader, state.rawPlanIncomeRows, PLAN_INCOME_COLUMNS);
   const newBytes = buildWorkbookBytesFrom(
     state.rawRows, state.sourceHeader,
     state.rawLoanRows, state.sourceLoanHeader,
-    state.rawPaymentRows, state.sourcePaymentHeader
+    state.rawPaymentRows, state.sourcePaymentHeader,
+    {
+      rows: state.rawPlanRows, header: state.sourcePlanHeader,
+      cellRows: state.rawPlanCellRows, cellHeader: state.sourcePlanCellHeader,
+      incomeRows: state.rawPlanIncomeRows, incomeHeader: state.sourcePlanIncomeHeader
+    }
   );
 
   if (usingFallback) {
@@ -1977,9 +2369,21 @@ async function saveWithFreshMerge(mutate) {
   sourceLoanHeader = state.sourceLoanHeader;
   rawPaymentRows = state.rawPaymentRows;
   sourcePaymentHeader = state.sourcePaymentHeader;
+  rawPlanRows = state.rawPlanRows;
+  sourcePlanHeader = state.sourcePlanHeader;
+  rawPlanCellRows = state.rawPlanCellRows;
+  sourcePlanCellHeader = state.sourcePlanCellHeader;
+  rawPlanIncomeRows = state.rawPlanIncomeRows;
+  sourcePlanIncomeHeader = state.sourcePlanIncomeHeader;
   allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type && isFinite(r.Amount));
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
+  // NB: we deliberately do NOT rebuild planModel here. planModel is the live,
+  // authoritative source while the user edits the grid; rebuilding it from this
+  // save's own (possibly already-superseded) snapshot would clobber a cell the
+  // user typed a moment ago and then persist it back as stale — a silent
+  // data-loss race (§PLAN). Fresh on-disk plan rows are still adopted into the
+  // raw globals above; planModel is rebuilt only on an actual (re)load/import.
 }
 
 /* ============================================================
@@ -2054,6 +2458,7 @@ async function openDataFile() {
     sourceLoanHeader = LOAN_COLUMNS.slice();
     rawPaymentRows = [];
     sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
+    resetPlanState();
     allLoans = [];
     allLoanPayments = [];
     await writeWorkbookToHandle(fileHandle);
@@ -2075,6 +2480,7 @@ async function openDataFile() {
   initCrossTabNotice();
   refreshDashboard();
   refreshLoansModule();
+  refreshPlanning();
   show("mainTabBar");
   applyActiveTab();
 }
@@ -2083,9 +2489,11 @@ function showReconnect(message) {
   hide("welcomeScreen");
   hide("dashboard");
   hide("loansModule");
+  hide("planningModule");
   hide("mainTabBar");
   hide("headerActions");
   hide("loanHeaderActions");
+  hide("planHeaderActions");
   el("reconnectMessage").innerHTML = message;
   show("reconnectScreen");
 }
@@ -2113,12 +2521,14 @@ function wireStaticEvents() {
     allLoanPayments = [];
     rawPaymentRows = [];
     sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
+    resetPlanState();
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
     refreshDashboard();
     refreshLoansModule();
+    refreshPlanning();
     show("mainTabBar");
     applyActiveTab();
   });
@@ -2202,6 +2612,7 @@ function wireStaticEvents() {
   attachTableTypeToggle(el("tableTypeToggleIncome"), "Income");
 
   wireLoanEvents();
+  wirePlanningEvents();
 }
 
 // Click the "expense"/"income" word above the Transaction History table to
@@ -2272,12 +2683,20 @@ async function handleImportFile(e) {
     sourcePaymentHeader = parsed.paymentHeader;
     rawPaymentRows = parsed.paymentRows;
     allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
+    sourcePlanHeader = parsed.planHeader;
+    rawPlanRows = parsed.planRows;
+    sourcePlanCellHeader = parsed.planCellHeader;
+    rawPlanCellRows = parsed.planCellRows;
+    sourcePlanIncomeHeader = parsed.planIncomeHeader;
+    rawPlanIncomeRows = parsed.planIncomeRows;
+    rebuildPlanModel();
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
     refreshDashboard();
     refreshLoansModule();
+    refreshPlanning();
     show("mainTabBar");
     applyActiveTab();
     surfaceUnreadableDateNotice(); // §3.10
@@ -3484,6 +3903,653 @@ function bucketKeyForRow(row, granularity) {
   if (granularity === "daily") return row.Date;
   if (granularity === "monthly") return row.Date.slice(0, 7);
   return row.Date.slice(0, 4);
+}
+
+/* ============================================================
+   MONTHLY PLANNING MODULE (§PLAN)
+   ------------------------------------------------------------
+   A forward-looking cash-flow planner living in three sheets
+   (MonthlyPlan / MonthlyPlanCells / MonthlyPlanIncome). The raw
+   rows are threaded through the same safe read-modify-write save
+   path as everything else; here we (1) derive a convenient
+   in-memory planModel from those raw rows, (2) render the editable
+   multi-month grid + advisor panel, and (3) write edits back by
+   re-serializing planModel and persisting via saveWithFreshMerge.
+
+   Data-safety note (§PLAN): a plan save rebuilds ONLY the three
+   plan sheets from this tab's planModel (last-writer-wins for the
+   plan itself), but leaves Transactions/Loans/LoanPayments exactly
+   as the fresh on-disk read returned them — so planning can never
+   clobber the irreplaceable ledger, and the rolling backup still
+   covers the plan sheets themselves.
+   ============================================================ */
+
+// ---- month-key helpers ("YYYY-MM") ----
+function currentMonthKey() { return todayISO().slice(0, 7); }
+function addMonthsKey(key, n) {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, (m - 1) + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function monthKeyDiff(from, to) { // whole months from `from` to `to`
+  const [ay, am] = from.split("-").map(Number);
+  const [by, bm] = to.split("-").map(Number);
+  return (by - ay) * 12 + (bm - am);
+}
+function formatMonthLabel(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+function normalizeMonthKey(v) {
+  const s = String(v == null ? "" : v).trim();
+  const m = s.match(/^(\d{4})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}`;
+  const iso = normalizeDateValue(v);
+  return iso ? iso.slice(0, 7) : "";
+}
+// Escapes a string for safe use inside a double-quoted HTML attribute
+// (escapeHtml above leaves the quote char alone, which would break value="…").
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/"/g, "&quot;");
+}
+function parsePlanAmount(str) {
+  const s = String(str == null ? "" : str).replace(/,/g, "").trim();
+  if (s === "") return null;             // blank means "no value" (counts as 0)
+  const n = parseFloat(s);
+  return isFinite(n) ? round2(n) : null;
+}
+
+// ---- plan model <-> raw rows ----
+function normalizePlanRow(raw) {
+  const sortRaw = parseFloat(raw["Sort Order"]);
+  return {
+    id: String(raw["Row ID"] || "").trim(),
+    group: String(raw["Group"] || "").trim(),
+    label: String(raw["Label"] || "").trim(),
+    minimum: parseOptionalNumber(raw["Minimum"]),
+    loanId: String(raw["Loan ID"] || "").trim(),
+    sortOrder: isFinite(sortRaw) ? sortRaw : 0
+  };
+}
+
+// Rebuilds the derived planModel (grouped items + a "id|month"->amount cells
+// map + a month->income map) from the three raw-row arrays. Items are ordered
+// by group, then their stored Sort Order.
+function rebuildPlanModel() {
+  const items = (rawPlanRows || []).map(normalizePlanRow)
+    .filter(it => it.id && PLAN_GROUP_KEYS.includes(it.group));
+  items.sort((a, b) =>
+    (PLAN_GROUP_KEYS.indexOf(a.group) - PLAN_GROUP_KEYS.indexOf(b.group)) ||
+    (a.sortOrder - b.sortOrder));
+  const validIds = new Set(items.map(it => it.id));
+  const cells = new Map();
+  (rawPlanCellRows || []).forEach(r => {
+    const id = String(r["Row ID"] || "").trim();
+    const month = normalizeMonthKey(r["Month"]);
+    const amt = round2(parseFloat(r["Amount"]));
+    if (id && month && validIds.has(id) && isFinite(amt)) cells.set(`${id}|${month}`, amt);
+  });
+  const income = new Map();
+  (rawPlanIncomeRows || []).forEach(r => {
+    const month = normalizeMonthKey(r["Month"]);
+    const amt = round2(parseFloat(r["Estimated Income"]));
+    if (month && isFinite(amt)) income.set(month, amt);
+  });
+  planModel = { items, cells, income };
+}
+
+function resetPlanState() {
+  rawPlanRows = []; sourcePlanHeader = PLAN_COLUMNS.slice();
+  rawPlanCellRows = []; sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
+  rawPlanIncomeRows = []; sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
+  rebuildPlanModel();
+}
+
+// Serializes the current planModel into the three sheets' raw-row shape. Orphan
+// cells (whose item was deleted) are dropped; zero/blank cells aren't written so
+// the sheet stays compact.
+function planModelToRawRows() {
+  const validIds = new Set(planModel.items.map(it => it.id));
+  const rows = planModel.items.map((it, i) => ({
+    "Row ID": it.id, "Group": it.group, "Label": it.label,
+    "Minimum": (it.minimum == null ? "" : it.minimum),
+    "Loan ID": it.loanId || "", "Sort Order": i
+  }));
+  const cellRows = [];
+  planModel.cells.forEach((amt, key) => {
+    const [id, month] = key.split("|");
+    if (validIds.has(id) && isFinite(amt) && amt !== 0) cellRows.push({ "Row ID": id, "Month": month, "Amount": amt });
+  });
+  const incomeRows = [];
+  planModel.income.forEach((amt, month) => {
+    if (isFinite(amt) && amt !== 0) incomeRows.push({ "Month": month, "Estimated Income": amt });
+  });
+  return { rows, cellRows, incomeRows };
+}
+
+// Persists the plan through the shared safe-merge path. The mutate replaces ONLY
+// the plan sheets in the fresh on-disk state; the ledger/loan sheets stay as
+// re-read from disk (§PLAN data-safety note). Returns true on success.
+async function persistPlan() {
+  const serialized = planModelToRawRows();
+  try {
+    await saveWithFreshMerge(state => {
+      state.rawPlanRows = serialized.rows;
+      state.rawPlanCellRows = serialized.cellRows;
+      state.rawPlanIncomeRows = serialized.incomeRows;
+      state.sourcePlanHeader = PLAN_COLUMNS.slice();
+      state.sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
+      state.sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
+    });
+    return true;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", "Couldn't save the plan just now — your other data is untouched. " +
+        (err && err.message ? "(" + escapeHtml(err.message) + ")" : ""), true);
+    }
+    return false;
+  }
+}
+
+// Plan saves are serialized and coalesced so overlapping writes can't complete
+// out of order and persist a stale snapshot (§PLAN). Only one save is ever in
+// flight; edits made while it runs set `pending`, which triggers exactly one
+// more save of the FINAL model when the current one finishes. schedulePlanSave
+// debounces rapid typing; flushPlanSave commits immediately (structural edits).
+let planSaveInFlight = false;
+let planSavePending = false;
+let planSaveTimer = null;
+async function runPlanSaveLoop() {
+  if (planSaveInFlight) return;      // already draining; pending flag will re-run
+  planSaveInFlight = true;
+  try {
+    while (planSavePending) {
+      planSavePending = false;
+      await persistPlan();            // serializes the CURRENT planModel each pass
+    }
+  } finally {
+    planSaveInFlight = false;
+  }
+}
+function schedulePlanSave() {
+  planSavePending = true;
+  if (planSaveTimer) clearTimeout(planSaveTimer);
+  planSaveTimer = setTimeout(() => { planSaveTimer = null; runPlanSaveLoop(); }, 350);
+}
+function flushPlanSave() {
+  planSavePending = true;
+  if (planSaveTimer) { clearTimeout(planSaveTimer); planSaveTimer = null; }
+  runPlanSaveLoop();
+}
+
+// ---- value lookups & totals ----
+function planCellValue(id, month) { const v = planModel.cells.get(`${id}|${month}`); return isFinite(v) ? v : 0; }
+function planIncomeValue(month) { const v = planModel.income.get(month); return isFinite(v) ? v : 0; }
+function planGroupItems(groupKey) { return planModel.items.filter(it => it.group === groupKey); }
+function planGroupTotal(groupKey, month) { return planGroupItems(groupKey).reduce((s, it) => s + planCellValue(it.id, month), 0); }
+function planOutflowTotal(month) { return PLAN_GROUP_KEYS.reduce((s, g) => s + planGroupTotal(g, month), 0); }
+
+// Which months become grid columns: a contiguous run starting at the current
+// month (or earlier if the file holds earlier planned data, so nothing silently
+// vanishes) through current+horizon-1 (or later if data extends past that).
+// Capped so a stray far-future month can't render a runaway number of columns.
+const PLAN_MAX_COLUMNS = 36;
+function planMonthColumns() {
+  const cur = currentMonthKey();
+  const dataMonths = [];
+  planModel.cells.forEach((_, k) => dataMonths.push(k.split("|")[1]));
+  planModel.income.forEach((_, mk) => dataMonths.push(mk));
+  let start = cur, end = addMonthsKey(cur, planHorizon - 1);
+  dataMonths.forEach(mk => {
+    if (!/^\d{4}-\d{2}$/.test(mk)) return;
+    if (monthKeyDiff(mk, start) > 0) start = mk;   // mk is earlier than start
+    if (monthKeyDiff(end, mk) > 0) end = mk;        // mk is later than end
+  });
+  let span = monthKeyDiff(start, end);
+  if (span > PLAN_MAX_COLUMNS - 1) span = PLAN_MAX_COLUMNS - 1;
+  const out = [];
+  for (let i = 0; i <= span; i++) out.push(addMonthsKey(start, i));
+  return out;
+}
+
+// The month the advisor side-panel focuses on ("this month" if it's on screen,
+// otherwise the first visible column).
+function planLensMonth() {
+  const months = planMonthColumns();
+  const cur = currentMonthKey();
+  return months.includes(cur) ? cur : (months[0] || cur);
+}
+
+function refreshPlanning() { renderPlanning(); }
+
+// A cell id must be usable inside an element id; month keys are "YYYY-MM" (safe).
+function planSubId(group, month) { return `plan-sub-${group}-${month}`; }
+function planTotId(month) { return `plan-tot-${month}`; }
+function planLeftId(month) { return `plan-left-${month}`; }
+
+function renderPlanning() {
+  const head = el("planTableHead");
+  const body = el("planTableBody");
+  if (!head || !body) return;
+  const months = planMonthColumns();
+  const cur = currentMonthKey();
+
+  // ---- header ----
+  let h = "<tr>";
+  h += `<th class="plan-rowlabel-col"></th>`;
+  h += `<th class="plan-min-col" title="Credit-card minimum due"></th>`;
+  months.forEach(mk => {
+    const isCur = mk === cur;
+    h += `<th class="plan-month-cell${isCur ? " plan-current-month" : ""}">${escapeHtml(formatMonthLabel(mk))}` +
+         `${isCur ? ' <span style="font-weight:400;text-transform:none;">· now</span>' : ""}</th>`;
+  });
+  h += `<th class="plan-actions-col"></th></tr>`;
+  head.innerHTML = h;
+
+  // ---- body ----
+  const emptyMonthTds = months.map(() => `<td class="plan-month-cell"></td>`).join("");
+  let b = "";
+
+  // Estimated income row
+  b += `<tr class="plan-income-row">`;
+  b += `<td class="plan-rowlabel-col">Estimated income</td><td class="plan-min-col"></td>`;
+  months.forEach(mk => {
+    const v = planModel.income.has(mk) ? formatMoney(planIncomeValue(mk)) : "";
+    b += `<td class="plan-month-cell"><input class="plan-cell-input" inputmode="decimal" ` +
+         `data-plan-income="${mk}" value="${escapeAttr(v)}" placeholder="0" aria-label="Estimated income ${formatMonthLabel(mk)}"></td>`;
+  });
+  b += `<td class="plan-actions-col"></td></tr>`;
+
+  // Each group: header+subtotals, item rows, add-item row
+  PLAN_GROUPS.forEach(group => {
+    b += `<tr class="plan-group-row" data-plan-group-header="${group.key}"><td class="plan-rowlabel-col">` +
+         `<span class="plan-group-title">${escapeHtml(group.label)}</span></td><td class="plan-min-col"></td>`;
+    months.forEach(mk => {
+      b += `<td class="plan-subtotal" id="${planSubId(group.key, mk)}">${formatMoney(planGroupTotal(group.key, mk))}</td>`;
+    });
+    b += `<td class="plan-actions-col"></td></tr>`;
+
+    planGroupItems(group.key).forEach(it => {
+      b += `<tr class="plan-item-row" data-plan-row="${escapeAttr(it.id)}" data-plan-group="${group.key}">`;
+      b += `<td class="plan-rowlabel-col">` +
+           `<span class="plan-drag-handle" data-plan-drag="${escapeAttr(it.id)}" title="Drag to reorder or move between sections" aria-label="Drag to reorder or move between sections">` +
+           `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>` +
+           `<input class="plan-cell-input plan-label-input" ` +
+           `data-plan-label="${escapeAttr(it.id)}" value="${escapeAttr(it.label)}" placeholder="Name…" aria-label="Item name">` +
+           `${it.loanId ? '<span class="plan-loan-chip" title="Pulled from your Loans tab">loan</span>' : ""}</td>`;
+      if (group.key === "Cards") {
+        const minV = it.minimum == null ? "" : formatMoney(it.minimum);
+        b += `<td class="plan-min-col"><input class="plan-cell-input" inputmode="decimal" ` +
+             `data-plan-min="${escapeAttr(it.id)}" value="${escapeAttr(minV)}" placeholder="—" aria-label="Minimum due"></td>`;
+      } else {
+        b += `<td class="plan-min-col"></td>`;
+      }
+      months.forEach(mk => {
+        const has = planModel.cells.has(`${it.id}|${mk}`);
+        const v = has ? formatMoney(planCellValue(it.id, mk)) : "";
+        b += `<td class="plan-month-cell"><input class="plan-cell-input" inputmode="decimal" ` +
+             `data-plan-cell="${escapeAttr(it.id)}" data-plan-month="${mk}" value="${escapeAttr(v)}" placeholder="0" ` +
+             `aria-label="${escapeAttr(it.label || "Item")} ${formatMonthLabel(mk)}"></td>`;
+      });
+      b += `<td class="plan-actions-col"><button type="button" class="plan-row-del" data-plan-del="${escapeAttr(it.id)}" title="Remove this item" aria-label="Remove item">` +
+           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button></td></tr>`;
+    });
+
+    b += `<tr class="plan-additem-row"><td class="plan-rowlabel-col">` +
+         `<button type="button" class="plan-additem-btn" data-plan-add="${group.key}">+ Add ${escapeHtml(group.label.toLowerCase())} item</button>` +
+         `</td><td class="plan-min-col"></td>${emptyMonthTds}<td></td></tr>`;
+  });
+
+  // Total planned outflow
+  b += `<tr class="plan-total-row"><td class="plan-rowlabel-col">Total planned outflow</td><td class="plan-min-col"></td>`;
+  months.forEach(mk => {
+    b += `<td class="plan-subtotal" id="${planTotId(mk)}">${formatMoney(planOutflowTotal(mk))}</td>`;
+  });
+  b += `<td class="plan-actions-col"></td></tr>`;
+
+  // Left after bills
+  b += `<tr class="plan-left-row"><td class="plan-rowlabel-col">Left after bills</td><td class="plan-min-col"></td>`;
+  months.forEach(mk => {
+    const left = planIncomeValue(mk) - planOutflowTotal(mk);
+    const cls = planModel.income.has(mk) || planOutflowTotal(mk) > 0 ? (left < 0 ? "plan-left-neg" : "plan-left-pos") : "";
+    b += `<td class="plan-subtotal ${cls}" id="${planLeftId(mk)}">${formatMoney(left)}</td>`;
+  });
+  b += `<td class="plan-actions-col"></td></tr>`;
+
+  body.innerHTML = b;
+
+  renderPlanAdvisor();
+}
+
+// Recomputes just the subtotal / total / left cells and the advisor panel from
+// the model, without rebuilding the whole grid — used on live typing so focus
+// and caret position in the edited input are never disturbed.
+function updatePlanTotalsLive() {
+  const months = planMonthColumns();
+  months.forEach(mk => {
+    PLAN_GROUPS.forEach(group => {
+      const cell = document.getElementById(planSubId(group.key, mk));
+      if (cell) cell.textContent = formatMoney(planGroupTotal(group.key, mk));
+    });
+    const totCell = document.getElementById(planTotId(mk));
+    if (totCell) totCell.textContent = formatMoney(planOutflowTotal(mk));
+    const leftCell = document.getElementById(planLeftId(mk));
+    if (leftCell) {
+      const left = planIncomeValue(mk) - planOutflowTotal(mk);
+      leftCell.textContent = formatMoney(left);
+      leftCell.classList.remove("plan-left-neg", "plan-left-pos");
+      if (planModel.income.has(mk) || planOutflowTotal(mk) > 0) {
+        leftCell.classList.add(left < 0 ? "plan-left-neg" : "plan-left-pos");
+      }
+    }
+  });
+  renderPlanAdvisor();
+}
+
+// ---- advisor side panel: financial-advisor read of the lens month ----
+function renderPlanAdvisor() {
+  const lens = planLensMonth();
+  const income = planIncomeValue(lens);
+  const fixed = planGroupTotal("Fixed", lens);
+  const cards = planGroupTotal("Cards", lens);
+  const canwait = planGroupTotal("CanWait", lens);
+  const outflow = fixed + cards + canwait;
+  const left = income - outflow;
+
+  const monthEl = el("planSummaryMonth");
+  if (monthEl) monthEl.textContent = lens === currentMonthKey() ? "This month · " + formatMonthLabel(lens) : formatMonthLabel(lens);
+
+  const leftVal = el("planLeftValue");
+  if (leftVal) {
+    leftVal.textContent = formatMoney(left);
+    leftVal.classList.remove("plan-left-neg", "plan-left-pos");
+    if (income > 0 || outflow > 0) leftVal.classList.add(left < 0 ? "plan-left-neg" : "plan-left-pos");
+  }
+  const leftSub = el("planLeftSub");
+  if (leftSub) {
+    if (income > 0) leftSub.textContent = `${formatMoney(outflow)} planned out of ${formatMoney(income)} income` +
+      (left >= 0 ? ` · keeping ${Math.round((left / income) * 100)}%` : "");
+    else leftSub.textContent = "Add an estimated income above to see what's left.";
+  }
+
+  // Breakdown rows
+  const bd = el("planBreakdown");
+  if (bd) {
+    const rows = [
+      { cls: "plan-bd-income", label: "Income", val: income },
+      { cls: "plan-bd-fixed", label: "Fixed / committed", val: fixed },
+      { cls: "plan-bd-cards", label: "Credit cards & loans", val: cards },
+      { cls: "plan-bd-canwait", label: "Can wait", val: canwait }
+    ];
+    bd.innerHTML = rows.map(r =>
+      `<div class="plan-breakdown-row ${r.cls}"><span class="plan-bd-label"><span class="plan-bd-swatch"></span>${r.label}</span>` +
+      `<span class="plan-bd-val">${formatMoney(r.val)}</span></div>`).join("");
+  }
+
+  // Food is an essential floor — the advisor never tells you to cut it to zero
+  // to service debt. Summed across any section (usually the imported Food row).
+  const foodPlanned = planModel.items
+    .filter(it => PLAN_FOOD_LABELS.has(it.label.trim().toLowerCase()))
+    .reduce((s, it) => s + planCellValue(it.id, lens), 0);
+
+  // Advisor tips
+  const tips = [];
+
+  if (income <= 0 && outflow > 0) {
+    tips.push({ tone: "info", title: "Add an estimated income", body: "" });
+  } else if (income > 0) {
+    if (left < 0) {
+      tips.push({ tone: "warn", title: `Short by ${formatMoney(-left)}`,
+        body: `Trim discretionary <strong>Can Wait</strong> or push it to a later month — but keep a food budget, don't zero it.` });
+    } else {
+      tips.push({ tone: "good", title: `${formatMoney(left)} left — keeping ${Math.round((left / income) * 100)}%`, body: "" });
+    }
+    // Commitment ratio (fixed + cards vs income)
+    const committed = fixed + cards;
+    const ratio = committed / income;
+    const pct = Math.round(ratio * 100);
+    const over = ratio > 0.6;
+    tips.push({ tone: over ? "warn" : "info", title: `Committed: ${pct}% of income`,
+      body: (over ? "High — aim under 60% for breathing room." : "") +
+        `<div class="plan-commit-bar"><div class="plan-commit-fill${over ? " over" : ""}" style="width:${Math.min(100, Math.max(0, pct))}%"></div></div>` });
+  }
+
+  // You still have to eat — nudge if nothing is set aside for food.
+  if (income > 0 && foodPlanned <= 0) {
+    tips.push({ tone: "warn", title: "No food budgeted", body: `You'll still need to eat — add at least a lean amount before paying down debt.` });
+  }
+
+  // Minimum-only credit cards
+  const minOnly = planGroupItems("Cards").filter(it => {
+    if (it.minimum == null || it.minimum <= 0) return false;
+    return planCellValue(it.id, lens) <= it.minimum;
+  });
+  if (minOnly.length > 0) {
+    const names = minOnly.map(it => escapeHtml(it.label || "a card")).join(", ");
+    tips.push({ tone: "warn", title: `Minimum only: ${names}`,
+      body: `The balance and its interest keep growing — pay above the minimum on the highest-rate one first.` });
+  }
+
+  // Where the surplus should go
+  if (income > 0 && left > 0) {
+    const savingsTarget = round2(income * (SAVINGS_TARGET_PERCENT / 100));
+    let debtLine = "";
+    if (allLoans.length > 0) {
+      const worst = allLoans.slice().sort((a, b) => (b.rate || 0) - (a.rate || 0))[0];
+      if (worst) debtLine = `overpay <strong>${escapeHtml(worst.name)}</strong>${worst.rate ? " (" + formatNumber(worst.rate) + "%/yr)" : ""}, then `;
+    }
+    tips.push({ tone: "good", title: `Where the ${formatMoney(left)} could go`,
+      body: `After the essentials above: ${debtLine}${formatMoney(savingsTarget)} to savings, rest as buffer.` });
+  }
+
+  const list = el("planAdvisorList");
+  if (list) {
+    if (tips.length === 0) {
+      list.innerHTML = `<div class="plan-advisor-empty">Add an income and your planned outgoings to see guidance here.</div>`;
+    } else {
+      list.innerHTML = tips.map(t =>
+        `<div class="plan-tip ${t.tone}"><strong>${escapeHtml(t.title)}</strong>${t.body}</div>`).join("");
+    }
+  }
+}
+
+// ---- edit handlers (delegated; wired once in wirePlanningEvents) ----
+function planFocusLabel(id) {
+  const input = document.querySelector(`input[data-plan-label="${CSS.escape(id)}"]`);
+  if (input) { input.focus(); input.select(); }
+}
+
+function planAddItem(groupKey) {
+  const id = `plan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  planModel.items.push({ id, group: groupKey, label: "", minimum: null, loanId: "", sortOrder: planModel.items.length });
+  renderPlanning();
+  planFocusLabel(id);
+  flushPlanSave(); // save the empty row; the label fills in as the user types
+}
+
+function planDeleteItem(id) {
+  planModel.items = planModel.items.filter(it => it.id !== id);
+  const prefix = `${id}|`;
+  Array.from(planModel.cells.keys()).forEach(k => { if (k.startsWith(prefix)) planModel.cells.delete(k); });
+  renderPlanning();
+  flushPlanSave();
+}
+
+// ---- drag to reorder / move an item between sections (SortableJS) ----
+// After SortableJS mutates the DOM, we rebuild planModel.items purely FROM the
+// grid's new row order: walking the tbody top-to-bottom, each group header we
+// pass sets the "current section", and every item row after it inherits that
+// section. So dropping a row under a different group's header simply reassigns
+// it — no hit-testing math of our own. Then we re-render (to restore the
+// headers/subtotals/totals in their canonical spots) and persist.
+function planReorderFromDom() {
+  const body = el("planTableBody");
+  if (!body) return;
+  const byId = new Map(planModel.items.map(it => [it.id, it]));
+  const reordered = [];
+  let currentGroup = PLAN_GROUP_KEYS[0];
+  body.querySelectorAll("tr").forEach(tr => {
+    if (tr.classList.contains("plan-group-row") && tr.dataset.planGroupHeader) {
+      currentGroup = tr.dataset.planGroupHeader;
+    } else if (tr.classList.contains("plan-item-row") && tr.dataset.planRow) {
+      const it = byId.get(tr.dataset.planRow);
+      if (it) { it.group = currentGroup; reordered.push(it); byId.delete(tr.dataset.planRow); }
+    }
+  });
+  // Safety net: keep any item that somehow wasn't seen in the DOM (never drop data).
+  byId.forEach(it => reordered.push(it));
+  planModel.items = reordered;
+  renderPlanning();
+  flushPlanSave();
+}
+
+// One SortableJS instance on the grid body, created once (survives re-renders
+// because the tbody node itself persists — only its children get replaced).
+let planSortable = null;
+function initPlanSortable() {
+  const body = el("planTableBody");
+  if (!body || planSortable || typeof Sortable === "undefined") return;
+  planSortable = Sortable.create(body, {
+    handle: ".plan-drag-handle",
+    draggable: ".plan-item-row",      // only item rows are picked up
+    filter: ".plan-cell-input",        // never start a drag from an input
+    preventOnFilter: false,            // …but let the input keep normal focus/typing
+    animation: 160,
+    easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    ghostClass: "plan-row-ghost",
+    chosenClass: "plan-row-chosen",
+    dragClass: "plan-row-drag",
+    // Pointer-based fallback drag (not native HTML5): consistent + smooth on
+    // mouse and touch, and it's what made the old hand-rolled native drag feel
+    // like "fighting the buttons". The floating clone is styled in CSS below.
+    forceFallback: true,
+    fallbackOnBody: true,
+    fallbackTolerance: 3,
+    scroll: true,
+    onEnd: planReorderFromDom
+  });
+}
+
+function planPullLoanPayments() {
+  if (!allLoans.length) {
+    flashNotice("statusNotice", "No loans to import yet — add a loan on the Loans tab first.");
+    return;
+  }
+  const lens = planLensMonth();
+  allLoans.forEach(loan => {
+    let item = planModel.items.find(it => it.loanId === loan.id);
+    if (!item) {
+      item = { id: `plan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+               group: "Cards", label: loan.name, minimum: null, loanId: loan.id, sortOrder: planModel.items.length };
+      planModel.items.push(item);
+    } else if (!item.label) {
+      item.label = loan.name;
+    }
+    if (isFinite(loan.payment) && loan.payment > 0) planModel.cells.set(`${item.id}|${lens}`, round2(loan.payment));
+  });
+  renderPlanning();
+  flushPlanSave();
+  flashNotice("statusNotice", `Imported ${allLoans.length} loan payment${allLoans.length > 1 ? "s" : ""} into ${formatMonthLabel(lens)}.`);
+}
+
+// Totals up last month's REAL expenses per PLAN_FIXED_IMPORT_ROWS (each row may
+// merge several categories, e.g. Food = groceries + eating out) and drops one
+// summed row per spec into Can Wait for the lens month — editable afterwards.
+// Re-importing overwrites the same-named rows rather than duplicating them, so
+// it's safe to run again after logging more expenses. Reads allRows (recorded
+// transactions) only; it never modifies them.
+function planImportFixedExpenses() {
+  const lastMonth = addMonthsKey(currentMonthKey(), -1);
+  const targetMonth = planLensMonth();
+  // Sum last month's spend per source category once.
+  const catTotals = new Map();
+  allRows.forEach(r => {
+    if (r.Type !== "Expense" || !r.Date || r.Date.slice(0, 7) !== lastMonth) return;
+    catTotals.set(r.Category, round2((catTotals.get(r.Category) || 0) + r.Amount));
+  });
+  // Collapse into one plan row per import spec (a spec may merge categories,
+  // e.g. Food = groceries + eating out). Keep only rows that actually had spend.
+  const rows = PLAN_FIXED_IMPORT_ROWS
+    .map(spec => ({ label: spec.label, total: round2(spec.categories.reduce((s, c) => s + (catTotals.get(c) || 0), 0)) }))
+    .filter(r => r.total > 0);
+  if (rows.length === 0) {
+    flashNotice("statusNotice",
+      `No matching expenses recorded in ${formatMonthLabel(lastMonth)}, so there was nothing to import.`);
+    return;
+  }
+  rows.forEach(row => {
+    // Dedupe by an existing Can Wait row with the same label (case-insensitive).
+    let item = planModel.items.find(it => it.group === "CanWait" && it.label.trim().toLowerCase() === row.label.toLowerCase());
+    if (!item) {
+      item = { id: `plan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+               group: "CanWait", label: row.label, minimum: null, loanId: "", sortOrder: planModel.items.length };
+      planModel.items.push(item);
+    }
+    planModel.cells.set(`${item.id}|${targetMonth}`, row.total);
+  });
+  renderPlanning();
+  flushPlanSave();
+  flashNotice("statusNotice",
+    `Imported ${rows.length} categor${rows.length > 1 ? "ies" : "y"} from ${formatMonthLabel(lastMonth)} into ${formatMonthLabel(targetMonth)}'s Can Wait.`);
+}
+
+function planSetHorizon(n) {
+  planHorizon = Math.max(1, Math.min(12, n));
+  storePlanHorizon(planHorizon);
+  renderPlanning();
+}
+
+let planEventsWired = false;
+function wirePlanningEvents() {
+  if (planEventsWired) return;
+  planEventsWired = true;
+  const body = el("planTableBody");
+
+  // Live typing: update the model + totals only (keep focus/caret).
+  body.addEventListener("input", e => {
+    const t = e.target;
+    if (t.dataset.planCell != null) {
+      const amt = parsePlanAmount(t.value);
+      const key = `${t.dataset.planCell}|${t.dataset.planMonth}`;
+      if (amt == null) planModel.cells.delete(key); else planModel.cells.set(key, amt);
+      updatePlanTotalsLive();
+    } else if (t.dataset.planIncome != null) {
+      const amt = parsePlanAmount(t.value);
+      if (amt == null) planModel.income.delete(t.dataset.planIncome); else planModel.income.set(t.dataset.planIncome, amt);
+      updatePlanTotalsLive();
+    } else if (t.dataset.planLabel != null) {
+      const it = planModel.items.find(x => x.id === t.dataset.planLabel);
+      if (it) it.label = t.value.trim();
+    } else if (t.dataset.planMin != null) {
+      const it = planModel.items.find(x => x.id === t.dataset.planMin);
+      if (it) it.minimum = parsePlanAmount(t.value);
+      renderPlanAdvisor(); // minimum feeds the minimum-only card warning
+    } else {
+      return; // not an editable plan field
+    }
+    schedulePlanSave(); // debounced durability even if the tab closes before blur
+  });
+
+  // Commit on blur/enter: persist quietly (no re-render, so the user can tab on).
+  // Goes through the coalescing scheduler so back-to-back commits can't race.
+  body.addEventListener("change", () => { flushPlanSave(); });
+
+  // Add / delete via delegation.
+  body.addEventListener("click", e => {
+    const add = e.target.closest("[data-plan-add]");
+    if (add) { planAddItem(add.dataset.planAdd); return; }
+    const del = e.target.closest("[data-plan-del]");
+    if (del) { planDeleteItem(del.dataset.planDel); return; }
+  });
+
+  // Smooth pointer-based drag to reorder / move rows between sections (SortableJS).
+  initPlanSortable();
+
+  el("btnPlanPullLoans").addEventListener("click", planPullLoanPayments);
+  el("btnPlanImportFixed").addEventListener("click", planImportFixedExpenses);
+  el("btnPlanGrowMonth").addEventListener("click", () => planSetHorizon(planHorizon + 1));
+  el("btnPlanShrinkMonth").addEventListener("click", () => planSetHorizon(planHorizon - 1));
 }
 
 /* ============================================================

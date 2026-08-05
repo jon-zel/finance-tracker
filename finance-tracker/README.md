@@ -16,22 +16,32 @@ Safari/Firefox don't support the file-linking API the app relies on; there you'l
 **"Import Excel file"** button instead, and saving downloads an updated copy of
 `finances.xlsx` rather than writing it in place.
 
-## The two tabs
+## The three tabs
 
-The app is one page with two tabs, switched from the bar under the header:
+The app is one page with three tabs, switched from the bar under the header:
 
 - **Income & Expenses** — the main dashboard: add income/expense entries, see totals,
   category and classification breakdowns, the income-vs-expense trend, the savings goal,
   and the transaction history table.
 - **Loans** — track the loans you owe, ranked worst-to-best, with payoff/interest
   projections and a real, dated **payment history** you can log against each loan.
+- **Monthly Planning** — a forward-looking cash-flow planner. An editable, multi-month
+  grid of your planned outgoings in three groups (**Fixed / Committed**, **Credit Cards**
+  with a minimum-vs-planned-pay distinction, and **Can Wait**), plus an estimated income
+  per month, so you can see what's **left after bills** for each month at a glance. Loan
+  payments can be pulled straight from the Loans tab into **Credit Cards & Loans**, and
+  **Import fixed expenses** totals last month's real spending in a few set categories
+  (Subscriptions, Housing, Mom Bills) into **Can Wait** — both still editable afterwards.
+  You can drag any row between sections. A side "Advisor" panel flags shortfalls,
+  minimum-only cards, how much of your income is already committed, and where a surplus
+  could go. It's all estimates — it never touches your recorded income, expenses, or loans.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
 ## Your data
 
 Everything lives in the `finances.xlsx` file you chose a folder for — there's no
-database, account, or cloud sync. The workbook has **three sheets**:
+database, account, or cloud sync. The workbook has **six sheets**:
 
 - **`Transactions`** — every income/expense row (Date, Type, Category, Classification,
   Amount, Description, plus `Loan ID`/`Payment ID` used only to link loan-payment
@@ -40,6 +50,15 @@ database, account, or cloud sync. The workbook has **three sheets**:
   transactions, loan rows are **editable and deletable** from the app.
 - **`LoanPayments`** — the dated ledger of real payments logged against a loan. Also
   editable/deletable; editing it recomputes the loan's balance from that history.
+- **`MonthlyPlan`** — the Monthly Planning tab's line items (group, label, a card's
+  minimum, and an optional `Loan ID` linking a row back to a loan).
+- **`MonthlyPlanCells`** — the planned amount for each item in each month, stored one
+  row per item-and-month so the sheet stays easy to read in Excel.
+- **`MonthlyPlanIncome`** — the estimated income for each planned month.
+
+  The three planning sheets are estimates only; they're written with the same
+  read-before-write safety as the rest, and a plan save never rewrites the
+  Transactions/Loans/LoanPayments sheets.
 
 The app reads columns **by header name**, tolerates older files that lack newer columns,
 and preserves any extra columns/sheets it doesn't recognize when it writes back.
