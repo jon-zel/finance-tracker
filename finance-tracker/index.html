@@ -222,6 +222,29 @@ svg{display:block;}
 .export-menu-item small{font-size:12px;color:var(--text-muted);}
 .custom-range{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .custom-range input[type=date]{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:14px;background:var(--panel);color:var(--text);}
+/* Day/Month/Year entry (replaces the native date input so we can clamp what's
+   typed — you can't enter an impossible day; 31 in a 30-day month snaps to 30).
+   Styled to match the app's other pill inputs, with a calendar button on the
+   right (like a native date field) that opens the real picker. */
+.date-field{position:relative;display:inline-flex;align-items:center;gap:1px;padding:7px 12px 7px 14px;margin-left:6px;
+  border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--panel);font-size:14px;
+  transition:border-color .15s ease,box-shadow .15s ease;}
+.date-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent);}
+.date-field .dp{border:none;background:transparent;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;
+  text-align:center;padding:0;-moz-appearance:textfield;}
+.date-field .dp::-webkit-outer-spin-button,.date-field .dp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.date-field .dp-d,.date-field .dp-m{width:20px;}
+.date-field .dp-y{width:36px;}
+.date-field .dp:focus{outline:none;}
+.date-field .dp::placeholder{color:var(--text-muted);opacity:.6;}
+.date-field .dp-sep{color:var(--text-muted);}
+.date-cal-btn{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:0;
+  background:none;border:none;cursor:pointer;color:var(--text-muted);transition:color .15s ease;}
+.date-cal-btn:hover{color:var(--accent);}
+.date-cal-btn svg{width:16px;height:16px;}
+/* The real date input lives here only to provide its calendar popup; it's
+   invisible and non-typeable, opened via showPicker() from the button. */
+.date-native{position:absolute;right:8px;bottom:0;width:20px;height:1px;opacity:0;border:0;padding:0;margin:0;pointer-events:none;}
 :root[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.6);}
 
 /* ---- Summary cards ---- */
@@ -748,10 +771,32 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <button class="range-btn" data-range="Custom">Custom</button>
         <div class="custom-range hidden" id="customRangeInputs">
           <label style="font-size:13px;color:var(--text-muted);">From
-            <input type="date" id="customFrom">
+            <span class="date-field" data-hidden="customFrom">
+              <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="From day">
+              <span class="dp-sep">/</span>
+              <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="From month">
+              <span class="dp-sep">/</span>
+              <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="From year">
+              <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
+              <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
+            </span>
+            <input type="hidden" id="customFrom">
           </label>
           <label style="font-size:13px;color:var(--text-muted);">to
-            <input type="date" id="customTo">
+            <span class="date-field" data-hidden="customTo">
+              <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="To day">
+              <span class="dp-sep">/</span>
+              <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="To month">
+              <span class="dp-sep">/</span>
+              <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="To year">
+              <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
+              <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
+            </span>
+            <input type="hidden" id="customTo">
           </label>
           <div class="field-error hidden" id="customRangeError" style="flex-basis:100%;">The “From” date is after the “to” date — swap them to see results.</div>
         </div>
@@ -1760,6 +1805,35 @@ function dateFromISO(iso) {
   return new Date(y, m - 1, d);
 }
 
+// Real calendar rules. Leap year = divisible by 4, except centuries unless
+// divisible by 400 (so 2000 is a leap year, 1900 and 2100 are not).
+function isLeapYear(y) { return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0); }
+function daysInMonth(y, m) { // m is 1-12
+  return [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+}
+
+// Checks a date string against the real calendar (correct days per month, Feb
+// 28/29 by leap year). Returns "" when it's a genuine day (or empty), otherwise
+// a human clause explaining why it isn't — so an impossible entry like 31 June
+// or 29 Feb in a non-leap year is caught instead of silently used. A native
+// <input type="date"> can hand us a coerced/garbage value (e.g. an absurd year)
+// when an impossible day is typed; this rejects those too.
+function calendarDateError(iso) {
+  if (!iso) return "";
+  const match = /^(\d{4,6})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return "isn't a real date — enter it as day / month / year.";
+  const y = +match[1], mo = +match[2], d = +match[3];
+  if (y < 1900 || y > 2999) return "isn't a real date — check the day: an impossible day (like 31 June) gets rejected.";
+  if (mo < 1 || mo > 12) return "isn't a real date — the month must be between 1 and 12.";
+  const dim = daysInMonth(y, mo);
+  if (d < 1 || d > dim) {
+    const monthName = new Date(y, mo - 1, 1).toLocaleDateString("en-US", { month: "long" });
+    if (mo === 2 && d === 29) return `isn't a real day — ${y} isn't a leap year, so February has only 28 days.`;
+    return `isn't a real day — ${monthName} has only ${dim} days.`;
+  }
+  return "";
+}
+
 function monthKey(iso) { return iso.slice(0, 7); } // "YYYY-MM"
 
 function addMonthsToKey(ym, n) {
@@ -2570,6 +2644,8 @@ function wireStaticEvents() {
   // just typed in the other field). See setRange().
   el("customFrom").addEventListener("change", () => setRange("Custom", true));
   el("customTo").addEventListener("change", () => setRange("Custom", true));
+  // Day/Month/Year entry boxes drive the hidden #customFrom/#customTo above.
+  document.querySelectorAll("#customRangeInputs .date-field").forEach(wireDateField);
 
   // Single "Export" button opens a menu with the two export options.
   const exportMenu = el("exportMenu");
@@ -3798,11 +3874,126 @@ function setRange(rangeType, fromDateInput) {
         if (!el("customFrom").value) el("customFrom").value = from;
         if (!el("customTo").value) el("customTo").value = to;
       }
+      // Mirror the seeded ISO into the visible day/month/year boxes.
+      document.querySelectorAll("#customRangeInputs .date-field").forEach(syncDatePartsFromHidden);
     }
   } else {
     hide("customRangeInputs");
   }
   refreshDashboard();
+}
+
+/* ============================================================
+   CUSTOM DATE ENTRY (day / month / year boxes)
+   ------------------------------------------------------------
+   Replaces the native <input type="date"> so entry is fully under
+   our control: only digits, and the day is clamped to the real
+   number of days in the chosen month (leap-year aware) — you can't
+   type 32, and 31 in a 30-day month snaps to 30. The composed value
+   is written to a hidden #customFrom/#customTo the rest of the app
+   already reads, so nothing downstream changes.
+   ============================================================ */
+// Largest day currently allowed. Month unknown -> 31; February with the year
+// still unknown stays permissive at 29 until the year narrows it to 28/29.
+function dayMaxForParts(y, m) {
+  if (!m || m < 1 || m > 12) return 31;
+  if (m === 2) return (y >= 1900 && y <= 2999) ? (isLeapYear(y) ? 29 : 28) : 29;
+  return daysInMonth(2001, m); // non-February lengths don't depend on the year
+}
+
+function clampDateParts(field, dayEdited) {
+  const dEl = field.querySelector(".dp-d"), mEl = field.querySelector(".dp-m"), yEl = field.querySelector(".dp-y");
+  // Digits only.
+  [dEl, mEl, yEl].forEach(e => { const s = e.value.replace(/\D/g, ""); if (s !== e.value) e.value = s; });
+  // Month: 1..12.
+  if (mEl.value) {
+    const mm = parseInt(mEl.value, 10);
+    if (mm > 12) mEl.value = "12";
+    else if (mm === 0 && mEl.value.length >= 2) mEl.value = "01";
+  }
+  // Remember the day the user actually intends (capped at 31, the most any month
+  // can hold). The displayed day is that intent clamped to the current month/year
+  // — so narrowing the month/year shrinks it, and re-widening (e.g. switching to a
+  // leap year) restores it, instead of permanently losing what was typed.
+  if (dayEdited) {
+    const typed = parseInt(dEl.value, 10);
+    field.dataset.rawDay = isFinite(typed) ? String(Math.min(typed, 31)) : "";
+  }
+  const rawDay = parseInt(field.dataset.rawDay, 10);
+  if (isFinite(rawDay) && rawDay >= 1) {
+    const y = parseInt(yEl.value, 10), mm = parseInt(mEl.value, 10);
+    const eff = Math.min(rawDay, dayMaxForParts(isFinite(y) ? y : null, isFinite(mm) ? mm : null));
+    if (dEl.value !== String(eff)) dEl.value = String(eff);
+  } else if (!dEl.value) {
+    field.dataset.rawDay = "";
+  }
+}
+
+// Composes the three boxes into the hidden ISO input (or clears it when the
+// date isn't complete/valid yet) and notifies the app to re-filter.
+function composeHiddenDate(field) {
+  const d = parseInt(field.querySelector(".dp-d").value, 10);
+  const m = parseInt(field.querySelector(".dp-m").value, 10);
+  const y = parseInt(field.querySelector(".dp-y").value, 10);
+  const hidden = el(field.dataset.hidden);
+  const complete = d >= 1 && m >= 1 && m <= 12 && y >= 1900 && y <= 2999 && d <= daysInMonth(y, m);
+  const next = complete ? isoFromParts(y, m, d) : "";
+  if (hidden.value !== next) {
+    hidden.value = next;
+    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+function syncDatePartsFromHidden(field) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(el(field.dataset.hidden).value);
+  if (!parts) return;
+  field.querySelector(".dp-y").value = parts[1];
+  field.querySelector(".dp-m").value = parts[2];
+  field.querySelector(".dp-d").value = parts[3];
+  field.dataset.rawDay = String(parseInt(parts[3], 10));
+}
+
+function wireDateField(field) {
+  const dEl = field.querySelector(".dp-d"), mEl = field.querySelector(".dp-m"), yEl = field.querySelector(".dp-y");
+  field.addEventListener("input", e => {
+    clampDateParts(field, e.target === dEl);
+    // Auto-advance once a box is full, so DD -> MM -> YYYY flows naturally.
+    if (e.target === dEl && dEl.value.length === 2) mEl.focus();
+    else if (e.target === mEl && mEl.value.length === 2) yEl.focus();
+    composeHiddenDate(field);
+  });
+  field.addEventListener("blur", () => {
+    // On leaving, finalize: clamp a 4-digit year into range, re-clamp the day
+    // for the now-known month/year (e.g. Feb 29 -> 28 in a non-leap year).
+    if (yEl.value.length === 4) {
+      const yy = parseInt(yEl.value, 10);
+      if (yy < 1900) yEl.value = "1900"; else if (yy > 2999) yEl.value = "2999";
+    }
+    clampDateParts(field, false);
+    composeHiddenDate(field);
+  }, true);
+  // Backspace at the start of an empty box hops to the previous one.
+  mEl.addEventListener("keydown", e => { if (e.key === "Backspace" && !mEl.value) dEl.focus(); });
+  yEl.addEventListener("keydown", e => { if (e.key === "Backspace" && !yEl.value) mEl.focus(); });
+
+  // Calendar button opens the browser's date picker (which can only produce a
+  // valid date); the chosen date flows back into the boxes and hidden ISO.
+  const calBtn = field.querySelector(".date-cal-btn");
+  const native = field.querySelector(".date-native");
+  if (calBtn && native) {
+    calBtn.addEventListener("click", () => {
+      const cur = el(field.dataset.hidden).value;
+      native.value = /^\d{4}-\d{2}-\d{2}$/.test(cur) ? cur : "";
+      try { native.showPicker(); }
+      catch (e) { native.style.pointerEvents = "auto"; native.focus(); native.click(); }
+    });
+    native.addEventListener("change", () => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(native.value)) return;
+      el(field.dataset.hidden).value = native.value;
+      syncDatePartsFromHidden(field);
+      el(field.dataset.hidden).dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
 }
 
 function computeRangeBounds(rangeType) {
@@ -4556,13 +4747,27 @@ function wirePlanningEvents() {
    RENDERING
    ============================================================ */
 function refreshDashboard() {
-  const { from, to } = computeRangeBounds(currentRangeType);
-  // Inverted custom range (§3.9): rather than silently showing empty charts,
-  // tell the user their dates are backwards.
-  if (el("customRangeError")) {
-    el("customRangeError").classList.toggle("hidden", !(currentRangeType === "Custom" && from > to));
+  let { from, to } = computeRangeBounds(currentRangeType);
+  // Custom-range validation. An impossible date (31 June, 29 Feb in a non-leap
+  // year, or a value the browser coerced to garbage) is rejected with a clear
+  // reason and applied to nothing, so it can never silently widen the range.
+  // A backwards range keeps its own message (§3.9).
+  let invalidCustom = false;
+  const err = el("customRangeError");
+  if (currentRangeType === "Custom") {
+    const fromErr = calendarDateError(el("customFrom").value);
+    const toErr = calendarDateError(el("customTo").value);
+    invalidCustom = !!(fromErr || toErr);
+    let msg = "";
+    if (fromErr) msg = "The “From” date " + fromErr;
+    else if (toErr) msg = "The “to” date " + toErr;
+    else if (from > to) msg = "The “From” date is after the “to” date — swap them to see results.";
+    if (err) { err.textContent = msg; err.classList.toggle("hidden", !msg); }
+    if (invalidCustom) { from = todayISO(); to = todayISO(); } // safe bounds; rows forced empty below
+  } else if (err) {
+    err.classList.add("hidden");
   }
-  const rangeRows = filterByRange(allRows, from, to);
+  const rangeRows = invalidCustom ? [] : filterByRange(allRows, from, to);
   const incomeRows = rangeRows.filter(r => r.Type === "Income");
   const expenseRows = rangeRows.filter(r => r.Type === "Expense");
 
