@@ -348,6 +348,7 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .history-toggle-chevron{width:14px;height:14px;flex:none;transition:transform .2s ease;}
 .history-toggle-btn[aria-expanded="true"] .history-toggle-chevron{transform:rotate(180deg);}
 .table-note{color:var(--text-muted);font-size:13px;margin-top:12px;}
+.panel-sub{color:var(--text-muted);font-size:13px;margin-top:-6px;margin-bottom:14px;}
 
 /* ---- Layout: main column + savings side panel ---- */
 .layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
@@ -991,6 +992,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       </div>
 
       <div class="panel">
+        <h2>Each Loan's Balance Over Time</h2>
+        <div class="panel-sub">One line per loan, labelled with its interest rate. The solid part is real history; the dashed part is the projected payoff.</div>
+        <div id="perLoanChartEmpty" class="empty-state hidden">No loans to chart yet.</div>
+        <div class="chart-wrap" id="perLoanChartWrap"><canvas id="perLoanChart"></canvas></div>
+      </div>
+
+      <div class="panel">
         <h2>Payment History</h2>
         <div id="paymentHistoryEmpty" class="empty-state hidden">No payments logged yet — use the payment icon on a loan above to log one.</div>
         <div class="table-scroll" id="paymentHistoryWrap">
@@ -1520,6 +1528,7 @@ let rawLoanRows = [];           // raw sheet rows for the Loans sheet (Golden-Ru
 let sourceLoanHeader = LOAN_COLUMNS.slice();
 let selectedLoanId = null;      // null = "All Loans"
 let loanChart = null;
+let perLoanChart = null;
 
 // ---- Loan payment history state ----
 let allLoanPayments = [];              // normalized payment records
@@ -5340,6 +5349,7 @@ function refreshLoansModule() {
   populateLoanSelector();
   renderLoanBars(projections);
   renderLoanChart(projections);
+  renderPerLoanChart(projections);
   renderPaymentHistoryTable();
 }
 
@@ -5606,6 +5616,158 @@ function renderLoanChart(projections) {
       }
     }
   });
+}
+
+// Each Loan's Balance Over Time (§26.6): one line per loan in scope, showing
+// its remaining balance month by month — a solid "actual" segment replayed
+// from logged payments (§LOAN-PAYMENTS) up to Today, continuing as a dashed
+// "projected" segment out to payoff. Unlike the aggregate chart above, loans
+// are NOT summed here — each keeps its own coloured line, labelled with its
+// interest rate, so their relative sizes and payoff speeds can be compared
+// side by side. A negative-amortization loan has no payoff projection, so its
+// line shows real history only and stops at Today.
+function renderPerLoanChart(projections) {
+  const loans = selectedLoansSet();
+
+  if (perLoanChart) { perLoanChart.destroy(); perLoanChart = null; }
+
+  if (loans.length === 0) {
+    show("perLoanChartEmpty");
+    hide("perLoanChartWrap");
+    return;
+  }
+  hide("perLoanChartEmpty");
+  show("perLoanChartWrap");
+
+  const todayYM = monthKey(todayISO());
+  const paymentsByLoan = {};
+  loans.forEach(l => {
+    paymentsByLoan[l.id] = allLoanPayments.filter(p => p.loanId === l.id).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  });
+
+  // Same timeline anchoring as the aggregate chart: back to the earliest of any
+  // loan's first payment or its recorded start date, forward to the last loan
+  // still being paid off.
+  let earliestYM = todayYM;
+  loans.forEach(l => {
+    const pmts = paymentsByLoan[l.id];
+    if (pmts.length > 0) {
+      const ym = monthKey(pmts[0].date);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+    if (l.dateRecorded) {
+      const ym = monthKey(l.dateRecorded);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+  });
+  const hasAnyHistory = earliestYM < todayYM;
+
+  const maxMonthsAhead = Math.max(0, ...loans.map(l => projections[l.id].months || 0));
+
+  const buckets = []; // { ym, isFuture }
+  for (let ym = earliestYM; ym < todayYM; ym = addMonthsToKey(ym, 1)) buckets.push({ ym, isFuture: false });
+  for (let m = 0; m <= maxMonthsAhead; m++) buckets.push({ ym: addMonthsToKey(todayYM, m), isFuture: true });
+  const splitIndex = buckets.findIndex(b => b.isFuture); // index of "Today"
+
+  const labels = buckets.map((b, idx) =>
+    b.isFuture ? (idx === splitIndex ? "Today" : monthKeyLabel(b.ym)) : monthKeyLabel(b.ym));
+
+  const colors = getCategoryColors();
+  const datasets = loans.map((loan, i) => {
+    const proj = projections[loan.id];
+    const color = colors[i % colors.length];
+    const data = buckets.map((b, idx) => {
+      if (!b.isFuture) {
+        return round2(loanActualStateAtMonth(loan, paymentsByLoan[loan.id], b.ym).balance);
+      }
+      // Future: follow the payoff schedule. Negative-amortization loans have no
+      // schedule — their line stops at Today rather than inventing a projection.
+      if (!proj.schedule) return idx === splitIndex ? round2(loan.balance) : null;
+      const monthsFromToday = idx - splitIndex;
+      // The schedule's last entry is the payoff month (balance 0). Once a loan
+      // is paid off its line ends there and disappears — it must NOT run flat
+      // along zero to the end of a longer loan's timeline (§26.6).
+      if (monthsFromToday >= proj.schedule.length) return null;
+      return round2(proj.schedule[monthsFromToday].balance);
+    });
+    return {
+      label: `${loan.name} — ${formatNumber(loan.rate)}%`,
+      data,
+      borderColor: color,
+      backgroundColor: "transparent",
+      tension: 0.25,
+      pointRadius: 0,
+      borderWidth: 2,
+      spanGaps: false,
+      segment: hasAnyHistory ? { borderDash: (ctx) => (ctx.p1DataIndex > splitIndex ? [6, 4] : undefined) } : undefined
+    };
+  });
+
+  const theme = getChartThemeColors();
+  perLoanChart = new Chart(el("perLoanChart").getContext("2d"), {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatNumber(v) }, grid: { color: hexToRgba(theme.grid, 0.5) } },
+        x: { ticks: { color: theme.text, maxTicksLimit: 12 }, grid: { display: false } }
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 },
+          // Clicking a loan in the legend toggles its line as usual, but then
+          // re-fits the timeline to only the loans still showing — so hiding a
+          // long-running loan shortens the x-axis instead of leaving a long
+          // empty tail (§26.6).
+          onClick: (e, legendItem, legend) => {
+            const ci = legend.chart;
+            const idx = legendItem.datasetIndex;
+            ci.setDatasetVisibility(idx, !ci.isDatasetVisible(idx));
+            trimPerLoanAxisToVisible(ci);
+            ci.update();
+          }
+        },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)}` }
+        }
+      }
+    }
+  });
+  // Fit the axis to the data on first paint too (a no-op while every loan is
+  // shown, but keeps the fitting logic in one place).
+  trimPerLoanAxisToVisible(perLoanChart);
+  perLoanChart.update();
+}
+
+// Shrinks the per-loan chart's x-axis to the span actually covered by the
+// currently-visible loan lines: the first and last bucket index where any
+// shown dataset has a real (non-null) point. Trailing nulls come from loans
+// that have already paid off (§26.6), so a paid-off or hidden long loan no
+// longer stretches the timeline past everyone else. Falls back to the full
+// range when nothing is visible.
+function trimPerLoanAxisToVisible(chart) {
+  let minIdx = null, maxIdx = null;
+  chart.data.datasets.forEach((ds, i) => {
+    if (!chart.isDatasetVisible(i)) return;
+    for (let j = 0; j < ds.data.length; j++) {
+      if (ds.data[j] != null) { minIdx = minIdx === null ? j : Math.min(minIdx, j); break; }
+    }
+    for (let j = ds.data.length - 1; j >= 0; j--) {
+      if (ds.data[j] != null) { maxIdx = maxIdx === null ? j : Math.max(maxIdx, j); break; }
+    }
+  });
+  if (minIdx === null) { minIdx = 0; maxIdx = chart.data.labels.length - 1; }
+  chart.options.scales.x.min = minIdx;
+  chart.options.scales.x.max = maxIdx;
 }
 
 // Shows every logged payment for whichever loan(s) the selector (§26.2)
@@ -5891,6 +6053,7 @@ function wireLoanEvents() {
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
+    renderPerLoanChart(projections);
     renderPaymentHistoryTable();
   });
 
@@ -5912,6 +6075,7 @@ function wireLoanEvents() {
     const projections = computeAllLoanProjections();
     renderLoanBars(projections);
     renderLoanChart(projections);
+    renderPerLoanChart(projections);
     renderPaymentHistoryTable();
   });
 
