@@ -35,7 +35,16 @@
   --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --font-serif:'Playfair Display',Georgia,"Times New Roman",ui-serif,Cambria,serif;
   --radius:10px;
+  --radius-sm:6px;      /* small controls: plan rows, cells, tags */
   --radius-pill:9999px;
+
+  /* Motion scale. Every transition picks one of these rather than inventing a
+     duration; --dur-press is deliberately near-instant so a button feels
+     mechanical, --dur-slow is for bars/widths that animate a real distance. */
+  --dur-press:.05s;
+  --dur:.15s;
+  --dur-ui:.2s;
+  --dur-slow:.35s;
 
   /* Light theme — "Paper" surface stack; income/expense/loan/accent hues unchanged */
   --bg:#f4f6f8;
@@ -45,7 +54,7 @@
   --border-strong:#d7dce2;
   --text:#1f2937;
   --text-muted:#6b7280;
-  --text-faint:#9aa3af;
+  --text-faint:#677282;
   --overlay:rgba(17,24,39,.5);
   --income:#1a9c6b;
   --income-bg:#e6f7f0;
@@ -65,7 +74,29 @@
   --regular:#5b6472;
   --regular-bg:#eef0f2;
   --accent:#2f6fa8;
-  /* Copper — decorative-only warm accent (editorial links, focus rings).
+  /* Accent tint pair, same shape as the income/expense/loan/invest tints above.
+     A selected filter chip is a soft accent surface with accent text — not a
+     solid accent fill, which at chip size reads as a different, lighter blue
+     than the accent used everywhere else (§SCOPE-MULTI). */
+  --accent-bg:#e9f1f8;
+  --accent-border:#b7d0e6;
+  /* ---- Fill pair (§FILL-TOKENS) ----
+     Each semantic hue has two jobs that pull in opposite directions: as TEXT on
+     a page ground it must be light enough to read in dark mode, and as a solid
+     BUTTON FILL under white text it must be dark enough for that white to read.
+     One value can't do both — dark mode brightened the hues for the text job
+     and silently broke every filled button (#fff on --income measured 2.00:1).
+     So the fill job gets its own token: same hue and saturation, darkened until
+     white passes AA. These are deliberately NOT redefined per theme — a fill
+     under white text needs the same darkness whatever the page behind it is,
+     and each still clears 3:1 against both the light and dark panel. */
+  --income-fill:#16855b;         /* #fff on it: 4.63:1 */
+  --expense-fill:#d43e3e;        /* 4.61:1 */
+  --loan-fill:#c0392b;           /* 5.44:1 */
+  --loan-classif-fill:#a8651a;   /* 4.62:1 */
+  --invest-fill:#2b8370;         /* 4.58:1 */
+  --accent-fill:#2f6fa8;         /* 5.30:1 */
+  /* Copper — decorative-only warm accent (editorial links).
      Never used for income/expense/loan meaning, which stays green/red/blue. */
   --copper:#a8703f;
 }
@@ -80,7 +111,7 @@
   --border-strong:#464853;
   --text:#e2e3e9;
   --text-muted:#9194a1;
-  --text-faint:#5e616e;
+  --text-faint:#818493;
   --overlay:rgba(0,0,0,.6);
   --income:#3ecf8e;
   --income-bg:rgba(62,207,142,0.14);
@@ -97,6 +128,8 @@
   --regular:#acafb9;
   --regular-bg:rgba(172,175,185,0.12);
   --accent:#5b9bd9;
+  --accent-bg:rgba(91,155,217,0.16);
+  --accent-border:rgba(91,155,217,0.45);
   --copper:#cc9166;
 }
 *{box-sizing:border-box;}
@@ -107,7 +140,7 @@ body{
   color:var(--text);
   line-height:1.45;
   padding-bottom:60px;
-  transition:background-color .2s ease, color .2s ease;
+  transition:background-color var(--dur-ui) ease, color var(--dur-ui) ease;
 }
 .container{max-width:1280px;margin:0 auto;padding:24px 20px 0;}
 h1,h2,h3{margin:0 0 4px;}
@@ -124,7 +157,7 @@ svg{display:block;}
   display:inline-flex;align-items:center;justify-content:center;flex:none;
   width:40px;height:40px;border-radius:var(--radius-pill);border:1px solid var(--border);
   background:var(--panel);cursor:pointer;color:var(--text-muted);padding:0;
-  transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .15s ease;
+  transition:background-color var(--dur-ui) ease,color var(--dur-ui) ease,border-color var(--dur-ui) ease,transform var(--dur) ease;
 }
 .theme-toggle:hover{background:var(--surface-alt);color:var(--text);border-color:var(--border-strong);}
 .theme-toggle:active{transform:scale(.92);}
@@ -134,38 +167,57 @@ svg{display:block;}
 :root[data-theme="dark"] .theme-toggle .icon-moon{display:block;}
 .btn{
   border:none;border-radius:var(--radius-pill);padding:12px 22px;font-size:15px;font-weight:600;
-  cursor:pointer;transition:transform .05s ease, filter .15s ease;
+  cursor:pointer;transition:transform var(--dur-press) ease, filter var(--dur) ease;
   display:inline-flex;align-items:center;gap:8px;
 }
 .btn svg{width:16px;height:16px;flex:none;}
 .btn:hover{filter:brightness(1.08);}
 .btn:active{transform:translateY(1px);filter:brightness(0.97);}
-.btn-expense{background:var(--expense);color:#fff;}
-.btn-income{background:var(--income);color:#fff;}
-.btn-loan-payment{background:var(--loan-classif);color:#fff;}
-.btn-primary{background:var(--accent);color:#fff;}
+.btn-expense{background:var(--expense-fill);color:#fff;}
+.btn-income{background:var(--income-fill);color:#fff;}
+.btn-loan-payment{background:var(--loan-classif-fill);color:#fff;}
+.btn-primary{background:var(--accent-fill);color:#fff;}
 .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border-strong);}
 .btn-secondary:hover{background:var(--surface-alt);}
 .btn-link{background:none;border:none;color:var(--copper);cursor:pointer;font-size:14px;padding:0;text-decoration:underline;}
 .btn:disabled{opacity:.55;cursor:not-allowed;}
 
+/* ---- Focus (§FOCUS) ----
+   One focus language for the whole app. Previously three conventions coexisted
+   (copper outline on form fields, accent outline on the scope controls, a
+   border+shadow ring on plan cells) and most controls — every .btn, tab, icon
+   button and range pill — had no styled focus at all, falling back to whatever
+   the browser drew. :focus-visible keeps it off mouse clicks. */
+.btn:focus-visible,.btn-link:focus-visible,.icon-btn:focus-visible,.main-tab-btn:focus-visible,
+.range-btn:focus-visible,.theme-toggle:focus-visible,.export-menu-item:focus-visible,
+.scope-trigger:focus-visible,.scope-menu-item:focus-visible,.scope-chip:focus-visible,
+.scope-clear:focus-visible,.date-cal-btn:focus-visible,.history-toggle-btn:focus-visible,
+.history-search-clear:focus-visible,.table-type-toggle:focus-visible,.plan-additem-btn:focus-visible,
+.plan-drag-handle:focus-visible,.plan-row-del:focus-visible,.loan-row:focus-visible,
+.legend-badge:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+
 /* ---- Notices ---- */
 .notice{
   background:#fff8e6;border:1px solid #f2d98a;color:#7a5b00;
   border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;font-size:14px;
-  transition:background-color .2s ease,border-color .2s ease,color .2s ease;
+  transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease,color var(--dur-ui) ease;
 }
 .notice.error{background:var(--expense-bg);border-color:#f3b8b8;color:#8a2b2b;}
 :root[data-theme="dark"] .notice{background:rgba(240,180,60,.14);border-color:rgba(240,180,60,.35);color:#e8c76b;}
-:root[data-theme="dark"] .notice.error{color:#f4a8a4;border-color:rgba(240,113,108,.4);}
+/* The background MUST be restated here: `:root[data-theme="dark"] .notice`
+   above is (0,3,0) and outranks a bare `.notice.error` (0,2,0), so without
+   this an error rendered on the amber warning ground in dark mode. */
+:root[data-theme="dark"] .notice.error{background:var(--expense-bg);color:#f4a8a4;border-color:rgba(240,113,108,.4);}
 /* Transient confirmation (flashNotice): fades in, then fades/collapses away on
    its own after a few seconds so brief "done" messages don't linger. Errors use
    the plain .notice and stay put. */
-.notice.notice-flash{animation:noticeIn .25s ease;}
+.notice.notice-flash{animation:noticeIn var(--dur-ui) ease;}
 .notice.notice-flash.notice-out{
   opacity:0;transform:translateY(-4px);margin-top:0;margin-bottom:0;
   padding-top:0;padding-bottom:0;max-height:0;overflow:hidden;
-  transition:opacity .35s ease,transform .35s ease,max-height .35s ease,padding .35s ease,margin .35s ease;
+  transition:opacity var(--dur-slow) ease,transform var(--dur-slow) ease,max-height var(--dur-slow) ease,padding var(--dur-slow) ease,margin var(--dur-slow) ease;
 }
 @keyframes noticeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
 
@@ -173,10 +225,10 @@ svg{display:block;}
 .panel{
   background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
   padding:20px;margin-bottom:20px;
-  transition:background-color .2s ease,border-color .2s ease;
+  transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;
 }
 .panel:hover{border-color:var(--border-strong);}
-.panel h2{font-family:var(--font-sans);font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:-.02em;margin-bottom:14px;}
+.panel h2{font-family:var(--font-sans);font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:14px;}
 
 /* ---- Welcome / empty states ---- */
 .welcome{text-align:center;padding:60px 20px;}
@@ -189,7 +241,7 @@ svg{display:block;}
 .main-tab-btn{
   background:none;border:none;border-bottom:2px solid transparent;padding:10px 2px;
   font-family:var(--font-sans);font-size:15px;font-weight:600;color:var(--text-muted);cursor:pointer;
-  transition:color .15s ease,border-color .15s ease;
+  transition:color var(--dur) ease,border-color var(--dur) ease;
 }
 .main-tab-btn:hover{color:var(--text);}
 .main-tab-btn.active{color:var(--text);border-bottom-color:var(--accent);}
@@ -199,10 +251,10 @@ svg{display:block;}
 .range-btn{
   background:transparent;border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 16px;
   font-size:14px;cursor:pointer;color:var(--text);
-  transition:background-color .15s ease,color .15s ease,border-color .15s ease;
+  transition:background-color var(--dur) ease,color var(--dur) ease,border-color var(--dur) ease;
 }
 .range-btn:hover{background:var(--surface-alt);border-color:var(--border-strong);}
-.range-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.range-btn.active{background:var(--accent-fill);color:#fff;border-color:var(--accent-fill);}
 /* Export dropdown (header) */
 .export-menu-wrap{position:relative;display:inline-block;}
 .export-caret{width:15px;height:15px;margin-left:-2px;opacity:.7;}
@@ -228,7 +280,7 @@ svg{display:block;}
    right (like a native date field) that opens the real picker. */
 .date-field{position:relative;display:inline-flex;align-items:center;gap:1px;padding:7px 12px 7px 14px;margin-left:6px;
   border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--panel);font-size:14px;
-  transition:border-color .15s ease,box-shadow .15s ease;}
+  transition:border-color var(--dur) ease,box-shadow var(--dur) ease;}
 .date-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 22%,transparent);}
 .date-field .dp{border:none;background:transparent;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;
   text-align:center;padding:0;-moz-appearance:textfield;}
@@ -236,10 +288,11 @@ svg{display:block;}
 .date-field .dp-d,.date-field .dp-m{width:20px;}
 .date-field .dp-y{width:36px;}
 .date-field .dp:focus{outline:none;}
+.date-field .dp:focus-visible{background:var(--accent-bg);border-radius:var(--radius-sm);}
 .date-field .dp::placeholder{color:var(--text-muted);opacity:.6;}
 .date-field .dp-sep{color:var(--text-muted);}
 .date-cal-btn{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:0;
-  background:none;border:none;cursor:pointer;color:var(--text-muted);transition:color .15s ease;}
+  background:none;border:none;cursor:pointer;color:var(--text-muted);transition:color var(--dur) ease;}
 .date-cal-btn:hover{color:var(--accent);}
 .date-cal-btn svg{width:16px;height:16px;}
 /* The real date input lives here only to provide its calendar popup; it's
@@ -252,7 +305,7 @@ svg{display:block;}
 .summary-card{
   background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
   padding:20px;
-  transition:background-color .2s ease,border-color .2s ease,transform .18s ease;
+  transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease,transform var(--dur-ui) ease;
 }
 .summary-card:hover{border-color:var(--border-strong);transform:translateY(-1px);}
 .summary-card .label{font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
@@ -267,7 +320,7 @@ svg{display:block;}
 
 /* ---- Classification panel ---- */
 .classif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:14px;}
-.classif-item{border-radius:var(--radius);padding:14px;border:1px solid var(--border);transition:background-color .2s ease,border-color .2s ease;}
+.classif-item{border-radius:var(--radius);padding:14px;border:1px solid var(--border);transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;}
 .classif-item.regular{background:var(--regular-bg);}
 .classif-item.loan{background:var(--loan-classif-bg);border-color:var(--loan-classif-border);}
 .classif-item.investment{background:var(--invest-bg);}
@@ -278,11 +331,11 @@ svg{display:block;}
 .classif-item .amt{font-size:19px;font-weight:700;}
 .classif-item .pct{font-size:13px;color:var(--text-muted);}
 .classif-item.loan .badge{
-  display:inline-block;background:var(--loan-classif);color:#fff;font-size:11px;font-weight:700;
+  display:inline-block;background:var(--loan-classif-fill);color:#fff;font-size:11px;font-weight:700;
   padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;
 }
 .stack-bar{display:flex;height:14px;border-radius:var(--radius-pill);overflow:hidden;margin-top:14px;border:1px solid var(--border);}
-.stack-seg{transition:flex .3s ease;}
+.stack-seg{transition:flex var(--dur-slow) ease;}
 .stack-seg.regular{background:var(--regular);}
 .stack-seg.loan{background:var(--loan-classif);}
 .classif-note{margin-top:12px;font-size:12px;color:var(--text-muted);}
@@ -298,15 +351,15 @@ svg{display:block;}
 .legend-badge{
   display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);
   border-radius:var(--radius-pill);padding:6px 12px;font-size:12px;font-weight:600;color:var(--text);
-  cursor:pointer;transition:background-color .15s ease,border-color .15s ease,opacity .15s ease;
+  cursor:pointer;transition:background-color var(--dur) ease,border-color var(--dur) ease,opacity var(--dur) ease;
 }
 .legend-badge:hover{background:var(--surface-alt);border-color:var(--border-strong);}
 .legend-badge.disabled{opacity:.45;}
 .legend-badge .swatch{width:8px;height:8px;border-radius:100%;flex:none;}
 .history-search-wrap{position:relative;margin-top:14px;}
 .history-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;}
-.history-search-wrap input{width:100%;box-sizing:border-box;padding:9px 34px 9px 36px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-alt);color:var(--text);font-size:14px;transition:border-color .15s ease;}
-.history-search-wrap input:focus{outline:none;border-color:var(--accent);}
+.history-search-wrap input{width:100%;box-sizing:border-box;padding:9px 34px 9px 36px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-alt);color:var(--text);font-size:14px;transition:border-color var(--dur) ease;}
+.history-search-wrap input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
 .history-search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;}
 .history-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:var(--radius);}
 .history-search-clear:hover{color:var(--text);background:var(--surface-alt);}
@@ -315,13 +368,13 @@ svg{display:block;}
 
 /* ---- Table ---- */
 table{width:100%;border-collapse:collapse;font-size:14px;}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);transition:border-color .2s ease;}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);transition:border-color var(--dur-ui) ease;}
 th{color:var(--text-muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;}
-tbody tr{transition:background-color .15s ease;}
+tbody tr{transition:background-color var(--dur) ease;}
 tbody tr:hover{background:var(--surface-alt);}
 tr:last-child td{border-bottom:none;}
 th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
-.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;border:.6px solid transparent;}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;border:.6px solid transparent;}
 .tag .tag-dot{width:5px;height:5px;border-radius:100%;flex:none;}
 .tag.Regular{background:var(--regular-bg);color:var(--regular);border-color:var(--regular-bg);}
 .tag.Regular .tag-dot{background:var(--regular);}
@@ -342,10 +395,10 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
   display:inline-flex;align-items:center;gap:6px;margin-top:14px;
   background:transparent;border:1px solid var(--border);border-radius:var(--radius-pill);
   padding:8px 16px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;
-  transition:background-color .15s ease,border-color .15s ease,color .15s ease;
+  transition:background-color var(--dur) ease,border-color var(--dur) ease,color var(--dur) ease;
 }
 .history-toggle-btn:hover{background:var(--surface-alt);border-color:var(--border-strong);color:var(--text);}
-.history-toggle-chevron{width:14px;height:14px;flex:none;transition:transform .2s ease;}
+.history-toggle-chevron{width:14px;height:14px;flex:none;transition:transform var(--dur-ui) ease;}
 .history-toggle-btn[aria-expanded="true"] .history-toggle-chevron{transform:rotate(180deg);}
 .table-note{color:var(--text-muted);font-size:13px;margin-top:12px;}
 .panel-sub{color:var(--text-muted);font-size:13px;margin-top:-6px;margin-bottom:14px;}
@@ -358,6 +411,19 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
   .layout{grid-template-columns:1fr;}
   .side-col{position:static;}
 }
+
+/* Respect the OS "reduce motion" setting: the app has three keyframe
+   animations (including a modal that slides and scales) and ~80 transitions.
+   Motion is collapsed rather than removed, so state changes still resolve —
+   an element that must end up hidden still gets there, just instantly. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
 canvas{max-width:100%;}
 
 /* ---- Savings goal panel ---- */
@@ -366,7 +432,7 @@ canvas{max-width:100%;}
 .savings-pct{font-family:var(--font-sans);font-size:32px;font-weight:600;letter-spacing:-.01em;color:var(--invest);}
 .savings-pct-note{font-size:13px;color:var(--text-muted);}
 .savings-bar-track{height:12px;border-radius:var(--radius-pill);background:var(--regular-bg);overflow:hidden;margin-bottom:12px;border:1px solid var(--border);}
-.savings-bar-fill{height:100%;background:var(--invest);border-radius:var(--radius-pill);transition:width .4s cubic-bezier(.16,1,.3,1);}
+.savings-bar-fill{height:100%;background:var(--invest);border-radius:var(--radius-pill);transition:width var(--dur-slow) cubic-bezier(.16,1,.3,1);}
 .savings-figures{font-size:14px;color:var(--text);margin-bottom:14px;}
 .savings-alltime{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:12px;}
 .savings-empty{color:var(--text-muted);font-size:14px;padding:6px 0 14px;}
@@ -376,7 +442,7 @@ canvas{max-width:100%;}
 .loan-row{
   border-radius:var(--radius);border:1px solid var(--border);padding:16px 18px;
   background:var(--surface-alt);border-left:4px solid var(--border-strong);cursor:pointer;
-  transition:background-color .2s ease,border-color .2s ease,transform .18s ease;
+  transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease,transform var(--dur-ui) ease;
 }
 .loan-row:hover{transform:translateY(-1px);}
 .loan-row-main{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
@@ -388,11 +454,11 @@ canvas{max-width:100%;}
 .loan-row-rate-label{font-size:12px;font-weight:600;color:var(--text-muted);}
 .loan-row-actions{display:flex;gap:6px;}
 .loan-badge-negative{
-  display:inline-block;background:var(--loan);color:#fff;font-size:11px;font-weight:700;
+  display:inline-block;background:var(--loan-fill);color:#fff;font-size:11px;font-weight:700;
   padding:2px 8px;border-radius:var(--radius-pill);vertical-align:middle;
 }
 .loan-badge-paid{
-  display:inline-block;background:var(--income);color:#fff;font-size:11px;font-weight:700;
+  display:inline-block;background:var(--income-fill);color:#fff;font-size:11px;font-weight:700;
   padding:2px 8px;border-radius:var(--radius-pill);vertical-align:middle;
 }
 /* Severity tiers: same red family as --loan everywhere, intensity via tint/border only —
@@ -417,7 +483,7 @@ canvas{max-width:100%;}
   display:inline-flex;align-items:center;justify-content:center;flex:none;
   width:32px;height:32px;border-radius:var(--radius-pill);border:1px solid var(--border);
   background:var(--panel);color:var(--text-muted);cursor:pointer;padding:0;
-  transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .05s ease;
+  transition:background-color var(--dur) ease,color var(--dur) ease,border-color var(--dur) ease,transform var(--dur-press) ease;
 }
 .icon-btn:hover{background:var(--surface-alt);color:var(--text);border-color:var(--border-strong);}
 .icon-btn:active{transform:scale(.92);}
@@ -427,17 +493,86 @@ canvas{max-width:100%;}
 /* Transaction History row actions (§4.2) */
 .row-actions-col{width:1%;white-space:nowrap;}
 td.row-actions{white-space:nowrap;text-align:right;}
-td.row-actions .icon-btn{width:28px;height:28px;}
+td.row-actions .icon-btn{width:32px;height:32px;}
 td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .row-actions-note{font-size:11px;color:var(--text-faint);white-space:nowrap;}
 
 .loan-selector-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
 .loan-scope-panel .loan-selector-row{margin-bottom:0;}
-.loan-selector-row label{font-size:13px;font-weight:600;color:var(--text-muted);}
+.loan-selector-row label,.loan-selector-row .scope-label{font-size:13px;font-weight:600;color:var(--text-muted);}
 .loan-selector-row select{
   padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:14px;
-  color:var(--text);background:var(--panel);transition:background-color .2s ease,border-color .2s ease,color .2s ease;
+  color:var(--text);background:var(--panel);transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease,color var(--dur-ui) ease;
 }
+
+/* ---- Scope filter (§SCOPE-MULTI) ----
+   The picker stays the plain <select> the tab has always used; choosing a loan
+   pins it as a chip alongside. So the dropdown answers "what can I filter by?"
+   and the chips answer "what am I filtering by right now?" — two questions one
+   control can't answer at once.
+
+   A pinned chip is a soft accent surface with accent text, matching the
+   income/expense/loan tint pairs used across the app. It is deliberately NOT a
+   solid accent fill: white on --accent measures 2.94:1 in dark mode (below the
+   4.5:1 AA floor) and reads as a lighter, unrelated blue at this size. The tint
+   measures 6.31:1 and keeps the accent hue recognisably the system's. */
+.scope-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+/* The picker is the app's own menu component (the one behind Export), not a
+   native <select>: a <select>'s drop-down list is drawn by the OS, so it keeps
+   square corners and its own metrics no matter what the page asks for. Built
+   from .panel/--radius/--border like every other surface here, it inherits the
+   app's rounding, shadow and hover instead. */
+.scope-picker{position:relative;display:inline-block;}
+.scope-trigger{
+  display:inline-flex;align-items:center;gap:10px;font-family:inherit;font-size:14px;
+  padding:8px 13px 8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);
+  background:var(--panel);color:var(--text);cursor:pointer;
+  transition:border-color var(--dur) ease,background-color var(--dur) ease;
+}
+.scope-trigger:hover:not(:disabled){border-color:var(--border-strong);background:var(--surface-alt);}
+.scope-trigger:disabled{opacity:.55;cursor:default;}
+.scope-caret{width:15px;height:15px;flex:none;opacity:.7;transition:transform var(--dur-ui) ease;}
+.scope-trigger[aria-expanded="true"] .scope-caret{transform:rotate(180deg);}
+.scope-menu{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:100%;max-width:min(340px,80vw);
+  max-height:280px;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;gap:2px;
+}
+.scope-menu-item{
+  display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);
+  font-family:inherit;font-size:14px;padding:9px 12px;border-radius:var(--radius);cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.scope-menu-item:hover{background:var(--surface-alt);}
+.scope-menu-item:focus-visible{outline-offset:-2px;}
+.scope-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.scope-chip{
+  display:inline-flex;align-items:center;gap:7px;font-family:inherit;
+  background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent);
+  border-radius:var(--radius-pill);padding:5px 11px;font-size:13px;font-weight:600;
+  cursor:pointer;line-height:1.35;
+  transition:background-color var(--dur) ease,border-color var(--dur) ease;
+}
+.scope-chip:hover{border-color:var(--accent);}
+/* A stroke icon on the app's own 24-grid, not a text "×": a glyph sits on the
+   text baseline and rides visibly high in a round background, which is what
+   made the old one look off-centre. As a flex item with its own box it centres
+   geometrically, and currentColor keeps it on the chip's accent. */
+.scope-chip svg{width:12px;height:12px;display:block;flex:none;opacity:.65;transition:opacity var(--dur) ease;}
+.scope-chip:hover svg{opacity:1;}
+.scope-chip-closed{font-style:italic;}
+.scope-clear{
+  background:none;border:none;padding:4px 2px;font-family:inherit;font-size:13px;
+  color:var(--text-muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px;
+}
+.scope-clear:hover{color:var(--text);}
+
+/* A selected row in the ranked list. The list is already filtered to the
+   selection, so this is confirmation rather than navigation — a hairline ring
+   in the same accent, which doesn't fight the severity color the row carries
+   on its left border. */
+.loan-row.scope-selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
 
 .loans-bars-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;}
 .loan-bar-card h3{font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:14px;font-weight:600;}
@@ -445,7 +580,7 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .loan-bar-row:last-child{margin-bottom:0;}
 .loan-bar-label{font-size:13px;color:var(--text-muted);}
 .loan-bar-track{height:14px;border-radius:var(--radius-pill);background:var(--regular-bg);overflow:hidden;border:1px solid var(--border);}
-.loan-bar-fill{height:100%;border-radius:var(--radius-pill);transition:width .4s cubic-bezier(.16,1,.3,1);}
+.loan-bar-fill{height:100%;border-radius:var(--radius-pill);transition:width var(--dur-slow) cubic-bezier(.16,1,.3,1);}
 .loan-bar-fill.balance{background:var(--accent);}
 .loan-bar-fill.payments{background:var(--loan);}
 .loan-bar-fill.interest{background:var(--loan);}
@@ -453,23 +588,86 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
    instead of one solid fill — same flex-segment pattern as .stack-bar/.stack-seg,
    so the container's rounding clips the pair into one pill shape. */
 .loan-bar-track-split{display:flex;}
-.loan-bar-fill-seg{height:100%;transition:width .4s cubic-bezier(.16,1,.3,1);}
+.loan-bar-fill-seg{height:100%;transition:width var(--dur-slow) cubic-bezier(.16,1,.3,1);}
 .loan-bar-fill-seg.paid{background:var(--invest);}
 .loan-bar-fill-seg.balance{background:var(--accent);}
 .loan-bar-value{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
 .loan-bar-value.emphasis{font-size:20px;color:var(--loan);}
 .field-warning{color:var(--loan);font-size:12px;margin-top:5px;}
 
+/* ---- Investments (§INVEST) — deliberately reuses the Loans module's
+   structural classes (.loan-row / .loan-bar-* / .loan-selector-row) so the two
+   tabs are literally the same component. Only what genuinely differs is
+   redefined here: the ranking runs green-good instead of red-bad, and a card
+   shows a value + gain pair where a loan shows a single rate. ---- */
+.invest-row-value{text-align:right;white-space:nowrap;}
+.invest-row-amount{font-family:var(--font-sans);font-size:26px;font-weight:600;letter-spacing:-.01em;color:var(--text);}
+.invest-row-gain{font-size:13px;font-weight:700;margin-top:2px;}
+.invest-row-gain.up{color:var(--income);}
+.invest-row-gain.down{color:var(--expense);}
+.invest-row-gain.flat{color:var(--text-muted);}
+/* Investment tiers. The rgba()s below are the LIGHT theme's --income/--expense;
+   the dark overrides that follow are the mirror of the loan tiers' (§26.4), so
+   a "strong" investment reads in the same green as a "paid off" loan on both
+   grounds instead of staying on the light-theme hue in dark mode. */
+.loan-row.tier-strong{background:rgba(26,156,107,0.20);border-left-color:var(--income);}
+.loan-row.tier-good{background:rgba(26,156,107,0.13);border-left-color:rgba(26,156,107,0.7);}
+.loan-row.tier-okay{background:rgba(26,156,107,0.07);border-left-color:rgba(26,156,107,0.45);}
+.loan-row.tier-flat{background:var(--regular-bg);border-left-color:var(--border-strong);}
+.loan-row.tier-losing{background:rgba(214,69,69,0.16);border-left-color:var(--expense);}
+:root[data-theme="dark"] .loan-row.tier-strong{background:rgba(62,207,142,0.20);border-left-color:var(--income);}
+:root[data-theme="dark"] .loan-row.tier-good{background:rgba(62,207,142,0.14);border-left-color:rgba(62,207,142,0.7);}
+:root[data-theme="dark"] .loan-row.tier-okay{background:rgba(62,207,142,0.08);border-left-color:rgba(62,207,142,0.45);}
+:root[data-theme="dark"] .loan-row.tier-losing{background:rgba(240,113,108,0.18);border-left-color:var(--expense);}
+.loan-row.tier-closed{background:var(--surface-alt);border-left-color:var(--border-strong);opacity:.72;}
+.invest-badge{
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  padding:2px 8px;border-radius:var(--radius-pill);border:1px solid transparent;
+}
+.invest-badge.type{background:var(--regular-bg);color:var(--text-muted);border-color:var(--border);}
+.invest-badge.closed{background:var(--surface-alt);color:var(--text-muted);border-color:var(--border-strong);}
+.invest-badge.estimated{background:var(--loan-classif-bg);color:var(--loan-classif);border-color:var(--loan-classif-border);}
+.invest-bar-fill.value{background:var(--invest);}
+.invest-bar-fill.cost{background:var(--accent);}
+.invest-bar-value.gain{font-size:20px;color:var(--income);}
+.invest-bar-value.loss{font-size:20px;color:var(--expense);}
+.invest-scope-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between;}
+.invest-closed-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;}
+.invest-closed-toggle input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+.invest-proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+.invest-proj-card{
+  background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;
+}
+.invest-proj-label{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+.invest-proj-value{font-family:var(--font-sans);font-size:22px;font-weight:600;letter-spacing:-.01em;}
+.invest-proj-sub{font-size:12px;color:var(--income);font-weight:700;margin-top:3px;}
+.invest-flow-in{color:var(--income);font-weight:700;}
+.invest-flow-out{color:var(--expense);font-weight:700;}
+.invest-flow-val{color:var(--accent);font-weight:700;}
+.invest-donut-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;align-items:start;}
+.invest-direction-toggle{display:flex;gap:8px;}
+.invest-direction-toggle button{
+  flex:1;padding:9px 12px;border-radius:var(--radius);border:1px solid var(--border);
+  background:var(--panel);color:var(--text-muted);font-size:14px;font-weight:600;cursor:pointer;
+  transition:background-color var(--dur) ease,color var(--dur) ease,border-color var(--dur) ease;
+}
+.invest-direction-toggle button:hover{border-color:var(--border-strong);color:var(--text);}
+.invest-direction-toggle button.active[data-direction="Deposit"]{background:var(--income-bg);color:var(--income);border-color:var(--income);}
+.invest-direction-toggle button.active[data-direction="Withdrawal"]{background:var(--expense-bg);color:var(--expense);border-color:var(--expense);}
+.btn-invest{background:var(--invest-fill);color:#fff;}
+.btn-invest:hover{filter:brightness(1.08);}
+
 /* ---- Modal ---- */
 .modal-overlay{
   position:fixed;inset:0;background:var(--overlay);display:flex;
   align-items:center;justify-content:center;padding:20px;z-index:100;
-  animation:overlayFadeIn .18s ease;
+  animation:overlayFadeIn var(--dur-ui) ease;
 }
 .modal{
   background:var(--panel);border:1px solid var(--border-strong);border-radius:var(--radius);padding:28px;width:100%;max-width:440px;
   max-height:90vh;overflow-y:auto;
-  animation:modalPanelIn .22s cubic-bezier(.16,1,.3,1);
+  animation:modalPanelIn var(--dur-ui) cubic-bezier(.16,1,.3,1);
 }
 @keyframes overlayFadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes modalPanelIn{from{opacity:0;transform:translateY(8px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
@@ -478,9 +676,9 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .field label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px;}
 .field input,.field select{
   width:100%;padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:15px;color:var(--text);
-  background:var(--panel);transition:background-color .2s ease,border-color .2s ease,color .2s ease;
+  background:var(--panel);transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease,color var(--dur-ui) ease;
 }
-.field input:focus,.field select:focus{outline:2px solid var(--copper);outline-offset:1px;}
+.field input:focus-visible,.field select:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
 .field input:disabled,.field select:disabled{opacity:.65;cursor:not-allowed;background:var(--surface-alt);}
 .field-static{
   padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);font-size:15px;
@@ -493,7 +691,7 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .divide-toggle{margin-top:8px;}
 .divide-panel{
   background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:10px;
-  transition:background-color .2s ease,border-color .2s ease;
+  transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;
 }
 .divide-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;}
 .divide-row .field{margin-bottom:0;flex:1;}
@@ -541,8 +739,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-drag-handle{
   flex:none;display:inline-flex;align-items:center;justify-content:center;
   width:20px;height:26px;margin-left:-4px;cursor:grab;color:var(--text-muted);opacity:.4;
-  border-radius:5px;touch-action:none;
-  transition:opacity .12s ease,color .12s ease,background-color .12s ease;
+  border-radius:var(--radius-sm);touch-action:none;
+  transition:opacity var(--dur) ease,color var(--dur) ease,background-color var(--dur) ease;
 }
 .plan-drag-handle svg{width:16px;height:16px;pointer-events:none;}
 .plan-item-row:hover .plan-drag-handle{opacity:.85;}
@@ -556,7 +754,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-item-row.plan-row-chosen td{background:color-mix(in srgb,var(--accent) 9%,transparent);}
 .plan-item-row.plan-row-ghost td{opacity:.35;}
 .plan-item-row.plan-row-ghost td *{visibility:hidden;}
-.plan-item-row.plan-row-ghost{box-shadow:inset 0 0 0 2px var(--accent);border-radius:6px;}
+.plan-item-row.plan-row-ghost{box-shadow:inset 0 0 0 2px var(--accent);border-radius:var(--radius-sm);}
 /* The floating clone that follows the pointer. A table row dragged outside its
    <table> loses column widths and wraps (looked "twice as wide"). So we collapse
    the clone to a compact single-line pill showing just the handle + name + tag —
@@ -565,7 +763,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
   display:inline-flex!important;align-items:center;
   width:auto!important;height:auto!important;
   background:var(--panel)!important;border:1px solid var(--border);
-  box-shadow:0 10px 26px rgba(0,0,0,.4);border-radius:8px;
+  box-shadow:0 10px 26px rgba(0,0,0,.4);border-radius:var(--radius-sm);
   padding:3px 12px 3px 4px;opacity:.98;overflow:hidden;
 }
 .plan-row-drag td,.sortable-fallback td{border:none!important;background:transparent!important;padding:0!important;}
@@ -580,7 +778,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-cell-input{
   width:100%;box-sizing:border-box;border:1px solid transparent;background:transparent;
   color:var(--text);font:inherit;text-align:right;font-variant-numeric:tabular-nums;
-  padding:3px 5px;border-radius:5px;
+  padding:3px 5px;border-radius:var(--radius-sm);
 }
 .plan-label-input{text-align:left;}
 .plan-cell-input:hover{border-color:var(--border);}
@@ -588,13 +786,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-loan-chip{
   display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
   color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);
-  border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;
+  border-radius:var(--radius-sm);padding:1px 5px;margin-left:6px;vertical-align:middle;
 }
 .plan-row-del{
   background:none;border:none;color:var(--text-muted);cursor:pointer;opacity:0;
-  padding:2px;border-radius:4px;line-height:0;transition:opacity .12s ease,color .12s ease;
+  padding:2px;border-radius:var(--radius-sm);line-height:0;transition:opacity var(--dur) ease,color var(--dur) ease;
 }
-.plan-item-row:hover .plan-row-del{opacity:1;}
+.plan-item-row:hover .plan-row-del,.plan-row-del:focus-visible{opacity:1;}
 .plan-row-del:hover{color:var(--expense);background:color-mix(in srgb,var(--expense) 12%,transparent);}
 .plan-row-del svg{width:15px;height:15px;}
 .plan-actions-col{width:26px;text-align:center;}
@@ -624,6 +822,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-breakdown-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px;}
 .plan-breakdown-row .plan-bd-label{color:var(--text-muted);display:flex;align-items:center;gap:7px;}
 .plan-breakdown-row .plan-bd-val{font-variant-numeric:tabular-nums;font-weight:600;}
+/* 2px is geometric, not a scale choice: --radius-sm on a 9px square reads as
+   a blob rather than a square swatch. */
 .plan-bd-swatch{width:9px;height:9px;border-radius:2px;flex:none;}
 .plan-bd-income .plan-bd-swatch{background:var(--income);}
 .plan-bd-fixed .plan-bd-swatch{background:var(--accent);}
@@ -633,15 +833,15 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 .plan-advisor-list{display:flex;flex-direction:column;gap:10px;}
 .plan-advisor-empty{color:var(--text-muted);font-size:13px;}
 .plan-tip{
-  border:1px solid var(--border);border-left-width:3px;border-radius:8px;padding:10px 12px;
-  font-size:12.5px;line-height:1.5;background:var(--surface-alt);
+  border:1px solid var(--border);border-left-width:3px;border-radius:var(--radius);padding:10px 12px;
+  font-size:13px;line-height:1.5;background:var(--surface-alt);
 }
 .plan-tip strong{display:block;margin-bottom:2px;font-size:13px;}
 .plan-tip.good{border-left-color:var(--income);}
 .plan-tip.warn{border-left-color:var(--expense);}
 .plan-tip.info{border-left-color:var(--accent);}
-.plan-commit-bar{height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin:8px 0 4px;}
-.plan-commit-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .25s ease,background-color .25s ease;}
+.plan-commit-bar{height:8px;border-radius:var(--radius-pill);background:var(--border);overflow:hidden;margin:8px 0 4px;}
+.plan-commit-fill{height:100%;border-radius:var(--radius-pill);background:var(--accent);transition:width var(--dur-ui) ease,background-color var(--dur-ui) ease;}
 .plan-commit-fill.over{background:var(--expense);}
 </style>
 </head>
@@ -696,6 +896,20 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           Log Loan Payment
         </button>
       </div>
+      <div class="app-actions hidden" id="investHeaderActions">
+        <button class="btn btn-invest" id="btnAddInvestment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+          Add Investment
+        </button>
+        <button class="btn btn-loan-payment" id="btnLogInvestFlow" title="Deposit money into, or withdraw money from, an investment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v13M7 16l-3-3M7 16l3-3"/><path d="M17 21V8M17 8l-3 3M17 8l3 3"/></svg>
+          Deposit / Withdraw
+        </button>
+        <button class="btn btn-secondary" id="btnLogInvestValuation" title="Record what an investment is worth right now">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7h-5M21 7v5"/></svg>
+          Update Value
+        </button>
+      </div>
       <div class="app-actions hidden" id="planHeaderActions">
         <button class="btn btn-secondary" id="btnPlanPullLoans" title="Import this month's loan payments from your Loans tab">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
@@ -720,6 +934,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
   <div class="main-tab-bar hidden" id="mainTabBar">
     <button type="button" class="main-tab-btn" data-tab="dashboard">Income &amp; Expenses</button>
     <button type="button" class="main-tab-btn" data-tab="loans">Loans</button>
+    <button type="button" class="main-tab-btn" data-tab="investments">Investments</button>
     <button type="button" class="main-tab-btn" data-tab="planning">Monthly Planning</button>
   </div>
 
@@ -942,12 +1157,21 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div id="loansExcludedNote"></div>
 
       <!-- Loan scope selector — top of the tab, parallel to the dashboard's
-           time-range filter. Scopes the charts and payment history below;
-           the ranked list stays a full worst-to-best overview of every loan. -->
+           time-range filter. Multi-select (§SCOPE-MULTI): picking one or more
+           loans scopes EVERYTHING below it — the ranked list included — not
+           just the charts. No selection means all loans. -->
       <div class="panel loan-scope-panel">
-        <div class="loan-selector-row">
-          <label for="loanSelector">Show</label>
-          <select id="loanSelector"></select>
+        <div class="loan-selector-row scope-row">
+          <span class="scope-label">Show</span>
+          <div class="scope-picker" id="loanScopePicker">
+            <button type="button" class="scope-trigger" id="loanScopeTrigger" aria-haspopup="listbox" aria-expanded="false">
+              <span id="loanScopeTriggerLabel">All loans</span>
+              <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="scope-menu hidden" id="loanScopeMenu" role="listbox"></div>
+          </div>
+          <div class="scope-chips" id="loanScopeChips"></div>
+          <button type="button" class="scope-clear hidden" id="loanScopeClear">Clear</button>
         </div>
       </div>
 
@@ -1016,6 +1240,161 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="table-note">Editing or deleting a payment keeps its matching expense entry in Income &amp; Expenses in sync automatically.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       INVESTMENTS MODULE (§INVEST)
+       The mirror of the Loans module and structured identically:
+       scope selector → ranked list → summary bars → charts →
+       dated history. Independent of Transactions by design — money
+       moved in or out of an investment writes nothing to the
+       income/expense ledger.
+       ============================================================ -->
+  <div id="investmentsModule" class="hidden">
+    <div id="investmentsEmpty" class="panel empty-state hidden">No investments yet — add one above.</div>
+
+    <div id="investmentsContent" class="hidden">
+      <div id="investmentsStaleNote"></div>
+
+      <!-- Scope selector — parallel to the Loans tab's, plus the toggle that
+           brings closed investments back into view (§INVEST-CLOSE). -->
+      <div class="panel loan-scope-panel">
+        <div class="invest-scope-row">
+          <div class="loan-selector-row scope-row">
+            <span class="scope-label">Show</span>
+            <div class="scope-picker" id="investScopePicker">
+              <button type="button" class="scope-trigger" id="investScopeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <span id="investScopeTriggerLabel">All investments</span>
+                <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="scope-menu hidden" id="investScopeMenu" role="listbox"></div>
+            </div>
+            <div class="scope-chips" id="investScopeChips"></div>
+            <button type="button" class="scope-clear hidden" id="investScopeClear">Clear</button>
+          </div>
+          <label class="invest-closed-toggle" id="investClosedToggleWrap">
+            <input type="checkbox" id="investShowClosed">
+            <span id="investClosedToggleLabel">Show closed investments</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="summary-grid" id="investSummaryGrid">
+        <div class="summary-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Invested (net)
+          </div>
+          <div class="value" id="investTotalCost">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+            Worth now
+          </div>
+          <div class="value" id="investTotalValue">0</div>
+        </div>
+        <div class="summary-card balance">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Profit / loss
+          </div>
+          <div class="value" id="investTotalGain">0</div>
+          <div class="loan-row-meta" id="investTotalGainPct"></div>
+        </div>
+        <div class="summary-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Return per year
+          </div>
+          <div class="value" id="investBlendedReturn">—</div>
+          <div class="loan-row-meta" id="investBlendedReturnSub"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Investments, Ranked Best to Worst</h2>
+        <div class="loans-list" id="investmentsList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="loans-bars-grid">
+          <div class="loan-bar-card">
+            <h3>What You Put In vs. What It's Worth</h3>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label">Invested (net)</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill invest-bar-fill cost" id="investBarCostFill"></div></div>
+              <div class="loan-bar-value" id="investBarCostValue">0</div>
+            </div>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label">Worth now</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill invest-bar-fill value" id="investBarValueFill"></div></div>
+              <div class="loan-bar-value" id="investBarValueValue">0</div>
+            </div>
+          </div>
+          <div class="loan-bar-card">
+            <h3 id="investGainBarTitle">What You've Made So Far</h3>
+            <div class="loan-bar-row">
+              <div class="loan-bar-label" id="investGainBarLabel">Profit</div>
+              <div class="loan-bar-track"><div class="loan-bar-fill invest-bar-fill value" id="investBarGainFill"></div></div>
+              <div class="loan-bar-value invest-bar-value gain" id="investBarGainValue">0</div>
+            </div>
+            <div class="loan-row-ratio" id="investGainBarNote"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Estimated Profit Ahead</h2>
+        <div class="panel-sub" id="investProjSub">Where today's value lands if each investment keeps making its expected annual return. Estimates only — nothing here is saved.</div>
+        <div id="investProjEmpty" class="empty-state hidden">No expected return set yet — edit an investment to add one.</div>
+        <div class="invest-proj-grid" id="investProjGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Portfolio Value Over Time</h2>
+        <div class="panel-sub">What it's been worth (green) against what you'd actually put in at that point (blue). The gap between the two lines is your profit.</div>
+        <div id="investChartEmpty" class="empty-state hidden">Nothing to chart yet — log a deposit to get started.</div>
+        <div class="chart-wrap" id="investChartWrap"><canvas id="investChart"></canvas></div>
+      </div>
+
+      <div class="invest-donut-grid">
+        <div class="panel">
+          <h2>Each Investment's Value Over Time</h2>
+          <div class="panel-sub">One line per investment. A step in a line is money moved in or out; a slope is the market doing its thing.</div>
+          <div id="perInvestChartEmpty" class="empty-state hidden">No investments to chart yet.</div>
+          <div class="chart-wrap" id="perInvestChartWrap"><canvas id="perInvestChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Allocation by Type</h2>
+          <div class="panel-sub">Where your money actually sits right now.</div>
+          <div id="investAllocationEmpty" class="empty-state hidden">Nothing allocated yet.</div>
+          <div class="chart-wrap" id="investAllocationWrap"><canvas id="investAllocationChart"></canvas></div>
+          <div class="legend-badges" id="investAllocationLegend"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Activity</h2>
+        <div class="panel-sub">Every deposit, withdrawal, and recorded value, newest first. "Worth after" is what the investment was worth once that entry took effect.</div>
+        <div id="investActivityEmpty" class="empty-state hidden">Nothing logged yet — use the icons on an investment above.</div>
+        <div class="table-scroll" id="investActivityWrap">
+          <table id="investActivityTable">
+            <thead>
+              <tr>
+                <th>Date</th><th>Investment</th><th>Entry</th><th class="amount-col">Amount</th><th class="amount-col">Worth after</th><th>Notes</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="investActivityTableBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="history-toggle-btn hidden" id="btnShowAllInvestActivity" aria-expanded="false">
+          <span id="btnShowAllInvestActivityLabel"></span>
+          <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="table-note">Investments are kept separate from Income &amp; Expenses — nothing logged here changes your recorded income or expense totals.</div>
       </div>
     </div>
   </div>
@@ -1209,6 +1588,188 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" id="btnCancelLoan">Cancel</button>
         <button type="submit" class="btn btn-expense" id="btnSaveLoan">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     ADD / EDIT INVESTMENT MODAL (§INVEST)
+     ============================================================ -->
+<div class="modal-overlay hidden" id="investmentModalOverlay">
+  <div class="modal">
+    <h2 id="investmentModalTitle">Add Investment</h2>
+    <form id="investmentForm" novalidate>
+      <input type="hidden" id="invId">
+      <div class="field">
+        <label for="invName">Name</label>
+        <input type="text" id="invName" required>
+      </div>
+      <div class="field">
+        <label for="invType">Type</label>
+        <select id="invType"></select>
+      </div>
+      <div class="field">
+        <label for="invExpectedReturn">Expected Annual Return (%)</label>
+        <input type="number" id="invExpectedReturn" step="0.0001" required>
+        <div class="field-error hidden" id="invExpectedReturnError">Enter an expected return — it can be 0, or negative if you expect a loss, with up to 4 decimals.</div>
+        <div class="field-hint">What you expect this to make per year, to as many as 4 decimals (e.g. 3.6125). Drives the projection and the "beating expectations?" check — it never changes a recorded value.</div>
+      </div>
+      <!-- Add-only: the opening deposit. An investment with no money in it is
+           just a name, so registering one records its first real flow at the
+           same time rather than making it a second, forgettable step. -->
+      <div id="invInitialFields">
+        <div class="field">
+          <label for="invInitialAmount">Amount Invested</label>
+          <input type="number" id="invInitialAmount" min="1" step="1" inputmode="numeric">
+          <div class="field-error hidden" id="invInitialAmountError">Enter a whole amount greater than 0 &mdash; no decimals.</div>
+        </div>
+        <div class="field">
+          <label for="invStartDate">Date Invested</label>
+          <input type="date" id="invStartDate">
+          <div class="field-error hidden" id="invStartDateError">Enter a real date.</div>
+        </div>
+        <div class="field">
+          <label for="invInitialValue">Worth Now (optional)</label>
+          <input type="number" id="invInitialValue" min="0" step="1" inputmode="numeric">
+          <div class="field-error hidden" id="invInitialValueError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+          <div class="field-hint">If it's already gained or lost since you put the money in, record today's value here. Leave blank to start it at the amount invested.</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="invNotes">Notes (optional)</label>
+        <input type="text" id="invNotes">
+      </div>
+      <div class="modal-error hidden" id="investmentFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelInvestment">Cancel</button>
+        <button type="submit" class="btn btn-invest" id="btnSaveInvestment">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     DEPOSIT / WITHDRAW MODAL (§INVEST)
+     One modal for both directions — they're the same fact with an
+     opposite sign, and splitting them would double the code for no
+     gain to the user.
+     ============================================================ -->
+<div class="modal-overlay hidden" id="investFlowModalOverlay">
+  <div class="modal">
+    <h2 id="investFlowModalTitle">Deposit / Withdraw</h2>
+    <form id="investFlowForm" novalidate>
+      <input type="hidden" id="flowId">
+      <input type="hidden" id="flowDirection" value="Deposit">
+      <div class="field">
+        <label for="flowInvestmentId">Investment</label>
+        <select id="flowInvestmentId" required></select>
+        <div class="field-static hidden" id="flowInvestmentName">&mdash;</div>
+      </div>
+      <div class="field">
+        <label>Direction</label>
+        <div class="invest-direction-toggle" id="flowDirectionToggle">
+          <button type="button" data-direction="Deposit" class="active">Deposit (money in)</button>
+          <button type="button" data-direction="Withdrawal">Withdraw (money out)</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="flowDate">Date</label>
+        <input type="date" id="flowDate" required>
+        <div class="field-error hidden" id="flowDateError">Enter a real date.</div>
+      </div>
+      <div class="field">
+        <label for="flowAmount">Amount</label>
+        <input type="number" id="flowAmount" min="1" step="1" inputmode="numeric" required>
+        <div class="field-error hidden" id="flowAmountError">Enter a whole amount greater than 0 &mdash; no decimals.</div>
+        <div class="field-hint" id="flowAmountHint"></div>
+      </div>
+      <div class="field">
+        <label for="flowNotes">Notes (optional)</label>
+        <input type="text" id="flowNotes">
+      </div>
+      <div class="modal-error hidden" id="investFlowFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelInvestFlow">Cancel</button>
+        <button type="submit" class="btn btn-invest" id="btnSaveInvestFlow">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     RECORD A VALUATION MODAL (§INVEST)
+     "How much is it worth now" — the periodic documentation the
+     whole profit calculation is measured against.
+     ============================================================ -->
+<div class="modal-overlay hidden" id="investValuationModalOverlay">
+  <div class="modal">
+    <h2 id="investValuationModalTitle">Update Value</h2>
+    <form id="investValuationForm" novalidate>
+      <input type="hidden" id="valId">
+      <div class="field">
+        <label for="valInvestmentId">Investment</label>
+        <select id="valInvestmentId" required></select>
+        <div class="field-static hidden" id="valInvestmentName">&mdash;</div>
+      </div>
+      <div class="field">
+        <label for="valDate">Date</label>
+        <input type="date" id="valDate" required>
+        <div class="field-error hidden" id="valDateError">Enter a real date.</div>
+      </div>
+      <div class="field">
+        <label for="valValue">Worth on That Date</label>
+        <input type="number" id="valValue" min="0" step="1" inputmode="numeric" required>
+        <div class="field-error hidden" id="valValueError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+        <div class="field-hint" id="valValueHint">The total the investment is worth — not the change since last time.</div>
+      </div>
+      <div class="field">
+        <label for="valNotes">Notes (optional)</label>
+        <input type="text" id="valNotes">
+      </div>
+      <div class="modal-error hidden" id="investValuationFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelInvestValuation">Cancel</button>
+        <button type="submit" class="btn btn-invest" id="btnSaveInvestValuation">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     CLOSE INVESTMENT MODAL (§INVEST-CLOSE)
+     Cashing out: records the final withdrawal and archives the
+     investment, keeping every row of its history.
+     ============================================================ -->
+<div class="modal-overlay hidden" id="investCloseModalOverlay">
+  <div class="modal">
+    <h2>Close Investment</h2>
+    <form id="investCloseForm" novalidate>
+      <input type="hidden" id="closeInvId">
+      <div class="field">
+        <label>Investment</label>
+        <div class="field-static" id="closeInvName">&mdash;</div>
+      </div>
+      <div class="field">
+        <label for="closeDate">Date Closed</label>
+        <input type="date" id="closeDate" required>
+        <div class="field-error hidden" id="closeDateError">Enter a real date.</div>
+      </div>
+      <div class="field">
+        <label for="closeAmount">Cashed Out</label>
+        <input type="number" id="closeAmount" min="0" step="1" inputmode="numeric" required>
+        <div class="field-error hidden" id="closeAmountError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+        <div class="field-hint" id="closeAmountHint"></div>
+      </div>
+      <div class="field">
+        <label for="closeNotes">Notes (optional)</label>
+        <input type="text" id="closeNotes">
+      </div>
+      <div class="field-hint">The investment keeps its full history and final profit — it just drops out of your active list and portfolio totals. You can bring it back into view any time with "Show closed investments".</div>
+      <div class="modal-error hidden" id="investCloseFormError"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelInvestClose">Cancel</button>
+        <button type="submit" class="btn btn-invest" id="btnSaveInvestClose">Close Investment</button>
       </div>
     </form>
   </div>
@@ -1424,6 +1985,85 @@ const SEVERITY_BANDS = [
   { max: 20, tier: "high" },
   { max: Infinity, tier: "severe" }
 ];
+
+/* ============================================================
+   INVESTMENTS MODULE (§INVEST) — the mirror image of the Loans
+   module, and just as independent of it. Three more worksheets in
+   the same .xlsx file:
+
+     • Investments           — one row per investment you hold.
+     • InvestmentFlows       — the dated ledger of money moved IN
+                               (Deposit) or OUT (Withdrawal).
+     • InvestmentValuations  — the dated ledger of "what it's worth
+                               now" readings you take off a statement.
+
+   Deliberately NOT wired into Transactions (unlike loan payments):
+   moving money into or out of an investment writes nothing to the
+   income/expense ledger. The two ledgers answer different questions
+   and the user asked for them kept apart — so nothing here can ever
+   change a past income or expense total.
+
+   Why flows and valuations are two separate sheets rather than one
+   mixed activity log: they're different KINDS of fact. A flow is
+   money you moved and know exactly; a valuation is what the market
+   says it's worth on a given day. Keeping them apart is what makes
+   "profit" computable at all — profit is exactly the gap between the
+   two (value now vs. what you actually put in). The UI still shows
+   them merged into one chronological Activity table.
+   ============================================================ */
+const INVESTMENTS_SHEET_NAME = "Investments";
+// "Status" is "Active" or "Closed" (§INVEST-CLOSE) — a closed investment keeps
+// its full history but drops out of the active list and every portfolio total.
+// "Expected Annual Return" is the % you expect this to make per year; it drives
+// the forward projection and the "is this beating expectations?" comparison,
+// exactly as a loan's Annual Interest Rate drives its payoff projection.
+const INVESTMENT_COLUMNS = ["Investment ID", "Name", "Type", "Expected Annual Return", "Start Date", "Status", "Closed Date", "Notes", "Last Updated"];
+
+const INVESTMENT_FLOWS_SHEET_NAME = "InvestmentFlows";
+// "Direction" is "Deposit" (money in) or "Withdrawal" (money out). Amount is
+// always stored POSITIVE — the direction column carries the sign — so a stray
+// minus typed into Excel can never silently flip a deposit into a withdrawal.
+const INVESTMENT_FLOW_COLUMNS = ["Flow ID", "Investment ID", "Date", "Direction", "Amount", "Notes", "Last Updated"];
+
+const INVESTMENT_VALUATIONS_SHEET_NAME = "InvestmentValuations";
+const INVESTMENT_VALUATION_COLUMNS = ["Valuation ID", "Investment ID", "Date", "Value", "Notes", "Last Updated"];
+
+const INVESTMENT_DEPOSIT = "Deposit";
+const INVESTMENT_WITHDRAWAL = "Withdrawal";
+const INVESTMENT_STATUS_ACTIVE = "Active";
+const INVESTMENT_STATUS_CLOSED = "Closed";
+
+// Editable, exactly like EXPENSE_CATEGORIES. Drives the allocation donut and
+// the Type dropdown; an investment whose Type isn't in this list still works
+// (it just sorts after the configured ones), so renaming an entry here never
+// orphans existing rows.
+const INVESTMENT_TYPES = [
+  "Stocks & ETFs",
+  "Crypto",
+  "Real Estate",
+  "Savings / Deposit",
+  "Pension / Provident",
+  "Bonds",
+  "Business",
+  "Other"
+];
+
+// Maps a realized annualized return (%/year) to a tier used for ranking color.
+// The mirror of SEVERITY_BANDS: there, a higher number is worse and the scale
+// runs red; here a higher number is better and the scale runs green, with only
+// an actual loss painted red. First band whose `min` the return clears wins,
+// so these must stay in descending `min` order.
+const RETURN_BANDS = [
+  { min: 15, tier: "strong" },
+  { min: 7, tier: "good" },
+  { min: 2, tier: "okay" },
+  { min: 0, tier: "flat" },
+  { min: -Infinity, tier: "losing" }
+];
+
+// How far ahead "estimated profit" projects, using each investment's own
+// Expected Annual Return. Purely illustrative — nothing is ever saved from it.
+const INVESTMENT_PROJECTION_YEARS = [1, 3, 5];
 </script>
 
 <!-- ============================================================
@@ -1526,7 +2166,10 @@ let tableTypeFilter = null;
 let allLoans = [];              // normalized loan records
 let rawLoanRows = [];           // raw sheet rows for the Loans sheet (Golden-Rule-style preservation)
 let sourceLoanHeader = LOAN_COLUMNS.slice();
-let selectedLoanId = null;      // null = "All Loans"
+// Which loans the Loans tab is scoped to (§SCOPE-MULTI). Empty = all loans;
+// otherwise every panel on the tab — ranked list, totals, charts, payment
+// history — is narrowed to exactly these.
+let selectedLoanIds = new Set();
 let loanChart = null;
 let perLoanChart = null;
 
@@ -1543,10 +2186,26 @@ let rawPlanRows = [];                  let sourcePlanHeader = PLAN_COLUMNS.slice
 let rawPlanCellRows = [];              let sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
 let rawPlanIncomeRows = [];            let sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
 let planModel = { items: [], cells: new Map(), income: new Map() };
+
+// ---- Investments module (§INVEST) — same shape as the Loans globals above:
+// a normalized view for rendering, plus the untouched raw sheet rows + header
+// order that every write is rebuilt from (Golden Rule).
+let allInvestments = [];               // normalized investment records
+let rawInvestmentRows = [];            let sourceInvestmentHeader = INVESTMENT_COLUMNS.slice();
+let allInvestmentFlows = [];           // normalized deposit/withdrawal records
+let rawInvestmentFlowRows = [];        let sourceInvestmentFlowHeader = INVESTMENT_FLOW_COLUMNS.slice();
+let allInvestmentValuations = [];      // normalized "worth now" readings
+let rawInvestmentValuationRows = [];   let sourceInvestmentValuationHeader = INVESTMENT_VALUATION_COLUMNS.slice();
+let selectedInvestmentIds = new Set();  // empty = every visible investment (§SCOPE-MULTI)
+let showClosedInvestments = false;     // §INVEST-CLOSE: closed ones are hidden until asked for
+let investmentActivityShowAll = false; // Activity table: collapsed to HISTORY_ROW_LIMIT until expanded
+let investChart = null;                // portfolio value vs. cost basis over time
+let perInvestmentChart = null;         // one line per investment
+let investAllocationChart = null;      // allocation-by-type donut
 let planHorizon = getStoredPlanHorizon(); // how many months of columns to show
 
 // ---- Main tabs (Income & Expenses / Loans / Monthly Planning) — UI state only, never the DB ----
-let activeTab = getStoredTab() || "dashboard"; // "dashboard" | "loans" | "planning"
+let activeTab = getStoredTab() || "dashboard"; // "dashboard" | "loans" | "investments" | "planning"
 
 // Categorical palette for the category donuts (8 fixed hues, assigned in order —
 // never cycled by rank). Each mode is its own validated instance (lightness/chroma
@@ -1647,7 +2306,10 @@ Chart.register({
     const data = chart.data.datasets[0].data;
     let total = 0;
     data.forEach((v, i) => { if (chart.getDataVisibility(i)) total += v; });
-    const text = formatMoney(total);
+    // `whole` is set by the Investments tab's donut (§INVEST-WHOLE), where every
+    // figure is a round number; the dashboard's donuts leave it off and keep
+    // their to-the-cent totals.
+    const text = opts.whole ? formatWholeMoney(total) : formatMoney(total);
 
     const { ctx, chartArea } = chart;
     const cx = (chartArea.left + chartArea.right) / 2;
@@ -1693,6 +2355,7 @@ function toggleTheme() {
 function rerenderChartsForTheme() {
   if (!el("dashboard").classList.contains("hidden")) refreshDashboard();
   if (!el("loansModule").classList.contains("hidden")) refreshLoansModule();
+  if (!el("investmentsModule").classList.contains("hidden")) refreshInvestmentsModule();
 }
 
 /* ============================================================
@@ -1705,7 +2368,7 @@ const TAB_STORAGE_KEY = "finance_tracker_active_tab";
 function getStoredTab() {
   try {
     const v = localStorage.getItem(TAB_STORAGE_KEY);
-    return (v === "dashboard" || v === "loans" || v === "planning") ? v : null;
+    return (v === "dashboard" || v === "loans" || v === "investments" || v === "planning") ? v : null;
   } catch (e) { return null; }
 }
 
@@ -1742,10 +2405,12 @@ function updateTabButtonStyles() {
 // Loans — so both tabs feel like the same app, not one bolted onto the other.
 function applyActiveTab() {
   updateTabButtonStyles();
-  hide("dashboard"); hide("loansModule"); hide("planningModule");
-  hide("headerActions"); hide("loanHeaderActions"); hide("planHeaderActions");
+  hide("dashboard"); hide("loansModule"); hide("investmentsModule"); hide("planningModule");
+  hide("headerActions"); hide("loanHeaderActions"); hide("investHeaderActions"); hide("planHeaderActions");
   if (activeTab === "loans") {
     show("loansModule"); show("loanHeaderActions");
+  } else if (activeTab === "investments") {
+    show("investmentsModule"); show("investHeaderActions");
   } else if (activeTab === "planning") {
     show("planningModule"); show("planHeaderActions");
   } else {
@@ -1761,6 +2426,7 @@ function switchTab(tab) {
   // so re-render whichever tab we just switched into in case the theme
   // changed while it was in the background.
   if (tab === "loans") refreshLoansModule();
+  else if (tab === "investments") refreshInvestmentsModule();
   else if (tab === "planning") refreshPlanning();
   else refreshDashboard();
 }
@@ -1798,6 +2464,47 @@ function formatNumber(n) {
 function formatMoney(n) {
   if (!isFinite(n)) return "0.00";
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Whole-number money, used throughout the Investments tab (§INVEST-WHOLE). That
+// tab deals in round sums you'd actually transfer, and trailing ".00" on every
+// figure just adds noise there. Deliberately NOT applied to the rest of the app:
+// income/expense entries and loan payments are genuinely to-the-cent.
+// Rounding happens at the data layer too (normalizeInvestment*Row), so a total
+// here is always exactly the sum of the rows shown above it.
+function formatWholeMoney(n) {
+  if (!isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function round0(n) { return Math.round(isFinite(n) ? n : 0); }
+
+// ---- Rate precision (§INVEST-RATE) ----
+// An expected annual return is often a precise figure off a fund factsheet
+// (3.6125%), so the Investments tab carries rates to four decimals rather than
+// the two the rest of the app uses for money.
+const RATE_DECIMALS = 4;
+function round4(n) {
+  const r = Math.round((n + Number.EPSILON) * 10000) / 10000;
+  return isFinite(r) ? r : 0;
+}
+
+// Displays a rate at its own natural precision: no trailing zeros, up to four
+// decimals. 8 → "8", 8.5 → "8.5", 3.6125 → "3.6125". Used only where the rate
+// the user actually typed is shown — derived figures (realized return,
+// gain %) deliberately stay at one decimal, where more precision would be
+// false confidence rather than information.
+function formatRate(n) {
+  if (!isFinite(n)) return "0";
+  return n.toLocaleString("en-US", { maximumFractionDigits: RATE_DECIMALS });
+}
+
+// How many digits the user actually typed after the decimal point. Read off the
+// raw string, not the parsed number, so "8.5000" is honestly 4 places and
+// floating-point representation can't turn a valid entry into an invalid one.
+function decimalPlacesTyped(raw) {
+  const m = /\.(\d+)\s*$/.exec(String(raw == null ? "" : raw));
+  return m ? m[1].length : 0;
 }
 
 function todayISO() {
@@ -2124,13 +2831,22 @@ function parseWorkbookBuffer(buf) {
   const plan = parseSheetFromWorkbook(wb, PLAN_SHEET_NAME, PLAN_COLUMNS, false);
   const planCells = parseSheetFromWorkbook(wb, PLAN_CELLS_SHEET_NAME, PLAN_CELL_COLUMNS, false);
   const planIncome = parseSheetFromWorkbook(wb, PLAN_INCOME_SHEET_NAME, PLAN_INCOME_COLUMNS, false);
+  // Investment sheets (§INVEST) — same rules as the planning sheets: brand new,
+  // exact name only, never a fallback. Absent on any file that predates the
+  // Investments tab, which parses to zero rows and means "no investments yet".
+  const inv = parseSheetFromWorkbook(wb, INVESTMENTS_SHEET_NAME, INVESTMENT_COLUMNS, false);
+  const invFlows = parseSheetFromWorkbook(wb, INVESTMENT_FLOWS_SHEET_NAME, INVESTMENT_FLOW_COLUMNS, false);
+  const invValuations = parseSheetFromWorkbook(wb, INVESTMENT_VALUATIONS_SHEET_NAME, INVESTMENT_VALUATION_COLUMNS, false);
   return {
     txHeader: tx.header, txRows: tx.rows, txSheetFound: tx.found || legacyLedgerFallback,
     loanHeader: loans.header, loanRows: loans.rows, loanSheetFound: loans.found,
     paymentHeader: payments.header, paymentRows: payments.rows, paymentSheetFound: payments.found,
     planHeader: plan.header, planRows: plan.rows, planSheetFound: plan.found,
     planCellHeader: planCells.header, planCellRows: planCells.rows, planCellSheetFound: planCells.found,
-    planIncomeHeader: planIncome.header, planIncomeRows: planIncome.rows, planIncomeSheetFound: planIncome.found
+    planIncomeHeader: planIncome.header, planIncomeRows: planIncome.rows, planIncomeSheetFound: planIncome.found,
+    investmentHeader: inv.header, investmentRows: inv.rows, investmentSheetFound: inv.found,
+    investmentFlowHeader: invFlows.header, investmentFlowRows: invFlows.rows, investmentFlowSheetFound: invFlows.found,
+    investmentValuationHeader: invValuations.header, investmentValuationRows: invValuations.rows, investmentValuationSheetFound: invValuations.found
   };
 }
 
@@ -2160,6 +2876,7 @@ async function readWorkbookRows(handle) {
     rawPlanRows = []; sourcePlanHeader = PLAN_COLUMNS.slice();
     rawPlanCellRows = []; sourcePlanCellHeader = PLAN_CELL_COLUMNS.slice();
     rawPlanIncomeRows = []; sourcePlanIncomeHeader = PLAN_INCOME_COLUMNS.slice();
+    resetInvestmentState();
     allLoans = []; allLoanPayments = [];
     rebuildPlanModel();
     return [];
@@ -2178,6 +2895,7 @@ async function readWorkbookRows(handle) {
   rawPlanCellRows = parsed.planCellRows;
   sourcePlanIncomeHeader = parsed.planIncomeHeader;
   rawPlanIncomeRows = parsed.planIncomeRows;
+  adoptInvestmentSheets(parsed);
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
   rebuildPlanModel();
@@ -2259,7 +2977,11 @@ async function peekFreshWorkbookState() {
       rawPlanRows: [], sourcePlanHeader: PLAN_COLUMNS.slice(),
       rawPlanCellRows: [], sourcePlanCellHeader: PLAN_CELL_COLUMNS.slice(),
       rawPlanIncomeRows: [], sourcePlanIncomeHeader: PLAN_INCOME_COLUMNS.slice(),
-      txSheetFound: false, loanSheetFound: false, paymentSheetFound: false, planSheetFound: false, bytes: null
+      rawInvestmentRows: [], sourceInvestmentHeader: INVESTMENT_COLUMNS.slice(),
+      rawInvestmentFlowRows: [], sourceInvestmentFlowHeader: INVESTMENT_FLOW_COLUMNS.slice(),
+      rawInvestmentValuationRows: [], sourceInvestmentValuationHeader: INVESTMENT_VALUATION_COLUMNS.slice(),
+      txSheetFound: false, loanSheetFound: false, paymentSheetFound: false, planSheetFound: false,
+      investmentSheetFound: false, bytes: null
     };
   }
   const buf = await file.arrayBuffer();
@@ -2271,9 +2993,12 @@ async function peekFreshWorkbookState() {
     rawPlanRows: parsed.planRows, sourcePlanHeader: parsed.planHeader,
     rawPlanCellRows: parsed.planCellRows, sourcePlanCellHeader: parsed.planCellHeader,
     rawPlanIncomeRows: parsed.planIncomeRows, sourcePlanIncomeHeader: parsed.planIncomeHeader,
+    rawInvestmentRows: parsed.investmentRows, sourceInvestmentHeader: parsed.investmentHeader,
+    rawInvestmentFlowRows: parsed.investmentFlowRows, sourceInvestmentFlowHeader: parsed.investmentFlowHeader,
+    rawInvestmentValuationRows: parsed.investmentValuationRows, sourceInvestmentValuationHeader: parsed.investmentValuationHeader,
     txSheetFound: parsed.txSheetFound,
     loanSheetFound: parsed.loanSheetFound, paymentSheetFound: parsed.paymentSheetFound,
-    planSheetFound: parsed.planSheetFound, bytes: buf
+    planSheetFound: parsed.planSheetFound, investmentSheetFound: parsed.investmentSheetFound, bytes: buf
   };
 }
 
@@ -2289,7 +3014,13 @@ function rowsToWorksheet(rows, headerOrder) {
 // the app owns must be appended here, or it would be silently dropped on save.
 // The planning sheets (§PLAN) ride alongside the original three. `plan` bundles
 // the three planning sheets' rows+headers to keep the signature readable.
-function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentRows, paymentHeader, plan) {
+// `plan` and `inv` bundle their module's three sheets each (rows + header) to
+// keep this signature readable. Both are required — a caller that forgets one
+// would silently drop three sheets from the file, so they're asserted below
+// rather than defaulted, turning that mistake into a loud error instead of
+// silent data loss.
+function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentRows, paymentHeader, plan, inv) {
+  if (!plan || !inv) throw new Error("buildWorkbookBytesFrom: every sheet bundle must be supplied — refusing to write a workbook with sheets missing.");
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(txRows, txHeader), SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(loanRows, loanHeader), LOANS_SHEET_NAME);
@@ -2297,6 +3028,9 @@ function buildWorkbookBytesFrom(txRows, txHeader, loanRows, loanHeader, paymentR
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.rows, plan.header), PLAN_SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.cellRows, plan.cellHeader), PLAN_CELLS_SHEET_NAME);
   XLSX.utils.book_append_sheet(wb, rowsToWorksheet(plan.incomeRows, plan.incomeHeader), PLAN_INCOME_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(inv.rows, inv.header), INVESTMENTS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(inv.flowRows, inv.flowHeader), INVESTMENT_FLOWS_SHEET_NAME);
+  XLSX.utils.book_append_sheet(wb, rowsToWorksheet(inv.valuationRows, inv.valuationHeader), INVESTMENT_VALUATIONS_SHEET_NAME);
   return XLSX.write(wb, { bookType: "xlsx", type: "array" });
 }
 
@@ -2308,8 +3042,16 @@ function currentPlanBundle() {
   };
 }
 
+function currentInvestmentBundle() {
+  return {
+    rows: rawInvestmentRows, header: sourceInvestmentHeader,
+    flowRows: rawInvestmentFlowRows, flowHeader: sourceInvestmentFlowHeader,
+    valuationRows: rawInvestmentValuationRows, valuationHeader: sourceInvestmentValuationHeader
+  };
+}
+
 function buildWorkbookBytes() {
-  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader, rawPaymentRows, sourcePaymentHeader, currentPlanBundle());
+  return buildWorkbookBytesFrom(rawRows, sourceHeader, rawLoanRows, sourceLoanHeader, rawPaymentRows, sourcePaymentHeader, currentPlanBundle(), currentInvestmentBundle());
 }
 
 async function writeWorkbookToHandle(handle) {
@@ -2344,7 +3086,7 @@ function downloadWorkbook(bytes) {
 // Only on a successful write do the in-memory globals adopt the merged result
 // — a failed save leaves them untouched, and a save from a stale tab can never
 // again blow away rows another session already persisted. See §DATA-SAFETY.
-const SILENT_SAVE_ERRORS = new Set(["TRANSACTIONS_SHEET_MISSING", "LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING", "PLAN_SHEET_MISSING"]);
+const SILENT_SAVE_ERRORS = new Set(["TRANSACTIONS_SHEET_MISSING", "LOANS_SHEET_MISSING", "LOAN_PAYMENTS_SHEET_MISSING", "PLAN_SHEET_MISSING", "INVESTMENTS_SHEET_MISSING"]);
 
 // Rolling backup (§5.2 / global data-loss rule): before every overwrite of
 // finances.xlsx we copy the exact bytes about to be replaced into a sibling
@@ -2375,7 +3117,10 @@ async function saveWithFreshMerge(mutate) {
       rawPlanRows: rawPlanRows.slice(), sourcePlanHeader: sourcePlanHeader.slice(),
       rawPlanCellRows: rawPlanCellRows.slice(), sourcePlanCellHeader: sourcePlanCellHeader.slice(),
       rawPlanIncomeRows: rawPlanIncomeRows.slice(), sourcePlanIncomeHeader: sourcePlanIncomeHeader.slice(),
-      planSheetFound: true, bytes: null
+      rawInvestmentRows: rawInvestmentRows.slice(), sourceInvestmentHeader: sourceInvestmentHeader.slice(),
+      rawInvestmentFlowRows: rawInvestmentFlowRows.slice(), sourceInvestmentFlowHeader: sourceInvestmentFlowHeader.slice(),
+      rawInvestmentValuationRows: rawInvestmentValuationRows.slice(), sourceInvestmentValuationHeader: sourceInvestmentValuationHeader.slice(),
+      planSheetFound: true, investmentSheetFound: true, bytes: null
     };
   } else {
     state = await peekFreshWorkbookState();
@@ -2412,6 +3157,18 @@ async function saveWithFreshMerge(mutate) {
         "saved plan. Nothing was changed. Reconnect to the right data folder before saving again.", true);
       throw new Error("PLAN_SHEET_MISSING");
     }
+    // Investment sheets (§INVEST): same reasoning as the plan guard — the
+    // first-ever investment save legitimately starts from no sheet, so this
+    // keys off the PERSISTED rawInvestmentRows (adopted from the last
+    // successful save), never the in-memory normalized list. Once the file has
+    // investments, a fresh read that can't find the sheet means the file lost
+    // one it used to have: refuse rather than write zero rows over it.
+    if (!state.investmentSheetFound && rawInvestmentRows.length > 0) {
+      setNotice("statusNotice",
+        "Couldn't save — the “Investments” sheet is missing from finances.xlsx right now, but this session has " +
+        "investment records. Nothing was changed. Reconnect to the right data folder before saving again.", true);
+      throw new Error("INVESTMENTS_SHEET_MISSING");
+    }
   }
 
   // Runs against the state exactly as it stood before this save's own
@@ -2427,6 +3184,9 @@ async function saveWithFreshMerge(mutate) {
   state.sourcePlanHeader = computeFinalHeader(state.sourcePlanHeader, state.rawPlanRows, PLAN_COLUMNS);
   state.sourcePlanCellHeader = computeFinalHeader(state.sourcePlanCellHeader, state.rawPlanCellRows, PLAN_CELL_COLUMNS);
   state.sourcePlanIncomeHeader = computeFinalHeader(state.sourcePlanIncomeHeader, state.rawPlanIncomeRows, PLAN_INCOME_COLUMNS);
+  state.sourceInvestmentHeader = computeFinalHeader(state.sourceInvestmentHeader, state.rawInvestmentRows, INVESTMENT_COLUMNS);
+  state.sourceInvestmentFlowHeader = computeFinalHeader(state.sourceInvestmentFlowHeader, state.rawInvestmentFlowRows, INVESTMENT_FLOW_COLUMNS);
+  state.sourceInvestmentValuationHeader = computeFinalHeader(state.sourceInvestmentValuationHeader, state.rawInvestmentValuationRows, INVESTMENT_VALUATION_COLUMNS);
   const newBytes = buildWorkbookBytesFrom(
     state.rawRows, state.sourceHeader,
     state.rawLoanRows, state.sourceLoanHeader,
@@ -2435,6 +3195,11 @@ async function saveWithFreshMerge(mutate) {
       rows: state.rawPlanRows, header: state.sourcePlanHeader,
       cellRows: state.rawPlanCellRows, cellHeader: state.sourcePlanCellHeader,
       incomeRows: state.rawPlanIncomeRows, incomeHeader: state.sourcePlanIncomeHeader
+    },
+    {
+      rows: state.rawInvestmentRows, header: state.sourceInvestmentHeader,
+      flowRows: state.rawInvestmentFlowRows, flowHeader: state.sourceInvestmentFlowHeader,
+      valuationRows: state.rawInvestmentValuationRows, valuationHeader: state.sourceInvestmentValuationHeader
     }
   );
 
@@ -2458,9 +3223,16 @@ async function saveWithFreshMerge(mutate) {
   sourcePlanCellHeader = state.sourcePlanCellHeader;
   rawPlanIncomeRows = state.rawPlanIncomeRows;
   sourcePlanIncomeHeader = state.sourcePlanIncomeHeader;
+  rawInvestmentRows = state.rawInvestmentRows;
+  sourceInvestmentHeader = state.sourceInvestmentHeader;
+  rawInvestmentFlowRows = state.rawInvestmentFlowRows;
+  sourceInvestmentFlowHeader = state.sourceInvestmentFlowHeader;
+  rawInvestmentValuationRows = state.rawInvestmentValuationRows;
+  sourceInvestmentValuationHeader = state.sourceInvestmentValuationHeader;
   allRows = rawRows.map(normalizeRow).filter(r => r.Date && r.Type && isFinite(r.Amount));
   allLoans = rawLoanRows.map(normalizeLoanRow).filter(l => l.id && l.name);
   allLoanPayments = rawPaymentRows.map(normalizeLoanPaymentRow).filter(p => p.id && p.loanId && p.date);
+  renormalizeInvestments();
   // NB: we deliberately do NOT rebuild planModel here. planModel is the live,
   // authoritative source while the user edits the grid; rebuilding it from this
   // save's own (possibly already-superseded) snapshot would clobber a cell the
@@ -2542,6 +3314,7 @@ async function openDataFile() {
     rawPaymentRows = [];
     sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
     resetPlanState();
+    resetInvestmentState();
     allLoans = [];
     allLoanPayments = [];
     await writeWorkbookToHandle(fileHandle);
@@ -2558,11 +3331,13 @@ async function openDataFile() {
   // a canvas created inside a display:none ancestor can end up mis-sized.
   show("dashboard");
   show("loansModule");
+  show("investmentsModule");
   setNotice("statusNotice", "", false);
   surfaceUnreadableDateNotice(); // after the clear above, so the warning survives (§3.10)
   initCrossTabNotice();
   refreshDashboard();
   refreshLoansModule();
+  refreshInvestmentsModule();
   refreshPlanning();
   show("mainTabBar");
   applyActiveTab();
@@ -2572,10 +3347,12 @@ function showReconnect(message) {
   hide("welcomeScreen");
   hide("dashboard");
   hide("loansModule");
+  hide("investmentsModule");
   hide("planningModule");
   hide("mainTabBar");
   hide("headerActions");
   hide("loanHeaderActions");
+  hide("investHeaderActions");
   hide("planHeaderActions");
   el("reconnectMessage").innerHTML = message;
   show("reconnectScreen");
@@ -2605,12 +3382,15 @@ function wireStaticEvents() {
     rawPaymentRows = [];
     sourcePaymentHeader = LOAN_PAYMENT_COLUMNS.slice();
     resetPlanState();
+    resetInvestmentState();
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
+    show("investmentsModule");
     refreshDashboard();
     refreshLoansModule();
+    refreshInvestmentsModule();
     refreshPlanning();
     show("mainTabBar");
     applyActiveTab();
@@ -2697,6 +3477,7 @@ function wireStaticEvents() {
   attachTableTypeToggle(el("tableTypeToggleIncome"), "Income");
 
   wireLoanEvents();
+  wireInvestmentEvents();
   wirePlanningEvents();
 }
 
@@ -2775,12 +3556,15 @@ async function handleImportFile(e) {
     sourcePlanIncomeHeader = parsed.planIncomeHeader;
     rawPlanIncomeRows = parsed.planIncomeRows;
     rebuildPlanModel();
+    adoptInvestmentSheets(parsed);
     hide("fallbackWelcome");
     show("headerActions");
     show("dashboard");
     show("loansModule");
+    show("investmentsModule");
     refreshDashboard();
     refreshLoansModule();
+    refreshInvestmentsModule();
     refreshPlanning();
     show("mainTabBar");
     applyActiveTab();
@@ -3204,7 +3988,7 @@ async function deleteLoan(id) {
       // point back to.
       state.rawRows = state.rawRows.filter(r => !paymentIds.includes(String(r["Payment ID"] || "").trim()));
     });
-    if (selectedLoanId === id) selectedLoanId = null; // §27: reset to "All Loans"
+    selectedLoanIds.delete(id); // §27: a deleted loan leaves the scope with it
     refreshLoansModule();
     refreshDashboard();
     return found;
@@ -5191,22 +5975,22 @@ function buildReportHtml(d) {
     : `<tr><td colspan="3" class="muted">None in this range.</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>Finance Summary — ${escapeHtml(d.label)}</title>
 <style>
-  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1d24;margin:32px;max-width:760px;}
-  h1{font-size:22px;margin:0 0 4px;} h2{font-size:15px;margin:26px 0 8px;border-bottom:2px solid #e5e7eb;padding-bottom:4px;}
-  .sub{color:#6b7280;font-size:13px;margin-bottom:4px;}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;margin:32px;max-width:760px;}
+  h1{font-size:22px;margin:0 0 4px;} h2{font-size:15px;margin:26px 0 8px;border-bottom:2px solid #e2e6ea;padding-bottom:4px;}
+  .sub{color:#6b7280;font-size:13px;margin-bottom:4px;}  /* = --text-muted */
   table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;}
   td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #eef0f2;}
   th{color:#6b7280;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
   td.pctcol,th.pctcol{width:64px;color:#6b7280;}
   .cards{display:flex;gap:12px;margin-top:12px;}
-  .card{flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:12px;}
+  .card{flex:1;border:1px solid #e2e6ea;border-radius:10px;padding:12px;}
   .card .l{font-size:12px;color:#6b7280;} .card .v{font-size:20px;font-weight:700;margin-top:4px;}
   .kv{display:flex;gap:12px;margin-top:8px;}
-  .kv .box{flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:12px;}
+  .kv .box{flex:1;border:1px solid #e2e6ea;border-radius:10px;padding:12px;}
   .kv .l{font-size:12px;color:#6b7280;} .kv .v{font-size:18px;font-weight:700;margin-top:4px;}
   .kv .pct{font-size:12px;color:#6b7280;margin-top:2px;}
-  .pos{color:#1a9c6b;} .neg{color:#c0392b;} .muted{color:#9aa3af;}
+  .pos{color:#16855b;} .neg{color:#d43e3e;} .muted{color:#677282;}
   .foot{margin-top:28px;color:#9aa3af;font-size:11px;}
   @media print{body{margin:0;}}
 </style></head><body>
@@ -5293,10 +6077,16 @@ function exportFilteredWorkbook() {
   const txHeader = computeFinalHeader(sourceHeader, keptRawRows, COLUMNS);
   const loanHeader = computeFinalHeader(sourceLoanHeader, rawLoanRows, LOAN_COLUMNS);
   const payHeader = computeFinalHeader(sourcePaymentHeader, rawPaymentRows, LOAN_PAYMENT_COLUMNS);
+  // Only the Transactions sheet is filtered — every other sheet is carried
+  // through whole, so an exported file is still a complete, reopenable copy of
+  // the app's data. (These bundles were missing before the Investments tab
+  // landed, which made this function throw the moment it was called.)
   const bytes = buildWorkbookBytesFrom(
     keptRawRows, txHeader,
     rawLoanRows, loanHeader,
-    rawPaymentRows, payHeader
+    rawPaymentRows, payHeader,
+    currentPlanBundle(),
+    currentInvestmentBundle()
   );
   const slug = currentRangeType.replace(/\s+/g, "-").toLowerCase();
   downloadBytes(bytes, `finances-${slug}.xlsx`);
@@ -5326,19 +6116,29 @@ function sortedLoansForRanking(projections) {
   });
 }
 
+// The loans everything on the tab is scoped to. An empty selection means "all",
+// and so does a selection whose loans have all since been deleted — falling
+// back to everything is always safe, where an empty result would silently show
+// zeroed totals that look like real ones.
 function selectedLoansSet() {
-  if (selectedLoanId) {
-    const loan = allLoans.find(l => l.id === selectedLoanId);
-    return loan ? [loan] : allLoans;
-  }
-  return allLoans;
+  if (selectedLoanIds.size === 0) return allLoans;
+  const picked = allLoans.filter(l => selectedLoanIds.has(l.id));
+  return picked.length > 0 ? picked : allLoans;
+}
+
+// Drops ids for loans that no longer exist, so a deleted loan can't keep the
+// tab filtered to nothing.
+function pruneLoanScope() {
+  selectedLoanIds.forEach(id => {
+    if (!allLoans.some(l => l.id === id)) selectedLoanIds.delete(id);
+  });
 }
 
 function refreshLoansModule() {
   if (allLoans.length === 0) {
     show("loansEmpty");
     hide("loansContent");
-    populateLoanSelector();
+    renderLoanScopeChips();
     return;
   }
   hide("loansEmpty");
@@ -5346,17 +6146,39 @@ function refreshLoansModule() {
 
   const projections = computeAllLoanProjections();
   renderLoansList(projections);
-  populateLoanSelector();
+  renderLoanScopeChips();
   renderLoanBars(projections);
   renderLoanChart(projections);
   renderPerLoanChart(projections);
   renderPaymentHistoryTable();
 }
 
+// Everything that has to be redrawn when the loan scope changes — the list and
+// the chips included, which is what the old single-select path missed.
+function applyLoanScopeChange() {
+  paymentHistoryShowAll = false; // new scope → start collapsed
+  const projections = computeAllLoanProjections();
+  renderLoansList(projections);
+  renderLoanScopeChips();
+  renderLoanBars(projections);
+  renderLoanChart(projections);
+  renderPerLoanChart(projections);
+  renderPaymentHistoryTable();
+}
+
+function toggleLoanScope(id) {
+  if (selectedLoanIds.has(id)) selectedLoanIds.delete(id);
+  else selectedLoanIds.add(id);
+  applyLoanScopeChange();
+}
+
 function renderLoansList(projections) {
   const list = el("loansList");
   list.innerHTML = "";
-  const sorted = sortedLoansForRanking(projections);
+  // The list follows the scope like every other panel (§SCOPE-MULTI). With
+  // nothing selected this is the full worst-to-best ranking.
+  const scopeIds = new Set(selectedLoansSet().map(l => l.id));
+  const sorted = sortedLoansForRanking(projections).filter(l => scopeIds.has(l.id));
   sorted.forEach(loan => {
     const proj = projections[loan.id];
     const isPaidOff = loan.balance <= 0;
@@ -5374,8 +6196,14 @@ function renderLoansList(projections) {
       : proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : "";
 
     const row = document.createElement("div");
-    row.className = `loan-row tier-${tier}`;
+    row.className = `loan-row tier-${tier}` + (selectedLoanIds.has(loan.id) ? " scope-selected" : "");
     row.dataset.loanId = loan.id;
+    // The row toggles this loan's filter, so it is a control, not a div that
+    // happens to be clickable: Tab reaches it and Enter/Space work (§FOCUS).
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-pressed", selectedLoanIds.has(loan.id) ? "true" : "false");
+    row.setAttribute("aria-label", `Filter by ${loan.name}`);
     row.innerHTML = `
       <div class="loan-row-main">
         <div class="loan-row-info">
@@ -5401,21 +6229,87 @@ function renderLoansList(projections) {
   });
 }
 
-function populateLoanSelector() {
-  const sel = el("loanSelector");
-  sel.innerHTML = "";
-  const allOpt = document.createElement("option");
-  allOpt.value = "all";
-  allOpt.textContent = "All Loans";
-  sel.appendChild(allOpt);
-  allLoans.forEach(loan => {
-    const o = document.createElement("option");
-    o.value = loan.id;
-    o.textContent = loan.name;
-    sel.appendChild(o);
+// One pinned filter chip. The name goes in as a text node — loan and
+// investment names are user input and must never be parsed as markup. The ×
+// is the app's standard stroke-icon vocabulary, drawn on the same 24-unit grid
+// as every other icon in the file.
+function buildScopeChip({ label, closed, dataKey, id }) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "scope-chip" + (closed ? " scope-chip-closed" : "");
+  chip.dataset[dataKey] = id;
+  chip.title = `Remove ${label} from the filter`;
+  chip.appendChild(document.createTextNode(label));
+  chip.insertAdjacentHTML("beforeend",
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>');
+  return chip;
+}
+
+// Fills a scope picker with everything not already pinned. The trigger always
+// reads as "add another", never as a stale answer to "what's selected?" — that
+// question belongs to the chips.
+function fillScopePicker(prefix, options, { emptyLabel, addLabel }) {
+  const menu = el(prefix + "Menu");
+  menu.innerHTML = "";
+  options.forEach(({ id, label }) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "scope-menu-item";
+    item.setAttribute("role", "option");
+    item.dataset.pickId = id;
+    item.textContent = label;   // names are user input — never parsed as markup
+    menu.appendChild(item);
   });
-  if (selectedLoanId && !allLoans.some(l => l.id === selectedLoanId)) selectedLoanId = null;
-  sel.value = selectedLoanId || "all";
+  el(prefix + "TriggerLabel").textContent = options.length > 0 ? addLabel : emptyLabel;
+  const trigger = el(prefix + "Trigger");
+  trigger.disabled = options.length === 0;
+  if (options.length === 0) setScopeMenuOpen(prefix, false);
+}
+
+// Open/close for a scope menu, mirroring the Export menu's behaviour.
+function setScopeMenuOpen(prefix, open) {
+  el(prefix + "Menu").classList.toggle("hidden", !open);
+  el(prefix + "Trigger").setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+// Wires one scope picker: toggle on the trigger, pick from the menu, and the
+// two dismissals every menu needs — outside click and Escape.
+function wireScopePicker(prefix, onPick) {
+  el(prefix + "Trigger").addEventListener("click", (e) => {
+    e.stopPropagation();
+    setScopeMenuOpen(prefix, el(prefix + "Menu").classList.contains("hidden"));
+  });
+  el(prefix + "Menu").addEventListener("click", (e) => {
+    const item = e.target.closest(".scope-menu-item");
+    if (!item) return;
+    setScopeMenuOpen(prefix, false);
+    onPick(item.dataset.pickId);
+  });
+  document.addEventListener("click", (e) => {
+    if (!el(prefix + "Picker").contains(e.target)) setScopeMenuOpen(prefix, false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setScopeMenuOpen(prefix, false);
+  });
+}
+
+function renderLoanScopeChips() {
+  pruneLoanScope();
+
+  fillScopePicker(
+    "loanScope",
+    allLoans.filter(l => !selectedLoanIds.has(l.id)).map(l => ({ id: l.id, label: l.name })),
+    { addLabel: selectedLoanIds.size === 0 ? "All loans" : "Add a loan…", emptyLabel: "All loans selected" }
+  );
+
+  const wrap = el("loanScopeChips");
+  wrap.innerHTML = "";
+  allLoans.filter(l => selectedLoanIds.has(l.id)).forEach(loan => {
+    wrap.appendChild(buildScopeChip({ label: loan.name, dataKey: "loanId", id: loan.id }));
+  });
+
+  el("loanScopeClear").classList.toggle("hidden", selectedLoanIds.size === 0);
 }
 
 function renderLoanBars(projections) {
@@ -6047,14 +6941,31 @@ function wireLoanEvents() {
     renderPaymentHistoryTable();
   });
 
-  el("loanSelector").addEventListener("change", () => {
-    selectedLoanId = el("loanSelector").value === "all" ? null : el("loanSelector").value;
-    paymentHistoryShowAll = false; // new scope → start collapsed
-    const projections = computeAllLoanProjections();
-    renderLoanBars(projections);
-    renderLoanChart(projections);
-    renderPerLoanChart(projections);
-    renderPaymentHistoryTable();
+  wireScopePicker("loanScope", (id) => {
+    selectedLoanIds.add(id);
+    applyLoanScopeChange();
+  });
+
+  el("loanScopeChips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".scope-chip");
+    if (!chip) return;
+    selectedLoanIds.delete(chip.dataset.loanId);
+    applyLoanScopeChange();
+  });
+
+  el("loanScopeClear").addEventListener("click", () => {
+    selectedLoanIds.clear();
+    applyLoanScopeChange();
+  });
+
+  // Enter/Space on a focused row does what a click does. Space is prevented
+  // first so the page doesn't scroll underneath the selection.
+  el("loansList").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest(".loan-row");
+    if (!row || e.target.closest(".icon-btn")) return;
+    e.preventDefault();
+    toggleLoanScope(row.dataset.loanId);
   });
 
   el("loansList").addEventListener("click", (e) => {
@@ -6069,14 +6980,9 @@ function wireLoanEvents() {
       else if (btn.dataset.action === "log-payment") openPaymentModalForAdd(id);
       return;
     }
-    selectedLoanId = id;
-    el("loanSelector").value = id;
-    paymentHistoryShowAll = false; // new scope → start collapsed
-    const projections = computeAllLoanProjections();
-    renderLoanBars(projections);
-    renderLoanChart(projections);
-    renderPerLoanChart(projections);
-    renderPaymentHistoryTable();
+    // Clicking a row toggles it, same as its chip — so a selected row can be
+    // removed from the scope by clicking it again.
+    toggleLoanScope(id);
   });
 
   el("paymentHistoryTableBody").addEventListener("click", (e) => {
@@ -6085,6 +6991,1706 @@ function wireLoanEvents() {
     const id = btn.dataset.paymentId;
     if (btn.dataset.action === "edit") openPaymentModalForEdit(id);
     else if (btn.dataset.action === "delete") handleDeleteLoanPayment(id);
+  });
+}
+
+/* ============================================================
+   INVESTMENTS — DATA MODEL (§INVEST)
+   ------------------------------------------------------------
+   Three sheets, same Golden-Rule discipline as everywhere else:
+   the raw sheet rows + original header order are what writes are
+   rebuilt from, and these normalized views exist only for
+   rendering and arithmetic.
+   ============================================================ */
+function generateInvestmentId() { return `inv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`; }
+function generateFlowId()       { return `flow_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`; }
+function generateValuationId()  { return `val_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`; }
+
+function normalizeInvestmentRow(raw) {
+  const id = String(raw["Investment ID"] || "").trim();
+  const name = String(raw["Name"] || "").trim();
+  const type = String(raw["Type"] || "").trim() || "Other";
+  // Expected return is allowed to be negative (you can expect a loss), so
+  // "blank means not set" is the only special case. Deliberately NOT
+  // parseOptionalNumber: that rounds to 2 decimals for money, which would
+  // quietly drop the precision this field is allowed to carry (§INVEST-RATE).
+  const expectedRaw = raw["Expected Annual Return"];
+  const expectedParsed = round4(parseFloat(expectedRaw));
+  const expected = (expectedRaw === "" || expectedRaw == null || !isFinite(parseFloat(expectedRaw)))
+    ? null : expectedParsed;
+  const startDate = normalizeDateValue(raw["Start Date"]) || null;
+  const rawStatus = String(raw["Status"] || "").trim();
+  const status = rawStatus.toLowerCase() === INVESTMENT_STATUS_CLOSED.toLowerCase()
+    ? INVESTMENT_STATUS_CLOSED : INVESTMENT_STATUS_ACTIVE;
+  const closedDate = normalizeDateValue(raw["Closed Date"]) || null;
+  return {
+    id, name, type,
+    expectedReturn: expected == null ? 0 : expected,
+    hasExpectedReturn: expected != null,
+    startDate,
+    status,
+    closedDate,
+    notes: String(raw["Notes"] || "").trim(),
+    lastUpdated: normalizeDateValue(raw["Last Updated"]) || todayISO()
+  };
+}
+
+function investmentToRawRow(inv) {
+  return {
+    "Investment ID": inv.id,
+    "Name": inv.name,
+    "Type": inv.type,
+    "Expected Annual Return": inv.hasExpectedReturn === false ? "" : inv.expectedReturn,
+    "Start Date": inv.startDate == null ? "" : inv.startDate,
+    "Status": inv.status,
+    "Closed Date": inv.closedDate == null ? "" : inv.closedDate,
+    "Notes": inv.notes,
+    "Last Updated": inv.lastUpdated
+  };
+}
+
+function normalizeInvestmentFlowRow(raw) {
+  // Whole numbers (§INVEST-WHOLE). Rounding here, at the boundary, means the
+  // engine only ever does integer arithmetic — so a fractional amount left in
+  // an older file (or typed straight into Excel) is read as the nearest whole
+  // number rather than quietly making a total disagree with its rows. The raw
+  // sheet row is untouched until that entry is actually edited.
+  const amount = round0(parseFloat(raw["Amount"]));
+  // Amount is stored positive with the sign carried by Direction, but a file
+  // hand-edited in Excel could still hold a negative — read that as the
+  // withdrawal it obviously means rather than letting it corrupt the running
+  // value, and normalize the magnitude.
+  const rawDirection = String(raw["Direction"] || "").trim().toLowerCase();
+  const negative = isFinite(amount) && amount < 0;
+  const direction = (rawDirection === INVESTMENT_WITHDRAWAL.toLowerCase() || negative)
+    ? INVESTMENT_WITHDRAWAL : INVESTMENT_DEPOSIT;
+  return {
+    id: String(raw["Flow ID"] || "").trim(),
+    investmentId: String(raw["Investment ID"] || "").trim(),
+    date: normalizeDateValue(raw["Date"]),
+    direction,
+    amount: isFinite(amount) ? Math.abs(amount) : 0,
+    notes: String(raw["Notes"] || "").trim(),
+    lastUpdated: normalizeDateValue(raw["Last Updated"]) || normalizeDateValue(raw["Date"]) || todayISO()
+  };
+}
+
+function investmentFlowToRawRow(f) {
+  return {
+    "Flow ID": f.id,
+    "Investment ID": f.investmentId,
+    "Date": f.date,
+    "Direction": f.direction,
+    "Amount": f.amount,
+    "Notes": f.notes,
+    "Last Updated": f.lastUpdated
+  };
+}
+
+function normalizeInvestmentValuationRow(raw) {
+  const value = round0(parseFloat(raw["Value"])); // whole numbers — see normalizeInvestmentFlowRow
+  return {
+    id: String(raw["Valuation ID"] || "").trim(),
+    investmentId: String(raw["Investment ID"] || "").trim(),
+    date: normalizeDateValue(raw["Date"]),
+    value: isFinite(value) ? value : 0,
+    notes: String(raw["Notes"] || "").trim(),
+    lastUpdated: normalizeDateValue(raw["Last Updated"]) || normalizeDateValue(raw["Date"]) || todayISO()
+  };
+}
+
+function investmentValuationToRawRow(v) {
+  return {
+    "Valuation ID": v.id,
+    "Investment ID": v.investmentId,
+    "Date": v.date,
+    "Value": v.value,
+    "Notes": v.notes,
+    "Last Updated": v.lastUpdated
+  };
+}
+
+// Rebuilds the three normalized views from the raw rows. A row missing its ID,
+// its parent investment link, or its date is dropped from the view but LEFT
+// UNTOUCHED in the raw rows, so it still round-trips to the file intact.
+function renormalizeInvestments() {
+  allInvestments = rawInvestmentRows.map(normalizeInvestmentRow).filter(i => i.id && i.name);
+  allInvestmentFlows = rawInvestmentFlowRows.map(normalizeInvestmentFlowRow).filter(f => f.id && f.investmentId && f.date);
+  allInvestmentValuations = rawInvestmentValuationRows.map(normalizeInvestmentValuationRow).filter(v => v.id && v.investmentId && v.date);
+}
+
+function resetInvestmentState() {
+  rawInvestmentRows = [];           sourceInvestmentHeader = INVESTMENT_COLUMNS.slice();
+  rawInvestmentFlowRows = [];       sourceInvestmentFlowHeader = INVESTMENT_FLOW_COLUMNS.slice();
+  rawInvestmentValuationRows = [];  sourceInvestmentValuationHeader = INVESTMENT_VALUATION_COLUMNS.slice();
+  allInvestments = []; allInvestmentFlows = []; allInvestmentValuations = [];
+  selectedInvestmentIds.clear();
+  investmentActivityShowAll = false;
+}
+
+// Shared by every load path (open / re-read / import) so they can't drift apart.
+function adoptInvestmentSheets(parsed) {
+  sourceInvestmentHeader = parsed.investmentHeader;
+  rawInvestmentRows = parsed.investmentRows;
+  sourceInvestmentFlowHeader = parsed.investmentFlowHeader;
+  rawInvestmentFlowRows = parsed.investmentFlowRows;
+  sourceInvestmentValuationHeader = parsed.investmentValuationHeader;
+  rawInvestmentValuationRows = parsed.investmentValuationRows;
+  renormalizeInvestments();
+}
+
+function findRawInvestmentIndex(rows, id) { return rows.findIndex(r => String(r["Investment ID"] || "").trim() === id); }
+function findRawFlowIndex(rows, id)       { return rows.findIndex(r => String(r["Flow ID"] || "").trim() === id); }
+function findRawValuationIndex(rows, id)  { return rows.findIndex(r => String(r["Valuation ID"] || "").trim() === id); }
+
+/* ============================================================
+   INVESTMENTS — THE VALUE ENGINE (§INVEST)
+   ------------------------------------------------------------
+   One function computes everything: buildInvestmentTimeline walks
+   an investment's flows and valuations in date order and carries a
+   running "what it's worth" and "what you've net put in". Every
+   other figure on the tab — today's value, the charts, the Activity
+   table's "Worth after" column, the withdrawal limit — reads off
+   that same walk, so no two places can ever disagree.
+
+   The two rules the walk encodes:
+     • A VALUATION sets the value outright. It's a statement
+       reading; it supersedes whatever we'd computed up to then.
+     • A FLOW moves the value by its amount, and moves the cost
+       basis by the same amount. Money you add is not profit.
+
+   Ordering when two entries share a DATE is the subtle part, and a
+   fixed "flows first" or "valuations first" rule gets one of these
+   two everyday cases wrong:
+     • Deposit 1,000 today, then read the statement showing 6,000 →
+       the valuation must win, or the deposit gets counted twice.
+     • Record 13,500 today, then withdraw 3,500 → the withdrawal
+       must apply after, or it silently disappears.
+   So same-date entries are ordered by when they were actually
+   LOGGED: the later-recorded fact is the later fact. Both ID
+   generators embed Date.now(), which makes that recoverable without
+   adding a column. A row typed straight into Excel has no such
+   timestamp; those fall back to flows-then-valuation, which is the
+   right reading of a hand-written sheet where the valuation is the
+   day's closing figure.
+   ============================================================ */
+// Creation time recovered from an app-generated ID ("flow_1723459200000_x7k").
+// null for anything not generated by this app.
+function entryCreationOrder(id) {
+  const m = /^(?:flow|val)_(\d+)_/.exec(String(id || ""));
+  return m ? Number(m[1]) : null;
+}
+function investmentFlowsFor(id) {
+  return allInvestmentFlows.filter(f => f.investmentId === id);
+}
+function investmentValuationsFor(id) {
+  return allInvestmentValuations.filter(v => v.investmentId === id);
+}
+
+function buildInvestmentTimeline(flows, valuations) {
+  const entries = [
+    ...flows.map(f => ({ kind: "flow", date: f.date, seq: 0, logged: entryCreationOrder(f.id), ref: f })),
+    ...valuations.map(v => ({ kind: "valuation", date: v.date, seq: 1, logged: entryCreationOrder(v.id), ref: v }))
+  ];
+  entries.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    // Same date: whichever was logged later happened later. Only when a
+    // timestamp is missing (a hand-written row) does the kind decide.
+    if (a.logged != null && b.logged != null && a.logged !== b.logged) return a.logged - b.logged;
+    return a.seq - b.seq;
+  });
+  let value = 0, cost = 0;
+  entries.forEach(e => {
+    if (e.kind === "valuation") {
+      value = e.ref.value;
+    } else {
+      const signed = e.ref.direction === INVESTMENT_WITHDRAWAL ? -e.ref.amount : e.ref.amount;
+      value = round0(value + signed);
+      cost = round0(cost + signed);
+    }
+    e.valueAfter = value;
+    e.costAfter = cost;
+  });
+  return entries;
+}
+
+// Value and cost basis as of the end of `iso`. Entries dated after it simply
+// haven't happened yet from this point of view — which is exactly what the
+// over-time charts need.
+function investmentStateAt(timeline, iso) {
+  let value = 0, cost = 0, sawAny = false;
+  for (const e of timeline) {
+    if (e.date > iso) break;
+    value = e.valueAfter;
+    cost = e.costAfter;
+    sawAny = true;
+  }
+  return { value, cost, sawAny };
+}
+
+// Money-weighted annual return (XIRR), solved by bisection. Money-weighted
+// rather than time-weighted because this app tracks YOUR money: a deposit made
+// right before a good year should count for more than one made at the end, and
+// that's what the user means by "how is this doing".
+// Returns null — not a misleading zero — whenever the answer wouldn't be
+// honest: too little history to annualize, no gain/loss to measure, or a rate
+// so extreme the solve doesn't bracket.
+function xirrAnnualPercent(cashflows) {
+  if (cashflows.length < 2) return null;
+  const times = cashflows.map(c => dateFromISO(c.date).getTime());
+  const t0 = Math.min(...times);
+  const spanDays = (Math.max(...times) - t0) / 86400000;
+  if (spanDays < 30) return null; // annualizing a three-week-old position is noise, not information
+  if (!cashflows.some(c => c.amount < 0) || !cashflows.some(c => c.amount > 0)) return null;
+
+  const years = times.map(t => (t - t0) / (86400000 * 365.25));
+  const npv = (r) => cashflows.reduce((s, c, i) => s + c.amount / Math.pow(1 + r, years[i]), 0);
+
+  let lo = -0.9999, hi = 10;
+  const nLo = npv(lo), nHi = npv(hi);
+  if (!isFinite(nLo) || !isFinite(nHi) || (nLo > 0) === (nHi > 0)) return null; // root not bracketed
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    const nMid = npv(mid);
+    if ((nMid > 0) === (nLo > 0)) lo = mid; else hi = mid;
+  }
+  return round1(((lo + hi) / 2) * 100);
+}
+
+// Everything the UI needs about one investment, derived in a single pass.
+function computeInvestmentStats(inv) {
+  const flows = investmentFlowsFor(inv.id);
+  const valuations = investmentValuationsFor(inv.id);
+  const timeline = buildInvestmentTimeline(flows, valuations);
+  const asOf = inv.status === INVESTMENT_STATUS_CLOSED && inv.closedDate ? inv.closedDate : todayISO();
+  // An entry dated in the future (a deposit scheduled ahead, say) should still
+  // count toward what you hold — so read the END of the timeline, not `asOf`,
+  // for the headline figures.
+  const last = timeline.length > 0 ? timeline[timeline.length - 1] : null;
+  const currentValue = last ? Math.max(0, last.valueAfter) : 0;
+  const netInvested = last ? last.costAfter : 0;
+
+  const deposited = round0(flows.filter(f => f.direction === INVESTMENT_DEPOSIT).reduce((s, f) => s + f.amount, 0));
+  const withdrawn = round0(flows.filter(f => f.direction === INVESTMENT_WITHDRAWAL).reduce((s, f) => s + f.amount, 0));
+
+  // Profit is value-now plus anything already taken out, less everything put
+  // in. Written this way it stays correct for a partly- or fully-cashed-out
+  // investment, where "value − net invested" alone would understate it.
+  const gain = round0(currentValue + withdrawn - deposited);
+  const gainPercent = deposited > 0 ? round1((gain / deposited) * 100) : 0;
+
+  // "Estimated" = money has moved since the last statement reading, so what
+  // we're showing is last-known-value ± your own deposits, not a real market
+  // figure. Surfaced on the card so the number is never over-trusted.
+  // Read off the TIMELINE, not off dates: a withdrawal logged after a
+  // valuation on the same day still leaves the value an estimate, and a plain
+  // date comparison would miss exactly that case.
+  let lastValuation = null, isEstimated = false;
+  timeline.forEach(e => {
+    if (e.kind === "valuation") { lastValuation = e.ref; isEstimated = false; }
+    else isEstimated = true;
+  });
+
+  const cashflows = flows.map(f => ({
+    date: f.date,
+    amount: f.direction === INVESTMENT_DEPOSIT ? -f.amount : f.amount
+  }));
+  if (currentValue > 0) cashflows.push({ date: asOf, amount: currentValue });
+  const annualReturn = xirrAnnualPercent(cashflows);
+
+  // What the ranking sorts on. The annualized figure when it's trustworthy,
+  // otherwise the plain total return — labelled differently on the card so the
+  // two are never mistaken for each other.
+  const rankReturn = annualReturn != null ? annualReturn : gainPercent;
+
+  return {
+    investment: inv, timeline, flows, valuations,
+    currentValue, netInvested, deposited, withdrawn,
+    gain, gainPercent,
+    lastValuation, isEstimated,
+    annualReturn, rankReturn,
+    firstFlowDate: flows.length > 0 ? timeline.find(e => e.kind === "flow").date : null,
+    // vs. expectation: positive means it's beating what you expected of it.
+    vsExpected: annualReturn != null && inv.hasExpectedReturn ? round1(annualReturn - inv.expectedReturn) : null
+  };
+}
+
+function computeAllInvestmentStats() {
+  const map = {};
+  allInvestments.forEach(inv => { map[inv.id] = computeInvestmentStats(inv); });
+  return map;
+}
+
+function returnTierForPercent(pct) {
+  for (const band of RETURN_BANDS) {
+    if (pct >= band.min) return band.tier;
+  }
+  return "losing";
+}
+
+// The investments currently in view: closed ones only when asked for, and
+// narrowed to one when the scope selector picks it. Closed investments are
+// excluded from every portfolio total — their money isn't invested any more.
+function visibleInvestments() {
+  return allInvestments.filter(inv =>
+    inv.status === INVESTMENT_STATUS_ACTIVE || showClosedInvestments);
+}
+
+function selectedInvestmentsSet() {
+  const visible = visibleInvestments();
+  if (selectedInvestmentIds.size === 0) return visible;
+  const picked = visible.filter(i => selectedInvestmentIds.has(i.id));
+  return picked.length > 0 ? picked : visible;
+}
+
+// Mirror of pruneLoanScope, with one extra job: an investment hidden by the
+// "show closed" toggle is no longer selectable, so it drops out of the scope
+// too rather than filtering the tab to something the user can't see or undo.
+function pruneInvestmentScope() {
+  const visible = visibleInvestments();
+  selectedInvestmentIds.forEach(id => {
+    if (!visible.some(i => i.id === id)) selectedInvestmentIds.delete(id);
+  });
+}
+
+// The single selected investment, when there's exactly one — used to pre-fill
+// the "Deposit / Withdraw" and "Update Value" buttons. With none or several
+// selected there's no unambiguous answer, so the modal asks.
+function soleSelectedInvestmentId() {
+  return selectedInvestmentIds.size === 1 ? [...selectedInvestmentIds][0] : null;
+}
+
+// Best-to-worst, the mirror of sortedLoansForRanking: closed investments sink
+// to the bottom (they carry no more upside), everyone else by realized return.
+function sortedInvestmentsForRanking(stats) {
+  return visibleInvestments().slice().sort((a, b) => {
+    const closedA = a.status === INVESTMENT_STATUS_CLOSED, closedB = b.status === INVESTMENT_STATUS_CLOSED;
+    if (closedA !== closedB) return closedA ? 1 : -1;
+    return stats[b.id].rankReturn - stats[a.id].rankReturn;
+  });
+}
+
+// The most that can be withdrawn from an investment on `iso` without driving
+// its value — then or at any later point on its timeline — below zero. The
+// mirror of checkLoanPaymentFits: you can't take out money that isn't there.
+// `excludeFlowId` lets an EDIT measure against the timeline without its own
+// old version in it.
+function maxWithdrawableAt(investmentId, iso, excludeFlowId) {
+  const flows = investmentFlowsFor(investmentId).filter(f => f.id !== (excludeFlowId || ""));
+  const valuations = investmentValuationsFor(investmentId);
+  const timeline = buildInvestmentTimeline(flows, valuations);
+  const atDate = investmentStateAt(timeline, iso).value;
+  // A later valuation restates the value outright, so anything after the next
+  // one is not constrained by today's withdrawal. Only the stretch up to that
+  // next valuation has to stay solvent.
+  const nextValuation = valuations
+    .filter(v => v.date > iso)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+  let worstAhead = atDate;
+  let running = atDate;
+  timeline.forEach(e => {
+    if (e.date <= iso) return;
+    if (nextValuation && e.date > nextValuation.date) return;
+    if (e.kind === "valuation") return;
+    running = round0(running + (e.ref.direction === INVESTMENT_WITHDRAWAL ? -e.ref.amount : e.ref.amount));
+    if (running < worstAhead) worstAhead = running;
+  });
+  return Math.max(0, round0(worstAhead));
+}
+
+/* ============================================================
+   INVESTMENTS — CRUD (§INVEST)
+   Every mutation goes through saveWithFreshMerge, so it lands on
+   the freshest on-disk state rather than this tab's snapshot.
+   ============================================================ */
+async function saveInvestmentChange(mutate, failureMessage) {
+  try {
+    await saveWithFreshMerge(mutate);
+    refreshInvestmentsModule();
+    return true;
+  } catch (err) {
+    console.error(err);
+    if (!SILENT_SAVE_ERRORS.has(err.message)) {
+      setNotice("statusNotice", `${failureMessage} &mdash; click “Open data folder” to reconnect and try again.`, true);
+    }
+    return false;
+  }
+}
+
+// Registering an investment and putting the first money into it are one action
+// for the user, so they're one atomic save here too — a crash between them
+// can't leave an investment with no opening deposit.
+async function appendInvestment(inv, initialFlow, initialValuation) {
+  return saveInvestmentChange(state => {
+    state.rawInvestmentRows.push(investmentToRawRow(inv));
+    if (initialFlow) state.rawInvestmentFlowRows.push(investmentFlowToRawRow(initialFlow));
+    if (initialValuation) state.rawInvestmentValuationRows.push(investmentValuationToRawRow(initialValuation));
+  }, "Couldn't save your investment");
+}
+
+async function updateInvestment(id, fields) {
+  let found = true;
+  const ok = await saveInvestmentChange(state => {
+    const idx = findRawInvestmentIndex(state.rawInvestmentRows, id);
+    if (idx === -1) { found = false; return; }
+    const prev = normalizeInvestmentRow(state.rawInvestmentRows[idx]);
+    const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
+    state.rawInvestmentRows[idx] = Object.assign({}, state.rawInvestmentRows[idx], investmentToRawRow(updated));
+  }, "Couldn't update your investment");
+  if (ok && !found) {
+    setNotice("statusNotice", "That investment no longer exists &mdash; it may have been deleted from another session. The list has been refreshed.", true);
+  }
+  return ok && found;
+}
+
+// Deleting takes the investment's whole history with it — its flows and
+// valuations have nothing left to belong to. Nothing in Transactions is
+// touched, because nothing here was ever written there.
+async function deleteInvestment(id) {
+  return saveInvestmentChange(state => {
+    const idx = findRawInvestmentIndex(state.rawInvestmentRows, id);
+    if (idx === -1) return;
+    state.rawInvestmentRows.splice(idx, 1);
+    state.rawInvestmentFlowRows = state.rawInvestmentFlowRows.filter(r => String(r["Investment ID"] || "").trim() !== id);
+    state.rawInvestmentValuationRows = state.rawInvestmentValuationRows.filter(r => String(r["Investment ID"] || "").trim() !== id);
+    selectedInvestmentIds.delete(id);
+  }, "Couldn't delete your investment");
+}
+
+async function appendInvestmentFlow(flow) {
+  return saveInvestmentChange(state => {
+    state.rawInvestmentFlowRows.push(investmentFlowToRawRow(flow));
+  }, "Couldn't save that deposit/withdrawal");
+}
+
+async function updateInvestmentFlow(id, fields) {
+  return saveInvestmentChange(state => {
+    const idx = findRawFlowIndex(state.rawInvestmentFlowRows, id);
+    if (idx === -1) return;
+    const prev = normalizeInvestmentFlowRow(state.rawInvestmentFlowRows[idx]);
+    const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
+    state.rawInvestmentFlowRows[idx] = Object.assign({}, state.rawInvestmentFlowRows[idx], investmentFlowToRawRow(updated));
+  }, "Couldn't update that entry");
+}
+
+async function deleteInvestmentFlow(id) {
+  return saveInvestmentChange(state => {
+    const idx = findRawFlowIndex(state.rawInvestmentFlowRows, id);
+    if (idx !== -1) state.rawInvestmentFlowRows.splice(idx, 1);
+  }, "Couldn't delete that entry");
+}
+
+async function appendInvestmentValuation(val) {
+  return saveInvestmentChange(state => {
+    state.rawInvestmentValuationRows.push(investmentValuationToRawRow(val));
+  }, "Couldn't save that value");
+}
+
+async function updateInvestmentValuation(id, fields) {
+  return saveInvestmentChange(state => {
+    const idx = findRawValuationIndex(state.rawInvestmentValuationRows, id);
+    if (idx === -1) return;
+    const prev = normalizeInvestmentValuationRow(state.rawInvestmentValuationRows[idx]);
+    const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
+    state.rawInvestmentValuationRows[idx] = Object.assign({}, state.rawInvestmentValuationRows[idx], investmentValuationToRawRow(updated));
+  }, "Couldn't update that value");
+}
+
+async function deleteInvestmentValuation(id) {
+  return saveInvestmentChange(state => {
+    const idx = findRawValuationIndex(state.rawInvestmentValuationRows, id);
+    if (idx !== -1) state.rawInvestmentValuationRows.splice(idx, 1);
+  }, "Couldn't delete that value");
+}
+
+// Cashing out (§INVEST-CLOSE): the final withdrawal and the archive flag are
+// one save, so an investment can never be left marked closed while the money
+// it held is still on the books (or the reverse).
+async function closeInvestment(id, { date, amount, notes }) {
+  return saveInvestmentChange(state => {
+    const idx = findRawInvestmentIndex(state.rawInvestmentRows, id);
+    if (idx === -1) return;
+    if (amount > 0) {
+      state.rawInvestmentFlowRows.push(investmentFlowToRawRow({
+        id: generateFlowId(), investmentId: id, date,
+        direction: INVESTMENT_WITHDRAWAL, amount: round0(amount),
+        notes: notes || "Cashed out — investment closed", lastUpdated: todayISO()
+      }));
+    }
+    // A closing valuation of 0 pins the investment's value at zero from this
+    // date on, so a stale earlier reading can't make a closed investment look
+    // like it still holds money.
+    state.rawInvestmentValuationRows.push(investmentValuationToRawRow({
+      id: generateValuationId(), investmentId: id, date, value: 0,
+      notes: "Closed", lastUpdated: todayISO()
+    }));
+    const prev = normalizeInvestmentRow(state.rawInvestmentRows[idx]);
+    const updated = Object.assign({}, prev, {
+      status: INVESTMENT_STATUS_CLOSED, closedDate: date, lastUpdated: todayISO()
+    });
+    state.rawInvestmentRows[idx] = Object.assign({}, state.rawInvestmentRows[idx], investmentToRawRow(updated));
+  }, "Couldn't close that investment");
+}
+
+// Undo of the above, for a close logged by mistake. It removes only the two
+// rows closing writes (the zero valuation and, if it matches, the closing
+// withdrawal) — never any real history logged before them.
+async function reopenInvestment(id) {
+  return saveInvestmentChange(state => {
+    const idx = findRawInvestmentIndex(state.rawInvestmentRows, id);
+    if (idx === -1) return;
+    const prev = normalizeInvestmentRow(state.rawInvestmentRows[idx]);
+    const closedOn = prev.closedDate;
+    if (closedOn) {
+      state.rawInvestmentValuationRows = state.rawInvestmentValuationRows.filter(r => {
+        const v = normalizeInvestmentValuationRow(r);
+        return !(v.investmentId === id && v.date === closedOn && v.value === 0 && v.notes === "Closed");
+      });
+      state.rawInvestmentFlowRows = state.rawInvestmentFlowRows.filter(r => {
+        const f = normalizeInvestmentFlowRow(r);
+        return !(f.investmentId === id && f.date === closedOn && f.notes === "Cashed out — investment closed");
+      });
+    }
+    const updated = Object.assign({}, prev, {
+      status: INVESTMENT_STATUS_ACTIVE, closedDate: null, lastUpdated: todayISO()
+    });
+    state.rawInvestmentRows[idx] = Object.assign({}, state.rawInvestmentRows[idx], investmentToRawRow(updated));
+  }, "Couldn't reopen that investment");
+}
+
+/* ============================================================
+   INVESTMENTS — RENDERING (§INVEST)
+   ============================================================ */
+function refreshInvestmentsModule() {
+  if (allInvestments.length === 0) {
+    show("investmentsEmpty");
+    hide("investmentsContent");
+    renderInvestmentScopeChips();
+    return;
+  }
+  hide("investmentsEmpty");
+  show("investmentsContent");
+
+  const stats = computeAllInvestmentStats();
+  renderInvestmentsList(stats);
+  renderInvestmentScopeChips();
+  renderInvestmentSummary(stats);
+  renderInvestmentBars(stats);
+  renderInvestmentProjection(stats);
+  renderInvestmentChart(stats);
+  renderPerInvestmentChart(stats);
+  renderInvestmentAllocation(stats);
+  renderInvestmentActivityTable();
+  syncInvestmentClosedToggle();
+}
+
+function syncInvestmentClosedToggle() {
+  const closedCount = allInvestments.filter(i => i.status === INVESTMENT_STATUS_CLOSED).length;
+  el("investShowClosed").checked = showClosedInvestments;
+  el("investClosedToggleWrap").classList.toggle("hidden", closedCount === 0);
+  el("investClosedToggleLabel").textContent =
+    `Show closed investment${closedCount === 1 ? "" : "s"} (${closedCount})`;
+}
+
+function investmentReturnLabel(s) {
+  if (s.annualReturn != null) return { value: `${formatPercent1(s.annualReturn)}%`, label: " per year" };
+  if (s.deposited > 0) return { value: `${formatPercent1(s.gainPercent)}%`, label: " so far" };
+  return { value: "—", label: "" };
+}
+
+function renderInvestmentsList(stats) {
+  const list = el("investmentsList");
+  list.innerHTML = "";
+  // Follows the scope, exactly as the Loans list does (§SCOPE-MULTI).
+  const scopeIds = new Set(selectedInvestmentsSet().map(i => i.id));
+  sortedInvestmentsForRanking(stats).filter(i => scopeIds.has(i.id)).forEach(inv => {
+    const s = stats[inv.id];
+    const isClosed = inv.status === INVESTMENT_STATUS_CLOSED;
+    const tier = isClosed ? "closed" : returnTierForPercent(s.rankReturn);
+    const gainClass = s.gain > 0.005 ? "up" : s.gain < -0.005 ? "down" : "flat";
+    const gainSign = s.gain > 0 ? "+" : "";
+
+    const badges = [`<span class="invest-badge type">${escapeHtml(inv.type)}</span>`];
+    if (isClosed) badges.push('<span class="invest-badge closed">Closed</span>');
+    else if (s.isEstimated) {
+      const since = s.lastValuation ? `no new value since ${friendlyDate(s.lastValuation.date)}` : "no value recorded yet";
+      badges.push(`<span class="invest-badge estimated" title="Worth-now is your last recorded value adjusted by the money you've moved since — ${since}.">Estimated</span>`);
+    }
+
+    // One plain-language line saying how it's actually doing, in the same slot
+    // the Loans tab uses for "this will cost you +X% in interest".
+    let verdict;
+    if (isClosed) {
+      verdict = s.gain >= 0
+        ? `Closed ${inv.closedDate ? "on " + friendlyDate(inv.closedDate) : ""} — walked away ${formatWholeMoney(s.gain)} ahead.`
+        : `Closed ${inv.closedDate ? "on " + friendlyDate(inv.closedDate) : ""} — ended ${formatWholeMoney(Math.abs(s.gain))} down.`;
+    } else if (s.deposited <= 0) {
+      verdict = "No money in it yet — log a deposit to start tracking.";
+    } else if (s.vsExpected != null && s.vsExpected >= 0.05) {
+      verdict = `Beating your ${formatRate(inv.expectedReturn)}%/yr expectation by ${formatPercent1(s.vsExpected)} points.`;
+    } else if (s.vsExpected != null && s.vsExpected <= -0.05) {
+      verdict = `Behind your ${formatRate(inv.expectedReturn)}%/yr expectation by ${formatPercent1(Math.abs(s.vsExpected))} points.`;
+    } else if (s.annualReturn != null) {
+      verdict = `Running right about at your ${formatRate(inv.expectedReturn)}%/yr expectation.`;
+    } else {
+      verdict = `Too new to judge a yearly rate yet — expecting ${formatRate(inv.expectedReturn)}%/yr.`;
+    }
+
+    const ret = investmentReturnLabel(s);
+    const metaBits = [
+      `Put in ${formatWholeMoney(s.deposited)}`,
+      s.withdrawn > 0 ? `took out ${formatWholeMoney(s.withdrawn)}` : null,
+      s.lastValuation ? `valued ${friendlyDate(s.lastValuation.date)}` : "never valued"
+    ].filter(Boolean);
+
+    const row = document.createElement("div");
+    row.className = `loan-row tier-${tier}` + (selectedInvestmentIds.has(inv.id) ? " scope-selected" : "");
+    row.dataset.investmentId = inv.id;
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-pressed", selectedInvestmentIds.has(inv.id) ? "true" : "false");
+    row.setAttribute("aria-label", `Filter by ${inv.name}`);
+    row.innerHTML = `
+      <div class="loan-row-main">
+        <div class="loan-row-info">
+          <div class="loan-row-name">${escapeHtml(inv.name)}${badges.join("")}</div>
+          <div class="loan-row-meta">${metaBits.join(" &middot; ")}</div>
+          <div class="loan-row-ratio">${verdict}</div>
+        </div>
+        <div class="invest-row-value">
+          <div class="invest-row-amount">${formatWholeMoney(s.currentValue)}</div>
+          <div class="invest-row-gain ${gainClass}">${gainSign}${formatWholeMoney(s.gain)} &middot; ${ret.value}${ret.label}</div>
+        </div>
+        <div class="loan-row-actions">
+          <button type="button" class="icon-btn" data-action="flow" aria-label="Deposit or withdraw" title="Deposit or withdraw"${isClosed ? " disabled" : ""}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v13M7 16l-3-3M7 16l3-3"/><path d="M17 21V8M17 8l-3 3M17 8l3 3"/></svg>
+          </button>
+          <button type="button" class="icon-btn" data-action="value" aria-label="Update value" title="Update what it's worth"${isClosed ? " disabled" : ""}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7h-5M21 7v5"/></svg>
+          </button>
+          <button type="button" class="icon-btn" data-action="${isClosed ? "reopen" : "close"}" aria-label="${isClosed ? "Reopen investment" : "Close investment"}" title="${isClosed ? "Reopen this investment" : "Cash out and close this investment"}">
+            ${isClosed
+              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
+              : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'}
+          </button>
+          <button type="button" class="icon-btn" data-action="edit" aria-label="Edit investment" title="Edit investment">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button type="button" class="icon-btn danger" data-action="delete" aria-label="Delete investment" title="Delete investment">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderInvestmentScopeChips() {
+  // A selection that's no longer visible (deleted elsewhere, or hidden by the
+  // closed toggle) drops out rather than leaving a dangling scope.
+  pruneInvestmentScope();
+  const visible = visibleInvestments();
+  const labelFor = (inv) => inv.status === INVESTMENT_STATUS_CLOSED ? `${inv.name} (closed)` : inv.name;
+
+  fillScopePicker(
+    "investScope",
+    visible.filter(i => !selectedInvestmentIds.has(i.id)).map(i => ({ id: i.id, label: labelFor(i) })),
+    {
+      addLabel: selectedInvestmentIds.size > 0 ? "Add an investment…"
+        : showClosedInvestments ? "All (incl. closed)" : "All investments",
+      emptyLabel: "All investments selected"
+    }
+  );
+
+  const wrap = el("investScopeChips");
+  wrap.innerHTML = "";
+  visible.filter(i => selectedInvestmentIds.has(i.id)).forEach(inv => {
+    wrap.appendChild(buildScopeChip({
+      label: labelFor(inv),
+      closed: inv.status === INVESTMENT_STATUS_CLOSED,
+      dataKey: "investmentId",
+      id: inv.id
+    }));
+  });
+
+  el("investScopeClear").classList.toggle("hidden", selectedInvestmentIds.size === 0);
+}
+
+// Portfolio totals across whatever's in scope. The blended return is a single
+// XIRR over EVERY in-scope cash flow — not an average of the per-investment
+// rates, which would weight a 50-unit position the same as a 50,000-unit one.
+function renderInvestmentSummary(stats) {
+  const scope = selectedInvestmentsSet();
+  const totalValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  const totalDeposited = round0(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
+  const totalWithdrawn = round0(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
+  const totalCost = round0(totalDeposited - totalWithdrawn);
+  const totalGain = round0(totalValue + totalWithdrawn - totalDeposited);
+  const gainPct = totalDeposited > 0 ? round1((totalGain / totalDeposited) * 100) : 0;
+
+  el("investTotalCost").textContent = formatWholeMoney(totalCost);
+  el("investTotalValue").textContent = formatWholeMoney(totalValue);
+
+  const gainEl = el("investTotalGain");
+  gainEl.textContent = `${totalGain > 0 ? "+" : ""}${formatWholeMoney(totalGain)}`;
+  gainEl.classList.toggle("positive", totalGain > 0.005);
+  gainEl.classList.toggle("negative", totalGain < -0.005);
+  el("investTotalGainPct").textContent = totalDeposited > 0
+    ? `${totalGain >= 0 ? "+" : ""}${formatPercent1(gainPct)}% on ${formatWholeMoney(totalDeposited)} put in`
+    : "Nothing invested yet";
+
+  const allCashflows = [];
+  scope.forEach(inv => {
+    const s = stats[inv.id];
+    s.flows.forEach(f => allCashflows.push({
+      date: f.date,
+      amount: f.direction === INVESTMENT_DEPOSIT ? -f.amount : f.amount
+    }));
+    if (s.currentValue > 0) {
+      const asOf = inv.status === INVESTMENT_STATUS_CLOSED && inv.closedDate ? inv.closedDate : todayISO();
+      allCashflows.push({ date: asOf, amount: s.currentValue });
+    }
+  });
+  const blended = xirrAnnualPercent(allCashflows);
+  el("investBlendedReturn").textContent = blended != null ? `${formatPercent1(blended)}%` : "—";
+  el("investBlendedReturnSub").textContent = blended != null
+    ? "Money-weighted, across everything in scope"
+    : "Not enough history yet to work out a yearly rate";
+
+  // Estimated-value warning, in the same slot the Loans tab warns about
+  // excluded loans. Only counts investments whose value has genuinely drifted
+  // from their last real reading.
+  const staleCount = scope.filter(i => i.status === INVESTMENT_STATUS_ACTIVE && stats[i.id].isEstimated).length;
+  if (staleCount > 0) {
+    setNotice("investmentsStaleNote",
+      `${staleCount} investment${staleCount > 1 ? "s have" : " has"} moved since ${staleCount > 1 ? "their" : "its"} last recorded value &mdash; ` +
+      `the figures below use your deposits and withdrawals to fill the gap. Use <strong>Update Value</strong> to record what ${staleCount > 1 ? "they're" : "it's"} really worth.`,
+      false);
+  } else {
+    setNotice("investmentsStaleNote", "", false);
+  }
+}
+
+function renderInvestmentBars(stats) {
+  const scope = selectedInvestmentsSet();
+  const totalValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  const totalDeposited = round0(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
+  const totalWithdrawn = round0(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
+  const totalCost = round0(totalDeposited - totalWithdrawn);
+  const totalGain = round0(totalValue + totalWithdrawn - totalDeposited);
+
+  const maxCompare = Math.max(totalCost, totalValue, 1);
+  el("investBarCostFill").style.width = `${Math.min(100, (Math.max(0, totalCost) / maxCompare) * 100)}%`;
+  el("investBarValueFill").style.width = `${Math.min(100, (totalValue / maxCompare) * 100)}%`;
+  el("investBarCostValue").textContent = formatWholeMoney(totalCost);
+  el("investBarValueValue").textContent = formatWholeMoney(totalValue);
+
+  const isLoss = totalGain < -0.005;
+  el("investGainBarTitle").textContent = isLoss ? "What You're Down So Far" : "What You've Made So Far";
+  el("investGainBarLabel").textContent = isLoss ? "Loss" : "Profit";
+  const gainPct = totalDeposited > 0 ? Math.min(100, (Math.abs(totalGain) / totalDeposited) * 100) : 0;
+  const fill = el("investBarGainFill");
+  fill.style.width = `${gainPct}%`;
+  fill.classList.toggle("value", !isLoss);
+  fill.classList.toggle("cost", false);
+  fill.style.background = isLoss ? "var(--expense)" : "var(--invest)";
+  const valEl = el("investBarGainValue");
+  valEl.textContent = formatWholeMoney(Math.abs(totalGain));
+  valEl.classList.toggle("gain", !isLoss);
+  valEl.classList.toggle("loss", isLoss);
+  el("investGainBarNote").textContent = totalDeposited > 0
+    ? `${formatPercent1(Math.abs(round1((totalGain / totalDeposited) * 100)))}% of the ${formatWholeMoney(totalDeposited)} you've put in${totalWithdrawn > 0 ? `, counting the ${formatWholeMoney(totalWithdrawn)} already taken out` : ""}.`
+    : "Nothing invested yet.";
+}
+
+// Forward projection off each investment's own Expected Annual Return — the
+// "estimated profit" side of the tab. Deliberately compounds each investment
+// separately and then sums, so a portfolio of different expectations doesn't
+// get flattened into one blended guess.
+function renderInvestmentProjection(stats) {
+  const scope = selectedInvestmentsSet().filter(i => i.status === INVESTMENT_STATUS_ACTIVE);
+  const grid = el("investProjGrid");
+  grid.innerHTML = "";
+  const baseValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  if (scope.length === 0 || baseValue <= 0) {
+    show("investProjEmpty");
+    hide("investProjGrid");
+    return;
+  }
+  hide("investProjEmpty");
+  show("investProjGrid");
+
+  const todayCard = document.createElement("div");
+  todayCard.className = "invest-proj-card";
+  todayCard.innerHTML = `
+    <div class="invest-proj-label">Today</div>
+    <div class="invest-proj-value">${formatWholeMoney(baseValue)}</div>
+    <div class="invest-proj-sub">&nbsp;</div>`;
+  grid.appendChild(todayCard);
+
+  INVESTMENT_PROJECTION_YEARS.forEach(years => {
+    const projected = round0(scope.reduce((sum, inv) => {
+      const r = stats[inv.id].currentValue * Math.pow(1 + (inv.expectedReturn / 100), years);
+      return sum + (isFinite(r) ? r : stats[inv.id].currentValue);
+    }, 0));
+    const delta = round0(projected - baseValue);
+    const card = document.createElement("div");
+    card.className = "invest-proj-card";
+    card.innerHTML = `
+      <div class="invest-proj-label">In ${years} year${years > 1 ? "s" : ""}</div>
+      <div class="invest-proj-value">${formatWholeMoney(projected)}</div>
+      <div class="invest-proj-sub" style="color:${delta >= 0 ? "var(--income)" : "var(--expense)"}">${delta >= 0 ? "+" : "&minus;"}${formatWholeMoney(Math.abs(delta))}</div>`;
+    grid.appendChild(card);
+  });
+}
+
+// Month-by-month portfolio value against cost basis. Both lines read off the
+// same per-investment timeline the cards use, so the chart can never tell a
+// different story than the numbers above it.
+function investmentMonthBuckets(scope, stats) {
+  const todayYM = monthKey(todayISO());
+  let earliestYM = todayYM;
+  scope.forEach(inv => {
+    const s = stats[inv.id];
+    if (s.firstFlowDate) {
+      const ym = monthKey(s.firstFlowDate);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+    if (inv.startDate) {
+      const ym = monthKey(inv.startDate);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+  });
+  const buckets = [];
+  for (let ym = earliestYM; ym <= todayYM; ym = addMonthsToKey(ym, 1)) buckets.push(ym);
+  return buckets;
+}
+
+// Last calendar day of a month key — the "as of" date each bucket is read at.
+function monthEndISO(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return isoFromParts(y, m, daysInMonth(y, m));
+}
+
+function renderInvestmentChart(stats) {
+  const scope = selectedInvestmentsSet();
+  if (investChart) { investChart.destroy(); investChart = null; }
+
+  const hasAnyFlow = scope.some(i => stats[i.id].flows.length > 0);
+  if (scope.length === 0 || !hasAnyFlow) {
+    show("investChartEmpty");
+    hide("investChartWrap");
+    return;
+  }
+  hide("investChartEmpty");
+  show("investChartWrap");
+
+  const buckets = investmentMonthBuckets(scope, stats);
+  const labels = buckets.map((ym, i) => (i === buckets.length - 1 ? "Today" : monthKeyLabel(ym)));
+  const valueSeries = [], costSeries = [];
+  buckets.forEach((ym, i) => {
+    const asOf = i === buckets.length - 1 ? todayISO() : monthEndISO(ym);
+    let v = 0, c = 0;
+    scope.forEach(inv => {
+      const st = investmentStateAt(stats[inv.id].timeline, asOf);
+      v += Math.max(0, st.value);
+      c += st.cost;
+    });
+    valueSeries.push(round0(v));
+    costSeries.push(round0(c));
+  });
+
+  const theme = getChartThemeColors();
+  const investColor = (getComputedStyle(document.documentElement).getPropertyValue("--invest") || "").trim() || "#2f8f7a";
+  investChart = new Chart(el("investChart").getContext("2d"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Worth", data: valueSeries,
+          borderColor: investColor, backgroundColor: hexToRgba(investColor, 0.14),
+          fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2
+        },
+        {
+          label: "Invested (net)", data: costSeries,
+          borderColor: theme.accent, backgroundColor: "transparent",
+          borderDash: [6, 4], tension: 0.25, pointRadius: 0, borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatWholeMoney(v) }, grid: { color: hexToRgba(theme.grid, 0.5) } },
+        x: { ticks: { color: theme.text, maxTicksLimit: 12 }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { position: "bottom", labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 } },
+        tooltip: {
+          mode: "index", intersect: false,
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatWholeMoney(ctx.parsed.y)}` }
+        }
+      }
+    }
+  });
+}
+
+function renderPerInvestmentChart(stats) {
+  const scope = selectedInvestmentsSet();
+  if (perInvestmentChart) { perInvestmentChart.destroy(); perInvestmentChart = null; }
+
+  const charted = scope.filter(i => stats[i.id].flows.length > 0);
+  if (charted.length === 0) {
+    show("perInvestChartEmpty");
+    hide("perInvestChartWrap");
+    return;
+  }
+  hide("perInvestChartEmpty");
+  show("perInvestChartWrap");
+
+  const buckets = investmentMonthBuckets(charted, stats);
+  const labels = buckets.map((ym, i) => (i === buckets.length - 1 ? "Today" : monthKeyLabel(ym)));
+  const colors = getCategoryColors();
+
+  const datasets = charted.map((inv, idx) => {
+    const s = stats[inv.id];
+    const data = buckets.map((ym, i) => {
+      const asOf = i === buckets.length - 1 ? todayISO() : monthEndISO(ym);
+      const st = investmentStateAt(s.timeline, asOf);
+      // Before this investment's first entry there's nothing to draw — a zero
+      // there would read as "held, worth nothing" rather than "not yet owned".
+      if (!st.sawAny) return null;
+      return round0(Math.max(0, st.value));
+    });
+    return {
+      label: `${inv.name} — ${formatRate(inv.expectedReturn)}% exp.`,
+      data,
+      borderColor: colors[idx % colors.length],
+      backgroundColor: "transparent",
+      tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: false
+    };
+  });
+
+  const theme = getChartThemeColors();
+  perInvestmentChart = new Chart(el("perInvestChart").getContext("2d"), {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatWholeMoney(v) }, grid: { color: hexToRgba(theme.grid, 0.5) } },
+        x: { ticks: { color: theme.text, maxTicksLimit: 10 }, grid: { display: false } }
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 },
+          // Same axis-refitting as the per-loan chart: hiding a long-running
+          // investment should shorten the timeline, not leave an empty tail.
+          onClick: (e, legendItem, legend) => {
+            const ci = legend.chart;
+            const i = legendItem.datasetIndex;
+            ci.setDatasetVisibility(i, !ci.isDatasetVisible(i));
+            trimPerLoanAxisToVisible(ci);
+            ci.update();
+          }
+        },
+        tooltip: {
+          mode: "index", intersect: false,
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatWholeMoney(ctx.parsed.y)}` }
+        }
+      }
+    }
+  });
+  trimPerLoanAxisToVisible(perInvestmentChart);
+  perInvestmentChart.update();
+}
+
+// A stable color per investment type, assigned from INVESTMENT_TYPES order the
+// same way categoryColorForType works — so a type keeps its color as values
+// change and slices reorder.
+function investmentTypeColor(type) {
+  const colors = getCategoryColors();
+  const idx = INVESTMENT_TYPES.indexOf(type);
+  if (idx >= 0) return colors[idx % colors.length];
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) hash = (hash * 31 + type.charCodeAt(i)) | 0;
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function renderInvestmentAllocation(stats) {
+  if (investAllocationChart) { investAllocationChart.destroy(); investAllocationChart = null; }
+  // Allocation is about where money is sitting NOW, so closed investments are
+  // always out of it regardless of the "show closed" toggle.
+  const scope = selectedInvestmentsSet().filter(i => i.status === INVESTMENT_STATUS_ACTIVE);
+  const sums = {};
+  scope.forEach(inv => {
+    const v = stats[inv.id].currentValue;
+    if (v <= 0) return;
+    sums[inv.type] = round0((sums[inv.type] || 0) + v);
+  });
+  const entries = Object.entries(sums).sort((a, b) => b[1] - a[1]);
+
+  const legend = el("investAllocationLegend");
+  legend.innerHTML = "";
+  if (entries.length === 0) {
+    show("investAllocationEmpty");
+    hide("investAllocationWrap");
+    return;
+  }
+  hide("investAllocationEmpty");
+  show("investAllocationWrap");
+
+  const theme = getChartThemeColors();
+  investAllocationChart = new Chart(el("investAllocationChart").getContext("2d"), {
+    type: "doughnut",
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [{
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map(([k]) => investmentTypeColor(k)),
+        borderColor: theme.surface || "#fff", borderWidth: 2, hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: "68%",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (ctx) => `${ctx.label}: ${formatWholeMoney(ctx.parsed)}` }
+        },
+        centerText: { enabled: true, color: theme.heading, whole: true }
+      }
+    }
+  });
+
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  entries.forEach(([type, v]) => {
+    const badge = document.createElement("span");
+    badge.className = "legend-badge";
+    badge.innerHTML = `<span class="swatch" style="background:${investmentTypeColor(type)}"></span>${escapeHtml(type)} &middot; ${formatPercent1((v / total) * 100)}%`;
+    legend.appendChild(badge);
+  });
+}
+
+// Flows and valuations merged back into one chronological list — separate
+// sheets on disk (they're different kinds of fact), one story on screen.
+function renderInvestmentActivityTable() {
+  const body = el("investActivityTableBody");
+  body.innerHTML = "";
+
+  const scopeIds = new Set(selectedInvestmentsSet().map(i => i.id));
+  const nameById = {};
+  allInvestments.forEach(i => { nameById[i.id] = i.name; });
+
+  // Each investment's own timeline is walked separately (a running value only
+  // means something within one investment), then merged for display.
+  let rows = [];
+  scopeIds.forEach(id => {
+    buildInvestmentTimeline(investmentFlowsFor(id), investmentValuationsFor(id)).forEach(e => {
+      rows.push({ investmentId: id, entry: e });
+    });
+  });
+  // Newest first — and within one date, the reverse of the order the timeline
+  // applied them in, so the table reads as the exact mirror of the walk above.
+  rows.sort((a, b) => {
+    if (a.entry.date !== b.entry.date) return a.entry.date < b.entry.date ? 1 : -1;
+    if (a.entry.logged != null && b.entry.logged != null && a.entry.logged !== b.entry.logged) return b.entry.logged - a.entry.logged;
+    return b.entry.seq - a.entry.seq;
+  });
+
+  if (rows.length === 0) {
+    show("investActivityEmpty");
+    hide("investActivityWrap");
+    hide("btnShowAllInvestActivity");
+    return;
+  }
+  hide("investActivityEmpty");
+  show("investActivityWrap");
+
+  const hasMore = rows.length > HISTORY_ROW_LIMIT;
+  const visible = (investmentActivityShowAll || !hasMore) ? rows : rows.slice(0, HISTORY_ROW_LIMIT);
+  if (hasMore) {
+    el("btnShowAllInvestActivityLabel").textContent = investmentActivityShowAll ? "Show fewer" : `Show all ${rows.length} entries`;
+    el("btnShowAllInvestActivity").setAttribute("aria-expanded", investmentActivityShowAll ? "true" : "false");
+    show("btnShowAllInvestActivity");
+  } else {
+    hide("btnShowAllInvestActivity");
+  }
+
+  visible.forEach(({ investmentId, entry }) => {
+    const isFlow = entry.kind === "flow";
+    const ref = entry.ref;
+    const isWithdrawal = isFlow && ref.direction === INVESTMENT_WITHDRAWAL;
+    const kindLabel = isFlow
+      ? `<span class="${isWithdrawal ? "invest-flow-out" : "invest-flow-in"}">${isWithdrawal ? "Withdrawal" : "Deposit"}</span>`
+      : '<span class="invest-flow-val">Value recorded</span>';
+    const amountCell = isFlow
+      ? `${isWithdrawal ? "&minus;" : "+"}${formatWholeMoney(ref.amount)}`
+      : "&mdash;";
+    const dataAttr = isFlow ? `data-flow-id="${ref.id}"` : `data-valuation-id="${ref.id}"`;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${friendlyDate(entry.date)}</td>
+      <td>${escapeHtml(nameById[investmentId] || "—")}</td>
+      <td>${kindLabel}</td>
+      <td class="amount-col">${amountCell}</td>
+      <td class="amount-col">${formatWholeMoney(Math.max(0, entry.valueAfter))}</td>
+      <td>${escapeHtml(ref.notes)}</td>
+      <td class="loan-row-actions">
+        <button type="button" class="icon-btn" data-action="edit" ${dataAttr} aria-label="Edit entry" title="Edit entry">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <button type="button" class="icon-btn danger" data-action="delete" ${dataAttr} aria-label="Delete entry" title="Delete entry">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+/* ============================================================
+   INVESTMENTS — MODALS & EVENTS (§INVEST)
+   ============================================================ */
+
+// Whole-number money guard (§INVEST-WHOLE). Every money field on this tab is
+// integer-only: `step="1"` makes the browser reject a decimal before we ever
+// see it, and this is the backstop that produces the app's own error styling
+// (and covers anything that slips past native validation, e.g. a pasted value
+// in a browser that doesn't enforce step). Returns true when the value is a
+// usable whole number.
+function isWholeAmount(n, { allowZero }) {
+  if (!isFinite(n) || !Number.isInteger(n)) return false;
+  return allowZero ? n >= 0 : n > 0;
+}
+
+// Populates an investment <select>. Closed investments are never offered as a
+// target for new money — reopen it first if that's really what you meant.
+function populateInvestmentSelect(selectEl, includeClosed) {
+  selectEl.innerHTML = "";
+  allInvestments
+    .filter(i => includeClosed || i.status === INVESTMENT_STATUS_ACTIVE)
+    .forEach(inv => {
+      const o = document.createElement("option");
+      o.value = inv.id;
+      o.textContent = inv.status === INVESTMENT_STATUS_CLOSED ? `${inv.name} (closed)` : inv.name;
+      selectEl.appendChild(o);
+    });
+}
+
+/* ---- Add / edit an investment ---- */
+function hideInvestmentFormErrors() {
+  ["invExpectedReturnError", "invInitialAmountError", "invStartDateError", "invInitialValueError", "investmentFormError"].forEach(hide);
+}
+
+function openInvestmentModalForAdd() {
+  el("investmentForm").reset();
+  el("invId").value = "";
+  el("investmentModalTitle").textContent = "Add Investment";
+  el("btnSaveInvestment").textContent = "Save";
+  populateSelect(el("invType"), INVESTMENT_TYPES);
+  el("invStartDate").value = todayISO();
+  show("invInitialFields");
+  hideInvestmentFormErrors();
+  show("investmentModalOverlay");
+}
+
+function openInvestmentModalForEdit(id) {
+  const inv = allInvestments.find(i => i.id === id);
+  if (!inv) return;
+  el("investmentForm").reset();
+  populateSelect(el("invType"), INVESTMENT_TYPES);
+  ensureSelectOption(el("invType"), inv.type); // a type from an older/hand-edited file still shows
+  el("invId").value = inv.id;
+  el("investmentModalTitle").textContent = "Edit Investment";
+  el("btnSaveInvestment").textContent = "Save Changes";
+  el("invName").value = inv.name;
+  el("invType").value = inv.type;
+  el("invExpectedReturn").value = inv.expectedReturn;
+  el("invNotes").value = inv.notes;
+  // The opening deposit/value only make sense when creating — afterwards those
+  // are real ledger entries, edited from the Activity table where they live.
+  hide("invInitialFields");
+  hideInvestmentFormErrors();
+  show("investmentModalOverlay");
+}
+
+async function handleInvestmentSubmit(e) {
+  e.preventDefault();
+  hideInvestmentFormErrors();
+
+  const id = el("invId").value;
+  const name = el("invName").value.trim();
+  const type = el("invType").value;
+  const expectedReturnRaw = el("invExpectedReturn").value;
+  const expectedReturn = parseFloat(expectedReturnRaw);
+  const notes = el("invNotes").value.trim();
+
+  let hasError = false;
+  if (!name) { el("investmentFormError").textContent = "Please enter a name."; show("investmentFormError"); hasError = true; }
+  // Up to four decimals, no more — rejected outright rather than silently
+  // rounded, the same contract the whole-number money fields have (§INVEST-RATE).
+  if (!isFinite(expectedReturn) || decimalPlacesTyped(expectedReturnRaw) > RATE_DECIMALS) {
+    show("invExpectedReturnError"); hasError = true;
+  }
+
+  let initialAmount = null, startDate = null, initialValue = null;
+  if (!id) {
+    initialAmount = parseFloat(el("invInitialAmount").value);
+    startDate = el("invStartDate").value;
+    const rawValue = el("invInitialValue").value.trim();
+    initialValue = rawValue === "" ? null : parseFloat(rawValue);
+    if (!isWholeAmount(initialAmount, { allowZero: false })) { show("invInitialAmountError"); hasError = true; }
+    const dateProblem = calendarDateError(startDate);
+    if (!startDate || dateProblem) {
+      el("invStartDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
+      show("invStartDateError"); hasError = true;
+    }
+    if (initialValue !== null && !isWholeAmount(initialValue, { allowZero: true })) { show("invInitialValueError"); hasError = true; }
+  }
+  if (hasError) return;
+
+  const btn = el("btnSaveInvestment");
+  btn.disabled = true;
+  let ok;
+  if (id) {
+    ok = await updateInvestment(id, { name, type, expectedReturn: round4(expectedReturn), hasExpectedReturn: true, notes });
+  } else {
+    const invId = generateInvestmentId();
+    const investment = {
+      id: invId, name, type,
+      expectedReturn: round4(expectedReturn), hasExpectedReturn: true,
+      startDate, status: INVESTMENT_STATUS_ACTIVE, closedDate: null,
+      notes, lastUpdated: todayISO()
+    };
+    const flow = {
+      id: generateFlowId(), investmentId: invId, date: startDate,
+      direction: INVESTMENT_DEPOSIT, amount: round0(initialAmount),
+      notes: "Opening deposit", lastUpdated: todayISO()
+    };
+    // Only record an opening valuation when it actually says something new —
+    // a value equal to the deposit is what the timeline computes anyway, and
+    // an extra row there would just be noise in the Activity table.
+    const valuation = (initialValue !== null && round0(initialValue) !== round0(initialAmount))
+      ? {
+          id: generateValuationId(), investmentId: invId, date: todayISO(),
+          value: round0(initialValue), notes: "Value at registration", lastUpdated: todayISO()
+        }
+      : null;
+    ok = await appendInvestment(investment, flow, valuation);
+  }
+  btn.disabled = false;
+  if (ok) closeModal("investmentModalOverlay");
+}
+
+async function handleDeleteInvestment(id) {
+  const inv = allInvestments.find(i => i.id === id);
+  if (!inv) return;
+  const entries = investmentFlowsFor(id).length + investmentValuationsFor(id).length;
+  const message = entries > 0
+    ? `Delete "${inv.name}"? This can't be undone and will also remove its ${entries} logged entr${entries === 1 ? "y" : "ies"} (deposits, withdrawals and recorded values).\n\nIf you've simply cashed it out, use Close instead — that keeps the history.`
+    : `Delete "${inv.name}"? This can't be undone.`;
+  if (!window.confirm(message)) return;
+  await deleteInvestment(id);
+}
+
+/* ---- Deposit / withdraw ---- */
+function hideFlowFormErrors() { ["flowAmountError", "flowDateError", "investFlowFormError"].forEach(hide); }
+
+function setFlowDirection(direction) {
+  el("flowDirection").value = direction;
+  document.querySelectorAll("#flowDirectionToggle button").forEach(b => {
+    b.classList.toggle("active", b.dataset.direction === direction);
+  });
+  updateFlowAmountHint();
+}
+
+// Live "the most you can take out right now is X" hint, so a withdrawal that
+// can't fit is obvious before submitting rather than after.
+function updateFlowAmountHint() {
+  const hint = el("flowAmountHint");
+  const investmentId = el("flowInvestmentId").value;
+  const direction = el("flowDirection").value;
+  const date = el("flowDate").value;
+  if (!investmentId || direction !== INVESTMENT_WITHDRAWAL || !date || calendarDateError(date)) {
+    hint.textContent = direction === INVESTMENT_DEPOSIT ? "Money going into this investment." : "";
+    return;
+  }
+  const max = maxWithdrawableAt(investmentId, date, el("flowId").value || null);
+  hint.textContent = `Worth ${formatWholeMoney(max)} on that date — that's the most you can take out.`;
+}
+
+function openFlowModalForAdd(investmentId, direction) {
+  if (allInvestments.filter(i => i.status === INVESTMENT_STATUS_ACTIVE).length === 0) {
+    window.alert("Add an investment first — there's nothing to deposit into yet.");
+    return;
+  }
+  el("investFlowForm").reset();
+  el("flowId").value = "";
+  populateInvestmentSelect(el("flowInvestmentId"), false);
+  hide("flowInvestmentName");
+  el("flowInvestmentId").classList.remove("hidden");
+  if (investmentId) el("flowInvestmentId").value = investmentId;
+  el("investFlowModalTitle").textContent = "Deposit / Withdraw";
+  el("btnSaveInvestFlow").textContent = "Save";
+  el("flowDate").value = todayISO();
+  setFlowDirection(direction || INVESTMENT_DEPOSIT);
+  hideFlowFormErrors();
+  show("investFlowModalOverlay");
+}
+
+function openFlowModalForEdit(id) {
+  const flow = allInvestmentFlows.find(f => f.id === id);
+  if (!flow) return;
+  el("investFlowForm").reset();
+  el("flowId").value = flow.id;
+  // Editing keeps the entry on its own investment — moving money between
+  // investments is two entries, not an edit, so the select is replaced by a
+  // static label here.
+  populateInvestmentSelect(el("flowInvestmentId"), true);
+  el("flowInvestmentId").value = flow.investmentId;
+  el("flowInvestmentId").classList.add("hidden");
+  const inv = allInvestments.find(i => i.id === flow.investmentId);
+  el("flowInvestmentName").textContent = inv ? inv.name : "(investment not found)";
+  show("flowInvestmentName");
+  el("investFlowModalTitle").textContent = "Edit Entry";
+  el("btnSaveInvestFlow").textContent = "Save Changes";
+  el("flowDate").value = flow.date;
+  el("flowAmount").value = flow.amount;
+  el("flowNotes").value = flow.notes;
+  setFlowDirection(flow.direction);
+  hideFlowFormErrors();
+  show("investFlowModalOverlay");
+}
+
+async function handleFlowSubmit(e) {
+  e.preventDefault();
+  hideFlowFormErrors();
+
+  const id = el("flowId").value;
+  const investmentId = el("flowInvestmentId").value;
+  const direction = el("flowDirection").value;
+  const date = el("flowDate").value;
+  const amount = parseFloat(el("flowAmount").value);
+  const notes = el("flowNotes").value.trim();
+
+  let hasError = false;
+  const dateProblem = calendarDateError(date);
+  if (!date || dateProblem) {
+    el("flowDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
+    show("flowDateError"); hasError = true;
+  }
+  if (!isWholeAmount(amount, { allowZero: false })) { show("flowAmountError"); hasError = true; }
+  if (!investmentId) { el("investFlowFormError").textContent = "Pick an investment."; show("investFlowFormError"); hasError = true; }
+  if (hasError) return;
+
+  // You can't take out money that isn't there — the mirror of the loan
+  // overpayment guard. Checked against the timeline WITHOUT this entry's own
+  // previous version, so editing a withdrawal down never trips over itself.
+  if (direction === INVESTMENT_WITHDRAWAL) {
+    const max = maxWithdrawableAt(investmentId, date, id || null);
+    if (round0(amount) > max + 0.005) {
+      el("investFlowFormError").textContent = max <= 0
+        ? "There's nothing in this investment on that date to withdraw."
+        : `That's more than the investment was worth on that date — the most you can take out is ${formatWholeMoney(max)}.`;
+      show("investFlowFormError");
+      return;
+    }
+  }
+
+  const btn = el("btnSaveInvestFlow");
+  btn.disabled = true;
+  const ok = id
+    ? await updateInvestmentFlow(id, { date, direction, amount: round0(amount), notes })
+    : await appendInvestmentFlow({
+        id: generateFlowId(), investmentId, date, direction,
+        amount: round0(amount), notes, lastUpdated: todayISO()
+      });
+  btn.disabled = false;
+  if (ok) closeModal("investFlowModalOverlay");
+}
+
+async function handleDeleteFlow(id) {
+  const flow = allInvestmentFlows.find(f => f.id === id);
+  if (!flow) return;
+  const what = flow.direction === INVESTMENT_WITHDRAWAL ? "withdrawal" : "deposit";
+  if (!window.confirm(`Delete this ${what} of ${formatWholeMoney(flow.amount)}? This can't be undone, and the investment's value and profit will be recalculated without it.`)) return;
+  await deleteInvestmentFlow(id);
+}
+
+/* ---- Record a valuation ("what it's worth now") ---- */
+function hideValuationFormErrors() { ["valValueError", "valDateError", "investValuationFormError"].forEach(hide); }
+
+function updateValuationHint() {
+  const investmentId = el("valInvestmentId").value;
+  const date = el("valDate").value;
+  const hint = el("valValueHint");
+  const base = "The total the investment is worth — not the change since last time.";
+  if (!investmentId || !date || calendarDateError(date)) { hint.textContent = base; return; }
+  const timeline = buildInvestmentTimeline(investmentFlowsFor(investmentId), investmentValuationsFor(investmentId));
+  const current = investmentStateAt(timeline, date).value;
+  hint.textContent = `${base} Currently showing ${formatWholeMoney(Math.max(0, current))} on that date.`;
+}
+
+function openValuationModalForAdd(investmentId) {
+  if (allInvestments.filter(i => i.status === INVESTMENT_STATUS_ACTIVE).length === 0) {
+    window.alert("Add an investment first — there's nothing to value yet.");
+    return;
+  }
+  el("investValuationForm").reset();
+  el("valId").value = "";
+  populateInvestmentSelect(el("valInvestmentId"), false);
+  hide("valInvestmentName");
+  el("valInvestmentId").classList.remove("hidden");
+  if (investmentId) el("valInvestmentId").value = investmentId;
+  el("investValuationModalTitle").textContent = "Update Value";
+  el("btnSaveInvestValuation").textContent = "Save";
+  el("valDate").value = todayISO();
+  hideValuationFormErrors();
+  updateValuationHint();
+  show("investValuationModalOverlay");
+}
+
+function openValuationModalForEdit(id) {
+  const val = allInvestmentValuations.find(v => v.id === id);
+  if (!val) return;
+  el("investValuationForm").reset();
+  el("valId").value = val.id;
+  populateInvestmentSelect(el("valInvestmentId"), true);
+  el("valInvestmentId").value = val.investmentId;
+  el("valInvestmentId").classList.add("hidden");
+  const inv = allInvestments.find(i => i.id === val.investmentId);
+  el("valInvestmentName").textContent = inv ? inv.name : "(investment not found)";
+  show("valInvestmentName");
+  el("investValuationModalTitle").textContent = "Edit Recorded Value";
+  el("btnSaveInvestValuation").textContent = "Save Changes";
+  el("valDate").value = val.date;
+  el("valValue").value = val.value;
+  el("valNotes").value = val.notes;
+  hideValuationFormErrors();
+  updateValuationHint();
+  show("investValuationModalOverlay");
+}
+
+async function handleValuationSubmit(e) {
+  e.preventDefault();
+  hideValuationFormErrors();
+
+  const id = el("valId").value;
+  const investmentId = el("valInvestmentId").value;
+  const date = el("valDate").value;
+  const value = parseFloat(el("valValue").value);
+  const notes = el("valNotes").value.trim();
+
+  let hasError = false;
+  const dateProblem = calendarDateError(date);
+  if (!date || dateProblem) {
+    el("valDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
+    show("valDateError"); hasError = true;
+  }
+  if (!isWholeAmount(value, { allowZero: true })) { show("valValueError"); hasError = true; }
+  if (!investmentId) { el("investValuationFormError").textContent = "Pick an investment."; show("investValuationFormError"); hasError = true; }
+  if (hasError) return;
+
+  const btn = el("btnSaveInvestValuation");
+  btn.disabled = true;
+  const ok = id
+    ? await updateInvestmentValuation(id, { date, value: round0(value), notes })
+    : await appendInvestmentValuation({
+        id: generateValuationId(), investmentId, date,
+        value: round0(value), notes, lastUpdated: todayISO()
+      });
+  btn.disabled = false;
+  if (ok) closeModal("investValuationModalOverlay");
+}
+
+async function handleDeleteValuation(id) {
+  const val = allInvestmentValuations.find(v => v.id === id);
+  if (!val) return;
+  if (!window.confirm(`Delete the recorded value of ${formatWholeMoney(val.value)} from ${friendlyDate(val.date)}? This can't be undone, and the investment's worth will fall back to whatever the entries around it imply.`)) return;
+  await deleteInvestmentValuation(id);
+}
+
+/* ---- Close / reopen (§INVEST-CLOSE) ---- */
+function openCloseInvestmentModal(id) {
+  const inv = allInvestments.find(i => i.id === id);
+  if (!inv) return;
+  const s = computeInvestmentStats(inv);
+  el("investCloseForm").reset();
+  el("closeInvId").value = inv.id;
+  el("closeInvName").textContent = inv.name;
+  el("closeDate").value = todayISO();
+  el("closeAmount").value = s.currentValue;
+  el("closeAmountHint").textContent =
+    `Pre-filled with what it's worth today (${formatWholeMoney(s.currentValue)}). Change it if you actually received a different amount — that difference becomes part of your final profit.`;
+  ["closeAmountError", "closeDateError", "investCloseFormError"].forEach(hide);
+  show("investCloseModalOverlay");
+}
+
+async function handleCloseInvestmentSubmit(e) {
+  e.preventDefault();
+  ["closeAmountError", "closeDateError", "investCloseFormError"].forEach(hide);
+
+  const id = el("closeInvId").value;
+  const date = el("closeDate").value;
+  const amount = parseFloat(el("closeAmount").value);
+  const notes = el("closeNotes").value.trim();
+
+  let hasError = false;
+  const dateProblem = calendarDateError(date);
+  if (!date || dateProblem) {
+    el("closeDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
+    show("closeDateError"); hasError = true;
+  }
+  if (!isWholeAmount(amount, { allowZero: true })) { show("closeAmountError"); hasError = true; }
+  if (hasError) return;
+
+  const btn = el("btnSaveInvestClose");
+  btn.disabled = true;
+  const ok = await closeInvestment(id, { date, amount: round0(amount), notes });
+  btn.disabled = false;
+  if (ok) closeModal("investCloseModalOverlay");
+}
+
+async function handleReopenInvestment(id) {
+  const inv = allInvestments.find(i => i.id === id);
+  if (!inv) return;
+  if (!window.confirm(`Reopen "${inv.name}"? Its closing cash-out entry will be removed and it'll go back into your active list and portfolio totals. Everything logged before you closed it is kept.`)) return;
+  await reopenInvestment(id);
+}
+
+/* ---- Scope changes ---- */
+// Re-renders only what the scope actually affects; the ranked list stays a
+// full overview, exactly as the Loans tab behaves.
+function applyInvestmentScopeChange() {
+  investmentActivityShowAll = false;
+  const stats = computeAllInvestmentStats();
+  renderInvestmentsList(stats);
+  renderInvestmentScopeChips();
+  renderInvestmentSummary(stats);
+  renderInvestmentBars(stats);
+  renderInvestmentProjection(stats);
+  renderInvestmentChart(stats);
+  renderPerInvestmentChart(stats);
+  renderInvestmentAllocation(stats);
+  renderInvestmentActivityTable();
+}
+
+function toggleInvestmentScope(id) {
+  if (selectedInvestmentIds.has(id)) selectedInvestmentIds.delete(id);
+  else selectedInvestmentIds.add(id);
+  applyInvestmentScopeChange();
+}
+
+function wireInvestmentEvents() {
+  el("btnAddInvestment").addEventListener("click", openInvestmentModalForAdd);
+  // Pre-fill the investment only when exactly one is in scope; with several
+  // selected there is no single obvious answer, so the modal asks.
+  el("btnLogInvestFlow").addEventListener("click", () => openFlowModalForAdd(soleSelectedInvestmentId(), INVESTMENT_DEPOSIT));
+  el("btnLogInvestValuation").addEventListener("click", () => openValuationModalForAdd(soleSelectedInvestmentId()));
+
+  el("btnCancelInvestment").addEventListener("click", () => closeModal("investmentModalOverlay"));
+  el("investmentForm").addEventListener("submit", handleInvestmentSubmit);
+
+  el("btnCancelInvestFlow").addEventListener("click", () => closeModal("investFlowModalOverlay"));
+  el("investFlowForm").addEventListener("submit", handleFlowSubmit);
+  document.querySelectorAll("#flowDirectionToggle button").forEach(b => {
+    b.addEventListener("click", () => setFlowDirection(b.dataset.direction));
+  });
+  el("flowInvestmentId").addEventListener("change", updateFlowAmountHint);
+  el("flowDate").addEventListener("change", updateFlowAmountHint);
+
+  el("btnCancelInvestValuation").addEventListener("click", () => closeModal("investValuationModalOverlay"));
+  el("investValuationForm").addEventListener("submit", handleValuationSubmit);
+  el("valInvestmentId").addEventListener("change", updateValuationHint);
+  el("valDate").addEventListener("change", updateValuationHint);
+
+  el("btnCancelInvestClose").addEventListener("click", () => closeModal("investCloseModalOverlay"));
+  el("investCloseForm").addEventListener("submit", handleCloseInvestmentSubmit);
+
+  el("btnShowAllInvestActivity").addEventListener("click", () => {
+    investmentActivityShowAll = !investmentActivityShowAll;
+    renderInvestmentActivityTable();
+  });
+
+  wireScopePicker("investScope", (id) => {
+    selectedInvestmentIds.add(id);
+    applyInvestmentScopeChange();
+  });
+
+  el("investScopeChips").addEventListener("click", (e) => {
+    const chip = e.target.closest(".scope-chip");
+    if (!chip) return;
+    selectedInvestmentIds.delete(chip.dataset.investmentId);
+    applyInvestmentScopeChange();
+  });
+
+  el("investScopeClear").addEventListener("click", () => {
+    selectedInvestmentIds.clear();
+    applyInvestmentScopeChange();
+  });
+
+  el("investShowClosed").addEventListener("change", () => {
+    showClosedInvestments = el("investShowClosed").checked;
+    // A full refresh, not just a scope change: which investments exist in the
+    // list and the selector both change here.
+    refreshInvestmentsModule();
+  });
+
+  el("investmentsList").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest(".loan-row");
+    if (!row || e.target.closest(".icon-btn")) return;
+    e.preventDefault();
+    toggleInvestmentScope(row.dataset.investmentId);
+  });
+
+  el("investmentsList").addEventListener("click", (e) => {
+    const row = e.target.closest(".loan-row");
+    if (!row) return;
+    const id = row.dataset.investmentId;
+    const btn = e.target.closest(".icon-btn");
+    if (btn) {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      if (action === "edit") openInvestmentModalForEdit(id);
+      else if (action === "delete") handleDeleteInvestment(id);
+      else if (action === "flow") openFlowModalForAdd(id, INVESTMENT_DEPOSIT);
+      else if (action === "value") openValuationModalForAdd(id);
+      else if (action === "close") openCloseInvestmentModal(id);
+      else if (action === "reopen") handleReopenInvestment(id);
+      return;
+    }
+    toggleInvestmentScope(id);
+  });
+
+  el("investActivityTableBody").addEventListener("click", (e) => {
+    const btn = e.target.closest(".icon-btn");
+    if (!btn) return;
+    const flowId = btn.dataset.flowId;
+    const valuationId = btn.dataset.valuationId;
+    if (btn.dataset.action === "edit") {
+      if (flowId) openFlowModalForEdit(flowId); else if (valuationId) openValuationModalForEdit(valuationId);
+    } else if (btn.dataset.action === "delete") {
+      if (flowId) handleDeleteFlow(flowId); else if (valuationId) handleDeleteValuation(valuationId);
+    }
   });
 }
 
