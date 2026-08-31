@@ -543,6 +543,12 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
   display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);
   font-family:inherit;font-size:14px;padding:9px 12px;border-radius:var(--radius);cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  /* flex:none is load-bearing. .scope-menu is a column flex container with a
+     max-height, so these are flex items: at their default flex-shrink:1 the
+     browser compresses each box once the list is taller than the menu, and the
+     text spills out of its own row and collides with the ones above and below
+     instead of the menu simply scrolling. Only shows up past ~7 entries. */
+  flex:none;
 }
 .scope-menu-item:hover{background:var(--surface-alt);}
 .scope-menu-item:focus-visible{outline-offset:-2px;}
