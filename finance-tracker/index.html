@@ -284,7 +284,7 @@ svg{display:block;}
 .main-tab-btn.active{color:var(--text);border-bottom-color:var(--accent);}
 
 /* ---- Time range selector ---- */
-.range-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;}
+.range-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
 .range-btn{
   background:transparent;border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 16px;
   font-size:14px;cursor:pointer;color:var(--text);
@@ -440,7 +440,76 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .table-note{color:var(--text-muted);font-size:13px;margin-top:12px;}
 .panel-sub{color:var(--text-muted);font-size:13px;margin-top:-6px;margin-bottom:14px;}
 
-/* ---- Layout: main column + savings side panel ---- */
+/* Amount box and its "Pay all" shortcut share a row (§LOAN-PAYOFF). */
+.pmt-amount-row{display:flex;gap:8px;align-items:center;}
+.pmt-amount-row input{flex:1;min-width:0;}
+.pmt-amount-row .btn{flex:none;padding:8px 12px;font-size:13px;}
+
+/* ---- Snowball simulator controls (§26.7) ---- */
+.snowball-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.snowball-controls label{color:var(--text-muted);font-size:13px;font-weight:600;}
+.snowball-controls input{
+  width:150px;font-family:inherit;font-size:14px;padding:8px 10px;
+  border:1px solid var(--border-strong);border-radius:var(--radius);
+  background:var(--panel);color:var(--text);
+}
+.snowball-controls input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent);}
+.snowball-hint{color:var(--text-muted);font-size:12px;}
+.snowball-summary{color:var(--text-muted);font-size:13px;margin-bottom:12px;}
+.snowball-summary strong{color:var(--text);font-weight:600;}
+
+/* ---- Dashboard top row (§DASH-TOP) ----
+   Two columns of exactly equal height: range picker + summary cards on the
+   left, savings goal on the right. Both sides have to actively fill the row or
+   the shorter one leaves a ragged edge — whichever column is naturally taller
+   sets the height, then the date filter on the left and the savings card on
+   the right absorb the difference. Spacing inside the left column comes from
+   the flex gap, so its children have their own bottom margins zeroed to stop
+   the two adding up. */
+/* The row owns its own bottom spacing now that its children have none, or */
+/* the panel below would butt straight up against it. */
+.dash-top{display:grid;grid-template-columns:1fr 300px;gap:20px;margin-bottom:20px;}
+.dash-top-main,.dash-top-side{min-width:0;}
+.dash-top-main{display:flex;flex-direction:column;gap:20px;}
+.dash-top-main > *{margin-bottom:0;}
+/* The date filter takes up whatever slack the row has. The summary cards keep
+   their natural size — stretching the panels the figures live in distorts the
+   three amounts, which are the thing being read here, while the filter is just
+   a row of buttons and can carry the extra height without looking odd. Its
+   contents centre so the buttons sit in the middle of the taller box rather
+   than clinging to the top. */
+.dash-top-main > .panel{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
+.dash-top-main > .summary-grid{flex:0 0 auto;}
+.dash-top-side{display:flex;}
+.dash-top-side > .panel{flex:1 1 auto;display:flex;flex-direction:column;margin-bottom:0;}
+/* Pinned to the bottom so the card reads as deliberate at any height. */
+.dash-top-side .savings-alltime{margin-top:auto;}
+@media (max-width:900px){
+  .dash-top{grid-template-columns:1fr;}
+}
+
+/* ---- Day-to-day spending by category (§SPEND-BARS) ---- */
+.spend-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px;}
+.spend-head h2{margin-bottom:0;}
+.spend-baseline{font-size:12px;color:var(--text-faint);white-space:nowrap;}
+.spend-bars{display:flex;flex-direction:column;gap:15px;}
+/* name | delta | amount on one row, with the track spanning underneath. */
+.spend-row{display:grid;grid-template-columns:1fr auto auto;gap:7px 10px;align-items:baseline;}
+.spend-name{font-size:14px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.spend-delta{font-size:12px;font-variant-numeric:tabular-nums;}
+.spend-delta.up{color:var(--expense);}
+.spend-delta.down{color:var(--income);}
+.spend-delta.flat{color:var(--text-faint);}
+.spend-amount{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text);}
+.spend-track{grid-column:1 / -1;height:6px;border-radius:var(--radius-pill);background:var(--regular-bg);overflow:hidden;}
+.spend-fill{height:100%;border-radius:var(--radius-pill);background:var(--regular);transition:width var(--dur-slow) ease;}
+/* The rolled-up tail is stated as a total, not ranked against a baseline. */
+.spend-row.is-rest .spend-name{color:var(--text-muted);}
+
+/* ---- Layout: main column + side rail. Monthly Planning only — the
+       dashboard uses .dash-top for its own two-column top row instead,
+       so that only that row is split and the panels below run full
+       width (§DASH-TOP). ---- */
 .layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
 .main-col,.side-col{min-width:0;} /* grid items don't shrink below content's intrinsic width by default */
 .side-col{position:sticky;top:20px;}
@@ -674,9 +743,9 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .invest-bar-fill.cost{background:var(--accent);}
 .invest-bar-value.gain{font-size:20px;color:var(--income);}
 .invest-bar-value.loss{font-size:20px;color:var(--expense);}
-.invest-scope-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between;}
-.invest-closed-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;}
-.invest-closed-toggle input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
+.invest-scope-row,.loan-scope-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between;}
+.invest-closed-toggle,.loan-closed-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;}
+.invest-closed-toggle input,.loan-closed-toggle input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;}
 .invest-proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
 .invest-proj-card{
   background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);
@@ -731,7 +800,7 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
 .field-hint{color:var(--text-muted);font-size:12px;margin-top:5px;}
 .amount-row{display:flex;gap:10px;align-items:flex-start;}
 .amount-row .field{flex:1;}
-.divide-toggle{margin-top:8px;}
+.divide-toggle{margin-top:8px;display:flex;gap:14px;align-items:center;}
 .divide-panel{
   background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:10px;
   transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;
@@ -1016,8 +1085,12 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
        MAIN DASHBOARD
        ============================================================ -->
   <div id="dashboard" class="hidden">
-   <div class="layout">
-   <div class="main-col">
+   <!-- Dashboard top row (§DASH-TOP). The range picker and the summary
+        cards on the left, the savings goal card beside them on the right.
+        ONLY this row is two-column — everything below it (classification,
+        charts, history) runs the full width of the page. -->
+   <div class="dash-top">
+    <div class="dash-top-main">
 
     <!-- Time range -->
     <div class="panel">
@@ -1077,6 +1150,26 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="value" id="sumBalance">0</div>
       </div>
     </div>
+    </div>
+    <aside class="dash-top-side">
+      <div class="panel savings-panel">
+        <h2>Savings Goal</h2>
+        <div class="savings-range-label" id="savingsRangeLabel">This month</div>
+        <div id="savingsEmpty" class="savings-empty hidden">Add income in this range to set a savings goal.</div>
+        <div id="savingsContent">
+          <div class="savings-pct-row">
+            <span class="savings-pct" id="savingsPct">0%</span>
+            <span class="savings-pct-note" id="savingsGoalNote">of your income</span>
+          </div>
+          <div class="savings-bar-track">
+            <div class="savings-bar-fill" id="savingsBarFill" style="width:0%"></div>
+          </div>
+          <div class="savings-figures"><span id="savingsSaved">0</span> saved of <span id="savingsTarget">0</span> target</div>
+        </div>
+        <div class="savings-alltime">Total saved to date: <span id="savingsAllTime">0</span></div>
+      </div>
+    </aside>
+   </div>
 
     <!-- Classification breakdown -->
     <div class="panel">
@@ -1119,6 +1212,19 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div id="expenseDonutEmpty" class="empty-state hidden">No expenses in this range yet.</div>
         <div class="chart-wrap" id="expenseDonutWrap"><canvas id="expenseDonutChart"></canvas></div>
         <div id="expenseDonutLegend" class="legend-badges"></div>
+      </div>
+      <!-- Day-to-day spending by category (§SPEND-BARS). Sits between the two
+           donuts: it breaks the left donut down into a ranked, comparable list
+           and answers the question the donut cannot — is this more or less than
+           usual. "Day-to-day" means Regular classification only; loan
+           installments and investment deposits are not day-to-day spending. -->
+      <div class="panel">
+        <div class="spend-head">
+          <h2>Day-to-day spending by category</h2>
+          <span class="spend-baseline" id="spendBaselineLabel"></span>
+        </div>
+        <div id="spendBarsEmpty" class="empty-state hidden">No day-to-day spending in this range yet.</div>
+        <div id="spendBars" class="spend-bars"></div>
       </div>
       <div class="panel">
         <h2>Income by Category</h2>
@@ -1164,29 +1270,6 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="table-note">Use the edit and delete icons to correct an entry. Loan payments are managed on the Loans tab.</div>
     </div>
 
-   </div>
-
-   <!-- Savings goal side panel -->
-   <aside class="side-col">
-     <div class="panel savings-panel">
-       <h2>Savings Goal</h2>
-       <div class="savings-range-label" id="savingsRangeLabel">This month</div>
-       <div id="savingsEmpty" class="savings-empty hidden">Add income in this range to set a savings goal.</div>
-       <div id="savingsContent">
-         <div class="savings-pct-row">
-           <span class="savings-pct" id="savingsPct">0%</span>
-           <span class="savings-pct-note" id="savingsGoalNote">of your income</span>
-         </div>
-         <div class="savings-bar-track">
-           <div class="savings-bar-fill" id="savingsBarFill" style="width:0%"></div>
-         </div>
-         <div class="savings-figures"><span id="savingsSaved">0</span> saved of <span id="savingsTarget">0</span> target</div>
-       </div>
-       <div class="savings-alltime">Total saved to date: <span id="savingsAllTime">0</span></div>
-     </div>
-   </aside>
-
-   </div>
   </div>
 
   <!-- ============================================================
@@ -1204,17 +1287,23 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
            loans scopes EVERYTHING below it — the ranked list included — not
            just the charts. No selection means all loans. -->
       <div class="panel loan-scope-panel">
-        <div class="loan-selector-row scope-row">
-          <span class="scope-label">Show</span>
-          <div class="scope-picker" id="loanScopePicker">
-            <button type="button" class="scope-trigger" id="loanScopeTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span id="loanScopeTriggerLabel">All loans</span>
-              <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
-            <div class="scope-menu hidden" id="loanScopeMenu" role="listbox"></div>
+        <div class="loan-scope-row">
+          <div class="loan-selector-row scope-row">
+            <span class="scope-label">Show</span>
+            <div class="scope-picker" id="loanScopePicker">
+              <button type="button" class="scope-trigger" id="loanScopeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <span id="loanScopeTriggerLabel">All loans</span>
+                <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="scope-menu hidden" id="loanScopeMenu" role="listbox"></div>
+            </div>
+            <div class="scope-chips" id="loanScopeChips"></div>
+            <button type="button" class="scope-clear hidden" id="loanScopeClear">Clear</button>
           </div>
-          <div class="scope-chips" id="loanScopeChips"></div>
-          <button type="button" class="scope-clear hidden" id="loanScopeClear">Clear</button>
+          <label class="loan-closed-toggle" id="loanClosedToggleWrap">
+            <input type="checkbox" id="loanShowClosed">
+            <span id="loanClosedToggleLabel">Show paid-off loans</span>
+          </label>
         </div>
       </div>
 
@@ -1263,6 +1352,33 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="panel-sub">One line per loan, labelled with its interest rate. The solid part is real history; the dashed part is the projected payoff.</div>
         <div id="perLoanChartEmpty" class="empty-state hidden">No loans to chart yet.</div>
         <div class="chart-wrap" id="perLoanChartWrap"><canvas id="perLoanChart"></canvas></div>
+      </div>
+
+      <!-- ============================================================
+           FIXED-PAYMENT SNOWBALL (§26.7)
+           A what-if layered over the two charts above. Instead of each
+           loan running on its own Monthly Payment in isolation, the user
+           commits one fixed total per month: every loan still receives its
+           minimum, and everything left over attacks the smallest remaining
+           balance, rolling onto the next smallest as each one clears.
+
+           Strictly read-only. Nothing here is written to the workbook —
+           the chosen amount lives in localStorage, like the theme and the
+           active tab, and no Loans row is touched by the simulation.
+           ============================================================ -->
+      <div class="panel">
+        <h2>Fixed Monthly Payment &mdash; Snowball Payoff</h2>
+        <div class="panel-sub">Commit one amount each month instead of letting every loan run on its own payment. Each loan keeps its minimum; whatever is left over goes to the smallest remaining balance, and rolls onto the next smallest as each one is cleared. Estimates only &mdash; nothing here is saved.</div>
+        <div class="snowball-controls">
+          <label for="snowballBudget">Monthly amount</label>
+          <input type="number" id="snowballBudget" min="0" step="1" inputmode="decimal">
+          <button type="button" class="btn btn-secondary" id="snowballReset">Reset to minimums</button>
+          <span class="snowball-hint" id="snowballHint"></span>
+        </div>
+        <div class="notice hidden" id="snowballNotice"></div>
+        <div class="snowball-summary" id="snowballSummary"></div>
+        <div id="snowballChartEmpty" class="empty-state hidden">No loans to chart yet.</div>
+        <div class="chart-wrap" id="snowballChartWrap"><canvas id="snowballChart"></canvas></div>
       </div>
 
       <div class="panel">
@@ -1532,6 +1648,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         </div>
         <div class="divide-toggle">
           <button type="button" class="btn-link" id="btnToggleDivide">Divide</button>
+          <button type="button" class="btn-link hidden" id="btnExpPayAll">Pay all</button>
         </div>
         <div class="divide-panel hidden" id="dividePanel">
           <div class="divide-row">
@@ -1548,6 +1665,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <div class="field-error hidden" id="divError">Enter a "Divide by" value greater than 0.</div>
           <button type="button" class="btn btn-secondary" id="btnApplyDivide">Use this amount</button>
         </div>
+        <div class="field-hint hidden" id="expPayoffHint"></div>
         <div class="field-error hidden" id="expAmountError">Enter an amount greater than 0.</div>
       </div>
       <div class="field">
@@ -1845,9 +1963,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       </div>
       <div class="field">
         <label for="pmtAmount">Amount Paid</label>
-        <input type="number" id="pmtAmount" min="0.01" step="0.01" required>
+        <div class="pmt-amount-row">
+          <input type="number" id="pmtAmount" min="0.01" step="0.01" required>
+          <button type="button" class="btn btn-secondary hidden" id="btnPayAll">Pay all</button>
+        </div>
         <div class="field-error hidden" id="pmtAmountError">Enter an amount greater than 0.</div>
         <div class="field-hint">Defaults to the loan's monthly payment — change it for an extra or lump-sum payment.</div>
+        <div class="field-hint hidden" id="pmtPayoffHint"></div>
       </div>
       <div class="field">
         <label>Category</label>
@@ -2007,6 +2129,10 @@ const PLAN_GROUP_KEYS = PLAN_GROUPS.map(g => g.key);
 // default. Declared here in the config block so getStoredPlanHorizon() can read
 // it while the `let planHorizon = …` global initializes further below.
 const PLAN_HORIZON_STORAGE_KEY = "finance_tracker_plan_horizon";
+const SNOWBALL_BUDGET_STORAGE_KEY = "finance_tracker_snowball_budget";
+// 50 years. A snowball that has not cleared by then is not a plan, it is a
+// warning — the chart says so rather than drawing an unbounded timeline.
+const SNOWBALL_MAX_MONTHS = 600;
 const PLAN_HORIZON_DEFAULT = 6;
 
 // "Import Fixed Expenses" (§PLAN): last month's real spending, summed into one
@@ -2223,6 +2349,13 @@ let sourceLoanHeader = LOAN_COLUMNS.slice();
 let selectedLoanIds = new Set();
 let loanChart = null;
 let perLoanChart = null;
+let snowballChart = null;
+// Payoff figure for the loan whose payment modal is currently open, so the
+// "Pay all" button does not have to re-derive it from the DOM.
+let pendingPayoffAmount = 0;
+// The same, for the Loan Payments path of the Add Expense form.
+let pendingExpPayoffAmount = 0;
+let snowballInputTimer = null;
 
 // ---- Loan payment history state ----
 let allLoanPayments = [];              // normalized payment records
@@ -2248,6 +2381,7 @@ let rawInvestmentFlowRows = [];        let sourceInvestmentFlowHeader = INVESTME
 let allInvestmentValuations = [];      // normalized "worth now" readings
 let rawInvestmentValuationRows = [];   let sourceInvestmentValuationHeader = INVESTMENT_VALUATION_COLUMNS.slice();
 let selectedInvestmentIds = new Set();  // empty = every visible investment (§SCOPE-MULTI)
+let showClosedLoans = false;           // §LOAN-CLOSED: paid-off ones are hidden until asked for
 let showClosedInvestments = false;     // §INVEST-CLOSE: closed ones are hidden until asked for
 let investmentActivityShowAll = false; // Activity table: collapsed to HISTORY_ROW_LIMIT until expanded
 let investChart = null;                // portfolio value vs. cost basis over time
@@ -3510,6 +3644,10 @@ function wireStaticEvents() {
     refreshDashboard();
   });
 
+  el("btnPayAll").addEventListener("click", applyPayAll);
+  el("btnExpPayAll").addEventListener("click", applyExpPayAll);
+  el("snowballBudget").addEventListener("input", handleSnowballInput);
+  el("snowballReset").addEventListener("click", resetSnowballBudget);
   el("historySearch").addEventListener("input", (e) => {
     historySearchQuery = e.target.value;
     historyShowAll = false; // a new search should start from the top window
@@ -4440,6 +4578,30 @@ function computeInterestToBalanceRatio(projection, loan) {
   return round1((projection.totalInterest / loan.balance) * 100);
 }
 
+// What it takes to settle a loan right now: the stored balance plus the one
+// period of interest the next payment will charge (§LOAN-PAYOFF).
+//
+// This is the figure that drives balanceAfter to exactly 0. Paying only the
+// stored balance leaves balance*rate behind — the residual the payment chain
+// bills for that period — which reads as "I paid it all and it stayed open".
+//
+// computeLoanChain() bills exactly one period per payment regardless of the
+// calendar gap between them, so "interest accrued so far" is that same single
+// period; there is no day-count in the model to be more precise than that.
+//
+// Derived, never stored. The Loans sheet keeps holding post-payment principal,
+// which is the anchor the whole chain replays from — writing this inflated
+// figure back would re-anchor the loan a little higher on every single save.
+function loanPayoffNow(loan) {
+  if (loan.balance <= 0) return 0;
+  // Rounds interest first, then adds — exactly as computeLoanChain() does when
+  // it derives maxAmount. round2(balance * (1 + i)) looks equivalent but can
+  // land 0.01 higher, which the overpayment guard (§LOAN-OVERPAY) would then
+  // reject as paying off more debt than exists.
+  const interest = round2(loan.balance * ((loan.rate / 100) / 12));
+  return round2(loan.balance + interest);
+}
+
 function severityTierForRate(effectiveAnnualRate) {
   for (const band of SEVERITY_BANDS) {
     if (effectiveAnnualRate <= band.max) return band.tier;
@@ -4477,6 +4639,31 @@ function populateExpLoanSelect() {
 function syncExpLoanDescription() {
   const loan = allLoans.find(l => l.id === el("expLoanId").value);
   el("expDescription").value = loan ? `${loan.name} payment` : "";
+  syncExpPayAll(loan || null);
+}
+
+// The Add Expense form is the second way to record a loan payment, so it gets
+// the same "Pay all" shortcut as the Loans-tab modal (§LOAN-PAYOFF) — the two
+// entry points write through the identical path and must not disagree about
+// what settling a loan costs. Pass null to clear it (no loan chosen, or the
+// category is no longer Loan Payments).
+function syncExpPayAll(loan) {
+  pendingExpPayoffAmount = loan ? loanPayoffNow(loan) : 0;
+  const offer = pendingExpPayoffAmount > 0;
+  el("btnExpPayAll").classList.toggle("hidden", !offer);
+  el("expPayoffHint").classList.toggle("hidden", !offer);
+  if (offer) {
+    el("expPayoffHint").textContent =
+      `Pay all enters ${formatNumber(pendingExpPayoffAmount)} — the balance plus this period’s `
+      + `interest. That clears the loan to zero and marks it paid off.`;
+  }
+}
+
+function applyExpPayAll() {
+  if (pendingExpPayoffAmount <= 0) return;
+  el("expAmount").value = pendingExpPayoffAmount;
+  hide("expAmountError");
+  el("expAmount").focus();
 }
 
 // Two categories force a locked Classification (§8.3): Investment / Savings
@@ -4508,6 +4695,7 @@ function syncExpenseCategoryLock() {
     show("expLoanFieldWrap");
   } else {
     hide("expLoanFieldWrap");
+    syncExpPayAll(null); // category changed away from Loan Payments
   }
 }
 
@@ -4889,6 +5077,164 @@ function groupSumByCategory(rows) {
   const map = {};
   rows.forEach(r => { map[r.Category] = round2((map[r.Category] || 0) + r.Amount); });
   return map;
+}
+
+/* ============================================================
+   DAY-TO-DAY SPENDING BY CATEGORY (§SPEND-BARS)
+   The ranked companion to the expense donut. A donut shows the split;
+   this shows the ordering, the size of each category against the
+   biggest one, and the thing a donut cannot say at all — whether that
+   is more or less than usual.
+   Read-only: derived entirely from allRows, writes nothing.
+   ============================================================ */
+
+const SPEND_BARS_TOP_N = 6;        // beyond this, the tail rolls into one row
+const SPEND_BASELINE_MONTHS = 3;
+
+// Regular classification only. A loan installment and an investment deposit are
+// both real outflows, but neither is discretionary day-to-day spending, and
+// including them lets a single large transfer dwarf every real category.
+function dayToDaySpendRows(rows) {
+  return rows.filter(r => r.Type === "Expense" &&
+    (CLASSIFICATIONS.includes(r.Classification) ? r.Classification : "Regular") === "Regular");
+}
+
+// Clamped month shift: 31 Mar minus one month is 28/29 Feb, never a silent
+// roll forward into March.
+function isoShiftMonths(iso, n) {
+  const d = dateFromISO(iso);
+  const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const y = t.getFullYear(), m = t.getMonth() + 1;
+  return isoFromParts(y, m, Math.min(d.getDate(), daysInMonth(y, m)));
+}
+
+function isoShiftDays(iso, n) {
+  const d = dateFromISO(iso);
+  d.setDate(d.getDate() + n);
+  return isoFromParts(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+function daysInclusive(from, to) {
+  return Math.max(1, Math.round((dateFromISO(to) - dateFromISO(from)) / 86400000) + 1);
+}
+
+// True when the range starts on the 1st and ends on the last day of a month.
+function isWholeCalendarMonths(from, to) {
+  const f = dateFromISO(from), t = dateFromISO(to);
+  return f.getDate() === 1 && t.getDate() === daysInMonth(t.getFullYear(), t.getMonth() + 1);
+}
+
+// How many baseline months this range is worth.
+//
+// A range covering whole calendar months is measured in months, NOT prorated by
+// day. Day-proration looks more precise and is actively misleading here: a
+// 30-day September against a Jun-Aug baseline whose months average 30.67 days
+// reports +2% on a category that did not change at all, and every real delta
+// inherits that same 2% inflation. Months are also what the label promises.
+// Anything that is not whole months (a custom 10-day window) still prorates.
+function spendRangeInBaselineMonths(from, to, baseFrom, baseTo) {
+  if (isWholeCalendarMonths(from, to)) return monthKeyDiff(monthKey(from), monthKey(to)) + 1;
+  return daysInclusive(from, to) / (daysInclusive(baseFrom, baseTo) / SPEND_BASELINE_MONTHS);
+}
+
+function buildSpendRow(name, amount, max, expected, isRest) {
+  const row = document.createElement("div");
+  row.className = "spend-row" + (isRest ? " is-rest" : "");
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "spend-name";
+  nameEl.textContent = name;
+  nameEl.title = name;                       // full text when the column ellipsizes
+
+  const delta = document.createElement("div");
+  delta.className = "spend-delta";
+  if (expected != null && expected > 0) {
+    const pct = Math.round(((amount - expected) / expected) * 100);
+    delta.classList.add(pct > 0 ? "up" : pct < 0 ? "down" : "flat");
+    delta.textContent = (pct > 0 ? "+" : "") + pct + "%";
+    delta.title = `Typical for a span this long: ${formatNumber(expected)}`;
+  } else if (expected != null) {
+    // Spent here now, nothing over the baseline window — a percentage against
+    // zero is infinite, so say what actually happened instead.
+    delta.classList.add("flat");
+    delta.textContent = "new";
+    delta.title = `Nothing spent in this category in the previous ${SPEND_BASELINE_MONTHS} months`;
+  }
+
+  const amt = document.createElement("div");
+  amt.className = "spend-amount";
+  amt.textContent = formatNumber(amount);
+
+  const track = document.createElement("div");
+  track.className = "spend-track";
+  const fill = document.createElement("div");
+  fill.className = "spend-fill";
+  // A 2% floor keeps a tiny category visible as a mark rather than nothing.
+  fill.style.width = `${Math.max(2, (amount / max) * 100)}%`;
+  track.appendChild(fill);
+
+  row.appendChild(nameEl);
+  row.appendChild(delta);
+  row.appendChild(amt);
+  row.appendChild(track);
+  return row;
+}
+
+function renderCategorySpending(expenseRows, from, to) {
+  const list = el("spendBars");
+  const label = el("spendBaselineLabel");
+  list.innerHTML = "";
+
+  const current = dayToDaySpendRows(expenseRows);
+  if (sumAmount(current) <= 0) {
+    show("spendBarsEmpty");
+    hide("spendBars");
+    label.textContent = "";
+    return;
+  }
+  hide("spendBarsEmpty");
+  show("spendBars");
+
+  // Baseline: the three calendar months immediately before this range, scaled
+  // to the length of the range itself, so a 10-day window is compared against
+  // 10 days of typical spending rather than against three whole months.
+  const baseTo = isoShiftDays(from, -1);
+  const baseFrom = isoShiftMonths(from, -SPEND_BASELINE_MONTHS);
+  const baseRows = dayToDaySpendRows(filterByRange(allRows, baseFrom, baseTo));
+  const rangeMonths = spendRangeInBaselineMonths(from, to, baseFrom, baseTo);
+  const haveBaseline = baseRows.length > 0;
+  label.textContent = haveBaseline
+    ? `vs. ${SPEND_BASELINE_MONTHS}-month average`
+    : "no earlier history to compare";
+
+  const curByCat = groupSumByCategory(current);
+  const baseByCat = groupSumByCategory(baseRows);
+
+  const ranked = Object.keys(curByCat)
+    .map(cat => ({ cat, amount: curByCat[cat] }))
+    .filter(e => e.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+
+  const head = ranked.slice(0, SPEND_BARS_TOP_N);
+  const tail = ranked.slice(SPEND_BARS_TOP_N);
+  const tailTotal = round2(tail.reduce((s, e) => s + e.amount, 0));
+  // Bars are scaled against the largest single row, so the top category fills
+  // the track and everything else reads as a fraction of it.
+  const max = Math.max(tailTotal, ...head.map(e => e.amount), 1);
+
+  head.forEach(e => {
+    // Per-month average over the baseline, scaled to this range.
+    const expected = haveBaseline
+      ? round2(((baseByCat[e.cat] || 0) / SPEND_BASELINE_MONTHS) * rangeMonths)
+      : null;
+    list.appendChild(buildSpendRow(e.cat, e.amount, max, expected, false));
+  });
+  if (tail.length > 0) {
+    // The tail is a roll-up of different categories, so a single percentage
+    // against a baseline would be comparing two different mixtures.
+    list.appendChild(buildSpendRow(
+      `Everything else (${tail.length})`, tailTotal, max, null, true));
+  }
 }
 
 function groupSumByClassification(expenseRows) {
@@ -5471,8 +5817,16 @@ function planPullLoanPayments() {
     flashNotice("statusNotice", "No loans to import yet — add a loan on the Loans tab first.");
     return;
   }
+  // A paid-off loan still carries its old Monthly Payment, so importing it
+  // plans real money against a debt that no longer exists. Same rule already
+  // applied by populateExpLoanSelect() and enforced in recordLoanPayment().
+  const active = allLoans.filter(loan => loan.balance > 0);
+  if (!active.length) {
+    flashNotice("statusNotice", "Every loan is paid off — there is nothing left to import.");
+    return;
+  }
   const lens = planLensMonth();
-  allLoans.forEach(loan => {
+  active.forEach(loan => {
     let item = planModel.items.find(it => it.loanId === loan.id);
     if (!item) {
       item = { id: `plan_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
@@ -5485,7 +5839,7 @@ function planPullLoanPayments() {
   });
   renderPlanning();
   flushPlanSave();
-  flashNotice("statusNotice", `Imported ${allLoans.length} loan payment${allLoans.length > 1 ? "s" : ""} into ${formatMonthLabel(lens)}.`);
+  flashNotice("statusNotice", `Imported ${active.length} loan payment${active.length > 1 ? "s" : ""} into ${formatMonthLabel(lens)}.`);
 }
 
 // Totals up last month's REAL expenses per PLAN_FIXED_IMPORT_ROWS (each row may
@@ -5620,6 +5974,7 @@ function refreshDashboard() {
   renderSavingsPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
   renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
+  renderCategorySpending(expenseRows, from, to);
   renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
   renderTableCategoryFilter();
   const q = historySearchQuery.trim().toLowerCase();
@@ -6171,10 +6526,20 @@ function sortedLoansForRanking(projections) {
 // and so does a selection whose loans have all since been deleted — falling
 // back to everything is always safe, where an empty result would silently show
 // zeroed totals that look like real ones.
+// The loans currently in view: paid-off ones only when asked for (§LOAN-CLOSED).
+// "Closed" is derived for a loan rather than stored — a loan is done when its
+// balance reaches 0, which is the same state the "Paid off" badge already
+// reflects. That is why there is no Status column here as there is on
+// Investments, and why nothing about this toggle touches the workbook.
+function visibleLoans() {
+  return allLoans.filter(l => l.balance > 0 || showClosedLoans);
+}
+
 function selectedLoansSet() {
-  if (selectedLoanIds.size === 0) return allLoans;
-  const picked = allLoans.filter(l => selectedLoanIds.has(l.id));
-  return picked.length > 0 ? picked : allLoans;
+  const visible = visibleLoans();
+  if (selectedLoanIds.size === 0) return visible;
+  const picked = visible.filter(l => selectedLoanIds.has(l.id));
+  return picked.length > 0 ? picked : visible;
 }
 
 // Drops ids for loans that no longer exist, so a deleted loan can't keep the
@@ -6198,9 +6563,11 @@ function refreshLoansModule() {
   const projections = computeAllLoanProjections();
   renderLoansList(projections);
   renderLoanScopeChips();
+  syncLoanClosedToggle();
   renderLoanBars(projections);
   renderLoanChart(projections);
   renderPerLoanChart(projections);
+  renderSnowballChart();
   renderPaymentHistoryTable();
 }
 
@@ -6214,6 +6581,7 @@ function applyLoanScopeChange() {
   renderLoanBars(projections);
   renderLoanChart(projections);
   renderPerLoanChart(projections);
+  renderSnowballChart();
   renderPaymentHistoryTable();
 }
 
@@ -6230,6 +6598,15 @@ function renderLoansList(projections) {
   // nothing selected this is the full worst-to-best ranking.
   const scopeIds = new Set(selectedLoansSet().map(l => l.id));
   const sorted = sortedLoansForRanking(projections).filter(l => scopeIds.has(l.id));
+  // Every loan finished and the toggle is off — say so rather than rendering a
+  // blank panel that reads like the data failed to load (§LOAN-CLOSED).
+  if (sorted.length === 0 && allLoans.length > 0) {
+    const note = document.createElement("div");
+    note.className = "empty-state";
+    note.textContent = "Every loan is paid off — tick “Show paid-off loans” above to see them.";
+    list.appendChild(note);
+    return;
+  }
   sorted.forEach(loan => {
     const proj = projections[loan.id];
     const isPaidOff = loan.balance <= 0;
@@ -6239,9 +6616,12 @@ function renderLoansList(projections) {
       : proj.negativeAmortization
       ? "Growing debt — this payment doesn't cover the interest, so the balance won't go down as configured."
       : `Will cost about +${formatNumber(Math.round(computeInterestToBalanceRatio(proj, loan)))}% in interest over its remaining life.`;
+    // Shown as the settle-today figure, not the stored post-payment principal,
+    // so that paying the number on screen actually clears the loan (§LOAN-PAYOFF).
+    const shownBalance = loanPayoffNow(loan);
     const balanceText = loan.originalAmount != null
-      ? `Balance ${formatNumber(loan.balance)} (originally ${formatNumber(loan.originalAmount)})`
-      : `Balance ${formatNumber(loan.balance)}`;
+      ? `Balance ${formatNumber(shownBalance)} (originally ${formatNumber(loan.originalAmount)})`
+      : `Balance ${formatNumber(shownBalance)}`;
     const badge = isPaidOff
       ? '<span class="loan-badge-paid">Paid off</span>'
       : proj.negativeAmortization ? '<span class="loan-badge-negative">Growing debt</span>' : "";
@@ -6345,18 +6725,35 @@ function wireScopePicker(prefix, onPick) {
   });
 }
 
+// Keeps the checkbox in step with the flag, and hides the whole control when
+// there is nothing paid off to reveal — an always-visible toggle that does
+// nothing is just noise on a tab with no finished loans yet.
+function syncLoanClosedToggle() {
+  const closedCount = allLoans.filter(l => l.balance <= 0).length;
+  el("loanShowClosed").checked = showClosedLoans;
+  el("loanClosedToggleWrap").classList.toggle("hidden", closedCount === 0);
+  el("loanClosedToggleLabel").textContent =
+    `Show paid-off loan${closedCount === 1 ? "" : "s"} (${closedCount})`;
+}
+
 function renderLoanScopeChips() {
   pruneLoanScope();
+  const visible = visibleLoans();
+  const labelFor = (l) => l.balance <= 0 ? `${l.name} (paid off)` : l.name;
 
   fillScopePicker(
     "loanScope",
-    allLoans.filter(l => !selectedLoanIds.has(l.id)).map(l => ({ id: l.id, label: l.name })),
-    { addLabel: selectedLoanIds.size === 0 ? "All loans" : "Add a loan…", emptyLabel: "All loans selected" }
+    visible.filter(l => !selectedLoanIds.has(l.id)).map(l => ({ id: l.id, label: labelFor(l) })),
+    {
+      addLabel: selectedLoanIds.size > 0 ? "Add a loan…"
+        : showClosedLoans ? "All (incl. paid off)" : "All loans",
+      emptyLabel: "All loans selected"
+    }
   );
 
   const wrap = el("loanScopeChips");
   wrap.innerHTML = "";
-  allLoans.filter(l => selectedLoanIds.has(l.id)).forEach(loan => {
+  visible.filter(l => selectedLoanIds.has(l.id)).forEach(loan => {
     wrap.appendChild(buildScopeChip({ label: loan.name, dataKey: "loanId", id: loan.id }));
   });
 
@@ -6715,6 +7112,307 @@ function trimPerLoanAxisToVisible(chart) {
   chart.options.scales.x.max = maxIdx;
 }
 
+/* ============================================================
+   FIXED-PAYMENT SNOWBALL (§26.7)
+   The third Loans chart. The two above it show what happens when every
+   loan runs on its own Monthly Payment forever; this one asks the more
+   useful question — "if I commit N per month to all of it, when am I
+   done?" — and answers it with a debt-snowball allocation.
+   Read-only: nothing in here writes to the workbook.
+   ============================================================ */
+
+// Sum of Monthly Payment across every loan still carrying a balance. This is
+// the simulator's default budget, so the default run is exactly the user's
+// current commitment plus the rollover effect.
+function snowballMinimumsTotal(loans) {
+  return round2(loans.reduce((sum, l) => sum + (l.balance > 0 ? l.payment : 0), 0));
+}
+
+function loadSnowballOverride() {
+  try {
+    const raw = localStorage.getItem(SNOWBALL_BUDGET_STORAGE_KEY);
+    if (raw === null) return null;
+    const v = parseFloat(raw);
+    return isFinite(v) && v >= 0 ? round2(v) : null;
+  } catch (e) { return null; }
+}
+
+// null clears the override, so the amount goes back to tracking the loans.
+function saveSnowballOverride(value) {
+  try {
+    if (value === null) localStorage.removeItem(SNOWBALL_BUDGET_STORAGE_KEY);
+    else localStorage.setItem(SNOWBALL_BUDGET_STORAGE_KEY, String(value));
+  } catch (e) { /* a blocked or full localStorage must never break the chart */ }
+}
+
+function currentSnowballBudget(loans) {
+  const override = loadSnowballOverride();
+  return override !== null ? override : snowballMinimumsTotal(loans);
+}
+
+// Month-by-month simulation across every loan at once.
+//
+// computeLoanProjection() cannot be reused here: it amortizes a single loan in
+// isolation, and the entire point of a snowball is that the loans are coupled
+// through one shared budget. The arithmetic conventions do match it though —
+// interest accrues on the start-of-month balance, the payment covers that
+// interest first, and only the remainder reduces principal — so a one-loan run
+// of this produces the same schedule the other two charts draw.
+//
+// Allocation, each month:
+//   1. Every open loan is offered its own Monthly Payment, capped at the amount
+//      that would clear it outright. Offers go out smallest-balance first, so a
+//      budget too small to cover all the minimums funds the loans nearest to
+//      being cleared rather than stranding the money on the biggest one.
+//   2. Whatever is left attacks the smallest remaining balance, then the next.
+// The order is recomputed every month, because a large loan becomes the
+// smallest one once it has shrunk far enough.
+function simulateSnowball(loans, budget) {
+  const schedules = {};
+  loans.forEach(l => { schedules[l.id] = [round2(Math.max(0, l.balance))]; });
+
+  const open = loans.filter(l => l.balance > 0).map(l => ({
+    id: l.id, rate: l.rate, payment: l.payment, balance: round2(l.balance)
+  }));
+
+  const result = {
+    schedules, months: 0, totalInterest: 0, totalPaid: 0,
+    minimumsTotal: snowballMinimumsTotal(loans),
+    cleared: open.length === 0, stalled: false, hitCap: false, underfunded: false
+  };
+  result.underfunded = open.length > 0 && budget + 0.005 < result.minimumsTotal;
+  if (open.length === 0) return result;
+
+  let month = 0;
+  while (open.some(l => l.balance > 0) && month < SNOWBALL_MAX_MONTHS) {
+    month++;
+    const live = open.filter(l => l.balance > 0);
+    const interest = new Map(live.map(l => [l.id, round2(l.balance * (l.rate / 100) / 12)]));
+    const order = live.slice().sort((a, b) => (a.balance - b.balance) || (b.rate - a.rate));
+    const paid = new Map(live.map(l => [l.id, 0]));
+    let pot = budget;
+
+    for (const l of order) {                    // 1. minimums, smallest first
+      if (pot <= 0) break;
+      const payoff = round2(l.balance + interest.get(l.id));
+      const give = Math.min(Math.min(l.payment, payoff), pot);
+      paid.set(l.id, round2(give));
+      pot = round2(pot - give);
+    }
+    for (const l of order) {                    // 2. roll the remainder onward
+      if (pot <= 0) break;
+      const payoff = round2(l.balance + interest.get(l.id));
+      const need = round2(payoff - paid.get(l.id));
+      if (need <= 0) continue;
+      const give = Math.min(need, pot);
+      paid.set(l.id, round2(paid.get(l.id) + give));
+      pot = round2(pot - give);
+    }
+
+    let monthInterest = 0, monthPaid = 0;
+    for (const l of live) {
+      const int = interest.get(l.id), pay = paid.get(l.id);
+      l.balance = round2(Math.max(0, l.balance + int - pay));
+      monthInterest = round2(monthInterest + int);
+      monthPaid = round2(monthPaid + pay);
+    }
+    result.totalInterest = round2(result.totalInterest + monthInterest);
+    result.totalPaid = round2(result.totalPaid + monthPaid);
+    open.forEach(l => { schedules[l.id].push(l.balance); });
+
+    // Paying less than the month's interest cannot touch principal, so the debt
+    // only grows from here. Stop and say so rather than charting decades of a
+    // rising line the user can do nothing with.
+    if (monthPaid + 0.005 < monthInterest) { result.stalled = true; break; }
+  }
+
+  result.months = month;
+  result.cleared = open.every(l => l.balance <= 0);
+  result.hitCap = !result.cleared && !result.stalled;
+
+  // End each line on the month it reaches zero. A cleared loan must not run
+  // flat along zero to the end of a longer loan's timeline (§26.6).
+  Object.keys(schedules).forEach(id => {
+    const zero = schedules[id].indexOf(0);
+    if (zero >= 0) schedules[id] = schedules[id].slice(0, zero + 1);
+  });
+  return result;
+}
+
+// Same shape as "Each Loan's Balance Over Time" — solid real history up to
+// Today, dashed after — but the projected half comes from the shared-budget
+// snowball instead of each loan amortizing on its own.
+function renderSnowballChart() {
+  const loans = selectedLoansSet();
+  if (snowballChart) { snowballChart.destroy(); snowballChart = null; }
+
+  const notice = el("snowballNotice");
+  const summary = el("snowballSummary");
+  const hint = el("snowballHint");
+  const input = el("snowballBudget");
+
+  if (loans.length === 0) {
+    show("snowballChartEmpty");
+    hide("snowballChartWrap");
+    notice.classList.add("hidden");
+    summary.textContent = "";
+    hint.textContent = "";
+    return;
+  }
+  hide("snowballChartEmpty");
+  show("snowballChartWrap");
+
+  const minimums = snowballMinimumsTotal(loans);
+  const budget = currentSnowballBudget(loans);
+  // Never write into the box while the user is typing in it.
+  if (document.activeElement !== input) input.value = budget;
+  hint.textContent = "Minimum for these loans: " + formatNumber(minimums) + "/mo";
+
+  const sim = simulateSnowball(loans, budget);
+
+  notice.classList.remove("error");
+  if (sim.stalled) {
+    notice.textContent = formatNumber(budget) + " a month is less than the interest these loans accrue, so the balance grows instead of shrinking. Raise the amount to make progress.";
+    notice.classList.add("error");
+    notice.classList.remove("hidden");
+  } else if (sim.hitCap) {
+    notice.textContent = "At " + formatNumber(budget) + " a month these loans are still not cleared after " + Math.floor(SNOWBALL_MAX_MONTHS / 12) + " years. The chart stops there.";
+    notice.classList.add("error");
+    notice.classList.remove("hidden");
+  } else if (sim.underfunded) {
+    notice.textContent = formatNumber(budget) + " is below the " + formatNumber(minimums) + " these loans ask for each month. The shortfall comes off the largest balances, which grow until the smaller loans clear.";
+    notice.classList.remove("hidden");
+  } else {
+    notice.classList.add("hidden");
+  }
+
+  const todayYM = monthKey(todayISO());
+  if (sim.cleared && sim.months > 0) {
+    const freeYM = addMonthsToKey(todayYM, sim.months);
+    const years = Math.floor(sim.months / 12), rem = sim.months % 12;
+    const span = years > 0 ? years + "y " + rem + "m" : rem + "m";
+    summary.innerHTML = "Debt-free in <strong>" + span + "</strong> &mdash; " + monthKeyLabel(freeYM)
+      + ". Interest from here: <strong>" + formatNumber(sim.totalInterest)
+      + "</strong>, total paid <strong>" + formatNumber(sim.totalPaid) + "</strong>.";
+  } else if (sim.cleared) {
+    summary.textContent = "These loans are already paid off.";
+  } else {
+    summary.textContent = "";
+  }
+
+  // Timeline anchoring copied from the per-loan chart so the two line up.
+  const paymentsByLoan = {};
+  loans.forEach(l => {
+    paymentsByLoan[l.id] = allLoanPayments.filter(p => p.loanId === l.id)
+      .slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  });
+  let earliestYM = todayYM;
+  loans.forEach(l => {
+    const pmts = paymentsByLoan[l.id];
+    if (pmts.length > 0) {
+      const ym = monthKey(pmts[0].date);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+    if (l.dateRecorded) {
+      const ym = monthKey(l.dateRecorded);
+      if (ym < earliestYM) earliestYM = ym;
+    }
+  });
+  const hasAnyHistory = earliestYM < todayYM;
+
+  const buckets = [];
+  for (let ym = earliestYM; ym < todayYM; ym = addMonthsToKey(ym, 1)) buckets.push({ ym, isFuture: false });
+  for (let m = 0; m <= sim.months; m++) buckets.push({ ym: addMonthsToKey(todayYM, m), isFuture: true });
+  const splitIndex = buckets.findIndex(b => b.isFuture);
+
+  const labels = buckets.map((b, idx) =>
+    b.isFuture ? (idx === splitIndex ? "Today" : monthKeyLabel(b.ym)) : monthKeyLabel(b.ym));
+
+  const colors = getCategoryColors();
+  const datasets = loans.map((loan, i) => {
+    const schedule = sim.schedules[loan.id] || [];
+    const data = buckets.map((b, idx) => {
+      if (!b.isFuture) return round2(loanActualStateAtMonth(loan, paymentsByLoan[loan.id], b.ym).balance);
+      const monthsFromToday = idx - splitIndex;
+      if (monthsFromToday >= schedule.length) return null;   // cleared: the line ends
+      return schedule[monthsFromToday];
+    });
+    return {
+      label: loan.name + " — " + formatNumber(loan.rate) + "%",
+      data,
+      borderColor: colors[i % colors.length],
+      backgroundColor: "transparent",
+      tension: 0.25,
+      pointRadius: 0,
+      borderWidth: 2,
+      spanGaps: false,
+      segment: hasAnyHistory ? { borderDash: (ctx) => (ctx.p1DataIndex > splitIndex ? [6, 4] : undefined) } : undefined
+    };
+  });
+
+  const theme = getChartThemeColors();
+  snowballChart = new Chart(el("snowballChart").getContext("2d"), {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        y: { beginAtZero: true, ticks: { color: theme.text, callback: (v) => formatNumber(v) }, grid: { color: hexToRgba(theme.grid, 0.5) } },
+        x: { ticks: { color: theme.text, maxTicksLimit: 12 }, grid: { display: false } }
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 },
+          onClick: (e, legendItem, legend) => {
+            const ci = legend.chart;
+            const idx = legendItem.datasetIndex;
+            ci.setDatasetVisibility(idx, !ci.isDatasetVisible(idx));
+            trimPerLoanAxisToVisible(ci);
+            ci.update();
+          }
+        },
+        tooltip: {
+          mode: "index", intersect: false,
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (ctx) => ctx.dataset.label + ": " + formatNumber(ctx.parsed.y) }
+        }
+      }
+    }
+  });
+  trimPerLoanAxisToVisible(snowballChart);
+  snowballChart.update();
+}
+
+// Typing re-runs a 600-month simulation and rebuilds a Chart, so coalesce the
+// keystrokes. An empty box means "no override" rather than "zero".
+function handleSnowballInput() {
+  if (snowballInputTimer) clearTimeout(snowballInputTimer);
+  snowballInputTimer = setTimeout(() => {
+    snowballInputTimer = null;
+    const raw = el("snowballBudget").value.trim();
+    if (raw === "") {
+      saveSnowballOverride(null);
+    } else {
+      const v = parseFloat(raw);
+      if (!isFinite(v) || v < 0) return;   // mid-typing garbage: leave the chart alone
+      saveSnowballOverride(round2(v));
+    }
+    renderSnowballChart();
+  }, 300);
+}
+
+function resetSnowballBudget() {
+  if (snowballInputTimer) { clearTimeout(snowballInputTimer); snowballInputTimer = null; }
+  saveSnowballOverride(null);
+  el("snowballBudget").value = snowballMinimumsTotal(selectedLoansSet());
+  renderSnowballChart();
+}
+
 // Shows every logged payment for whichever loan(s) the selector (§26.2)
 // currently has in scope — "All Loans" shows every payment across every
 // loan, a specific loan shows just its own history. Newest first.
@@ -6890,8 +7588,36 @@ function openPaymentModalForAdd(loanId) {
   el("pmtDate").value = todayISO();
   el("pmtAmount").value = loan.payment;
   el("pmtNotes").value = `${loan.name} payment`;
+  // "Pay all" fills the exact settle-today figure, which clears the balance to
+  // 0 and flips the loan to its "Paid off" state (§LOAN-PAYOFF).
+  pendingPayoffAmount = loanPayoffNow(loan);
+  setPayAllVisible(pendingPayoffAmount > 0);
   hidePaymentFormErrors();
   show("paymentModalOverlay");
+}
+
+// Shows or hides the "Pay all" shortcut and the line explaining what it will
+// enter. Kept in one place so the add and edit paths cannot drift apart.
+function setPayAllVisible(visible) {
+  const btn = el("btnPayAll");
+  const hint = el("pmtPayoffHint");
+  btn.classList.toggle("hidden", !visible);
+  hint.classList.toggle("hidden", !visible);
+  if (visible) {
+    hint.textContent = `Pay all enters ${formatNumber(pendingPayoffAmount)} — the balance plus this period’s interest. `
+      + `That clears the loan to zero and marks it paid off.`;
+  }
+}
+
+// Fills the amount box with the exact settle-today figure. Deliberately does
+// not submit: the date and notes are still the user's to set, and the payment
+// then saves through the same path as any other (§DATA-SAFETY) — linked
+// expense row, Payment ID and all.
+function applyPayAll() {
+  if (pendingPayoffAmount <= 0) return;
+  el("pmtAmount").value = pendingPayoffAmount;
+  hidePaymentFormErrors();
+  el("pmtAmount").focus();
 }
 
 function openPaymentModalForEdit(id) {
@@ -6907,6 +7633,10 @@ function openPaymentModalForEdit(id) {
   el("pmtDate").value = payment.date;
   el("pmtAmount").value = payment.amount;
   el("pmtNotes").value = payment.notes;
+  // No "Pay all" when editing: the settle figure depends on where this payment
+  // sits in the chain, and every later payment would be re-derived from it.
+  pendingPayoffAmount = 0;
+  setPayAllVisible(false);
   hidePaymentFormErrors();
   show("paymentModalOverlay");
 }
@@ -8696,6 +9426,13 @@ function wireInvestmentEvents() {
   el("investScopeClear").addEventListener("click", () => {
     selectedInvestmentIds.clear();
     applyInvestmentScopeChange();
+  });
+
+  el("loanShowClosed").addEventListener("change", () => {
+    showClosedLoans = el("loanShowClosed").checked;
+    // A full refresh, not just a scope change: which loans exist in the list
+    // and in the selector both change here.
+    refreshLoansModule();
   });
 
   el("investShowClosed").addEventListener("change", () => {
