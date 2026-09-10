@@ -354,6 +354,13 @@ svg{display:block;}
 .summary-card.expense .value{color:var(--expense);}
 .summary-card.balance .value.positive{color:var(--income);}
 .summary-card.balance .value.negative{color:var(--expense);}
+/* Current Balance (§BAL-NOW). Same card shell as its three neighbours, but it
+   ignores the time range, so it carries a `.sub` line saying so — without it the
+   card reads as broken the first time the range changes and this figure doesn't. */
+.summary-card.current .label svg{color:var(--accent);}
+.summary-card.current .value.positive{color:var(--income);}
+.summary-card.current .value.negative{color:var(--expense);}
+.summary-card .sub{margin-top:7px;font-size:11px;color:var(--text-faint);letter-spacing:.02em;}
 
 /* ---- Classification panel ---- */
 .classif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:14px;}
@@ -479,7 +486,27 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    contents centre so the buttons sit in the middle of the taller box rather
    than clinging to the top. */
 .dash-top-main > .panel{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
-.dash-top-main > .summary-grid{flex:0 0 auto;}
+/* The dashboard's four summary cards stay on ONE row rather than inheriting
+   .summary-grid's auto-fit, which lands on three columns through most of the
+   useful width range and strands the fourth card alone beside a card-sized
+   hole. Holding four columns means the cards themselves have to give: the gap
+   and padding tighten and the figure scales with the viewport (see below), so
+   the row fits without a wrap instead of overflowing. Only the dashboard row is
+   overridden — the Investments tab keeps the shared auto-fit behaviour. */
+.dash-top-main > .summary-grid{flex:0 0 auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+.dash-top-main > .summary-grid > .summary-card{padding:16px 14px;min-width:0;}
+.dash-top-main > .summary-grid .label{font-size:11.5px;margin-bottom:6px;gap:5px;}
+/* Scales with the viewport so the longest realistic figure still fits on one
+   line in a quarter-width card, and stops growing at the original 30px once
+   there is room to spare. Nowrap so a tight fit clips visibly in testing
+   rather than silently reflowing into two lines. */
+.dash-top-main > .summary-grid .value{font-size:clamp(19px,2.4vw,30px);white-space:nowrap;}
+.dash-top-main > .summary-grid .sub{font-size:10.5px;}
+/* Below this the quarter-width card is too narrow for a currency figure at any
+   readable size, so the row folds to 2x2 — still even, still never 3+1. */
+@media (max-width:640px){
+  .dash-top-main > .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
 .dash-top-side{display:flex;}
 .dash-top-side > .panel{flex:1 1 auto;display:flex;flex-direction:column;margin-bottom:0;}
 /* Pinned to the bottom so the card reads as deliberate at any height. */
@@ -1148,6 +1175,15 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="summary-card balance">
         <div class="label">Net Balance</div>
         <div class="value" id="sumBalance">0</div>
+      </div>
+      <!-- Current Balance (§BAL-NOW). The only card in this row that is NOT
+           scoped to the selected time range: it is every income minus every
+           expense ever recorded, up to today. Net Balance beside it answers
+           "how did this range go"; this answers "what do I have". -->
+      <div class="summary-card current">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v2"/><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="13.5" r="1.25"/></svg>Current Balance</div>
+        <div class="value" id="sumCurrentBalance">0</div>
+        <div class="sub" id="sumCurrentBalanceNote"></div>
       </div>
     </div>
     </div>
@@ -5995,6 +6031,50 @@ function renderSummaryCards(incomeRows, expenseRows) {
   balEl.textContent = formatMoney(balance);
   balEl.classList.toggle("positive", balance >= 0);
   balEl.classList.toggle("negative", balance < 0);
+  renderCurrentBalanceCard();
+}
+
+/* ------------------------------------------------------------
+   CURRENT BALANCE (§BAL-NOW)
+   ------------------------------------------------------------
+   The standing total: every income minus every expense in the
+   ledger, dated up to and including today. Deliberately reads from
+   allRows, NOT from the range-filtered rows its three neighbours
+   use — the answer to "what do I have" must not change when the
+   range buttons do.
+
+   Two things it refuses to fudge:
+     - Later-dated entries are excluded, because a salary booked for
+       next week is not money in the bank right now. When any exist
+       they are called out in the sub-line rather than silently
+       dropped, so the card can never look like it lost rows.
+     - It is the total of what has been TRACKED. If the ledger did
+       not start from an empty account, the real bank figure is this
+       plus whatever was there on day one; the app has no way to know
+       that, so the card does not pretend to.
+   ------------------------------------------------------------ */
+function renderCurrentBalanceCard() {
+  const today = todayISO();
+  let tracked = 0, laterNet = 0, laterCount = 0;
+  allRows.forEach(r => {
+    if (!r.Date) return;
+    const signed = r.Type === "Income" ? r.Amount : r.Type === "Expense" ? -r.Amount : 0;
+    if (r.Date <= today) tracked += signed;
+    else { laterNet += signed; laterCount++; }
+  });
+  tracked = round2(tracked);
+
+  const valEl = el("sumCurrentBalance");
+  valEl.textContent = formatMoney(tracked);
+  valEl.classList.toggle("positive", tracked >= 0);
+  valEl.classList.toggle("negative", tracked < 0);
+
+  let note = "All time \u00b7 as of " + friendlyDate(today);
+  if (laterCount > 0) {
+    note += " \u00b7 " + laterCount + (laterCount === 1 ? " later entry" : " later entries")
+      + " (" + (laterNet > 0 ? "+" : "") + formatMoney(laterNet) + ") not counted yet";
+  }
+  el("sumCurrentBalanceNote").textContent = note;
 }
 
 function renderClassificationPanel(expenseRows, totalIncome) {

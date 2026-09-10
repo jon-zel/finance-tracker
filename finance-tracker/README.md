@@ -54,6 +54,25 @@ chart, and the payment/activity history — not just the graphs.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
+### The four summary cards
+
+**Total Income**, **Total Expenses** and **Net Balance** all describe the **selected time
+range** — change the range and all three change with it. Net Balance is that range's
+income minus its expenses.
+
+**Current Balance** is the odd one out and deliberately so: it ignores the range picker
+entirely and shows **every income minus every expense in the ledger, dated up to today**.
+That is the figure that answers "what do I have", and it stays put while the other three
+move. Two details it is strict about:
+
+- **Later-dated entries do not count.** A salary you have already entered for next week is
+  not money you have now. When any exist, the card's small print says how many and what
+  they add up to, so nothing looks quietly missing.
+- **It is the total of what you have tracked**, not a bank balance. If your ledger did not
+  begin from an empty account, your real balance is this number plus whatever was in the
+  account on the day you started — the app has no opening-balance setting, so it does not
+  pretend to know that (see *What it does not do*).
+
 ## Your data
 
 Everything lives in the `finances.xlsx` file you chose a folder for — there's no
@@ -174,7 +193,9 @@ Other things worth knowing:
 
 No accounts/login, no cloud sync, no multi-currency (amounts are plain, unit-less
 numbers — you know your own currency), no recurring/automatic entries, no in-app budgets,
-and no mobile app. It is a private, offline, single-file, desktop tool.
+no **opening/starting balance** (so *Current Balance* is the total of what you have
+tracked rather than a seeded bank figure), and no mobile app. It is a private, offline,
+single-file, desktop tool.
 
 ## Configuration
 
