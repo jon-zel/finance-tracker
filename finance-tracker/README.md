@@ -54,15 +54,14 @@ chart, and the payment/activity history — not just the graphs.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
-### The four summary cards
+### The three summary cards
 
-**Total Income**, **Total Expenses** and **Net Balance** all describe the **selected time
-range** — change the range and all three change with it. Net Balance is that range's
-income minus its expenses.
+**Total Income** and **Total Expenses** both describe the **selected time range** — change
+the range and both change with it.
 
 **Current Balance** is the odd one out and deliberately so: it ignores the range picker
 entirely and shows **every income minus every expense in the ledger, dated up to today**.
-That is the figure that answers "what do I have", and it stays put while the other three
+That is the figure that answers "what do I have", and it stays put while the other two
 move. Two details it is strict about:
 
 - **Later-dated entries do not count.** A salary you have already entered for next week is
