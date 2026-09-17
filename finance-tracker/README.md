@@ -72,6 +72,18 @@ move. Two details it is strict about:
   account on the day you started — the app has no opening-balance setting, so it does not
   pretend to know that (see *What it does not do*).
 
+### Empty states
+
+Before you add your first loan or first investment, those two tabs show an illustration
+instead of a bare line of text. Each tab has its own artwork and each artwork has a
+**light and a dark variant** — the dark one is not the light one dimmed, it is separate
+art (slate-blue foliage instead of teal-green, and a pale money bag that would otherwise
+vanish against the dark panel). The app picks the right one from the current theme.
+
+All four are embedded directly in `index.html` as base64 WebP, on their full supplied
+canvas with no cropping or recolouring, so the app stays a single self-contained file —
+the same trick the stylesheet already uses for its font.
+
 ## Your data
 
 Everything lives in the `finances.xlsx` file you chose a folder for — there's no
