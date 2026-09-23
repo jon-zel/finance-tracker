@@ -394,6 +394,36 @@ svg{display:block;}
 .stack-seg.regular{background:var(--regular);}
 .stack-seg.loan{background:var(--loan-classif);}
 .classif-note{margin-top:12px;font-size:12px;color:var(--text-muted);}
+
+/* ---- 50/30/20 breakdown (§BUDGET-503020) ---- */
+.budget-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+.budget-head h2{margin-bottom:0;}
+.budget-subhead{font-size:12px;color:var(--text-faint);}
+.budget-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:18px;}
+.budget-row{
+  border:1px solid var(--border);border-radius:var(--radius);padding:14px;
+  border-left-width:3px;border-left-style:solid;
+}
+.budget-row.needs{border-left-color:var(--accent);}
+.budget-row.wants{border-left-color:var(--loan-classif);}
+.budget-row.savings{border-left-color:var(--income);}
+.budget-row-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.budget-row-name{font-size:13px;font-weight:600;color:var(--text);}
+/* The actual share, sized to be the thing the eye lands on. */
+.budget-row-pct{font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--text);}
+.budget-row-pct.over{color:var(--expense);}
+.budget-row-pct.under{color:var(--income);}
+.budget-row-target{font-size:11px;color:var(--text-faint);margin-top:2px;}
+.budget-row-amt{font-size:12px;color:var(--text-muted);margin-top:8px;}
+.budget-row-blurb{font-size:11px;color:var(--text-faint);margin-top:6px;line-height:1.45;}
+/* Rail: the actual share drawn against its 50/30/20 allowance, so "how far over"
+   is legible without reading the numbers. The marker is the target itself. */
+.budget-rail{position:relative;height:6px;border-radius:var(--radius-pill);background:var(--surface-alt);margin-top:10px;overflow:hidden;}
+.budget-rail-fill{height:100%;border-radius:var(--radius-pill);transition:width var(--dur-slow) ease;}
+.budget-row.needs .budget-rail-fill{background:var(--accent);}
+.budget-row.wants .budget-rail-fill{background:var(--loan-classif);}
+.budget-row.savings .budget-rail-fill{background:var(--income);}
+.budget-rail-fill.over{background:var(--expense);}
 .stack-seg.investment{background:var(--invest);}
 
 /* ---- Charts ---- */
@@ -1231,6 +1261,23 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="chart-wrap" id="trendChartWrap"><canvas id="trendChart"></canvas></div>
     </div>
 
+    <!-- 50/30/20 breakdown (§BUDGET-503020). Sits under the income-vs-expense
+         trend because it answers the next question that chart raises: the money
+         went out, but into which third of the rule. Shares the range picker and
+         the same bucket granularity as every other chart on this tab. -->
+    <div class="panel">
+      <div class="budget-head">
+        <h2>50/30/20 Breakdown</h2>
+        <span class="budget-subhead" id="budgetSubhead"></span>
+      </div>
+      <div id="budgetEmpty" class="empty-state hidden">No expenses in this range fall under the 50/30/20 rule yet.</div>
+      <div id="budgetContent">
+        <div class="chart-wrap" id="budgetChartWrap"><canvas id="budgetChart"></canvas></div>
+        <div class="budget-rows" id="budgetRows"></div>
+        <div class="classif-note" id="budgetNote"></div>
+      </div>
+    </div>
+
     <!-- Category donuts -->
     <div class="charts-row">
       <div class="panel">
@@ -1670,6 +1717,16 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="field-error hidden" id="expLoanIdError">Add a loan in the Loans tab first, or choose a different category.</div>
         <div class="field-hint">This also records a real payment against that loan.</div>
       </div>
+      <!-- 50/30/20 override (§BUDGET-503020). Left on "Auto" the expense simply
+           follows its category's mapping, which is the case for every row unless
+           the user deliberately says otherwise. "Not counted" is the escape hatch
+           for a technical movement (a fund transfer filed under Other) that would
+           otherwise distort one of the three shares. -->
+      <div class="field">
+        <label for="expBudgetGroup">50/30/20 group</label>
+        <select id="expBudgetGroup"></select>
+        <div class="field-hint" id="expBudgetGroupHint"></div>
+      </div>
       <div class="field">
         <div class="amount-row">
           <div class="field">
@@ -2032,7 +2089,12 @@ const SHEET_NAME = "Transactions";
 // only on the expense row linked to a loan payment (§LOAN-PAYMENTS), so that
 // row can be found again (to keep it in sync, or remove it) if the payment
 // it came from is later edited or deleted.
-const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description", "Loan ID", "Payment ID"];
+// "Budget Group" (§BUDGET-503020) is the per-expense override for the 50/30/20
+// rule. Blank on every row means "inherit from the category", which is what
+// every pre-existing row has, so adding this column changes no existing
+// number. It is appended to the sheet by computeFinalHeader on the next save
+// like any other known column.
+const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description", "Loan ID", "Payment ID", "Budget Group"];
 
 const EXPENSE_CATEGORIES = [
   "Food & Groceries",
@@ -2078,6 +2140,59 @@ const INCOME_CATEGORIES = [
 
 const CLASSIFICATIONS = ["Regular", "Loan", "Investment"];
 const DEFAULT_CLASSIFICATION = "Regular";
+
+/* ---- The 50/30/20 rule (§BUDGET-503020) -------------------------------
+   Elizabeth Warren's split of NET income: 50% needs, 30% wants, 20% savings.
+   Income here is whatever the ledger records as Income for the period, which
+   for this app is already take-home money — nothing is grossed up or taxed.
+
+   This is a SECOND, independent axis over expenses. It has nothing to do with
+   Classification (Regular / Loan / Investment), which answers a different
+   question and stays exactly as it was. A row can be Classification "Loan"
+   and budget group "Needs" at the same time; neither derives from the other.
+
+   CATEGORY_BUDGET_GROUP is the hidden field on each category — hidden in the
+   sense that it never appears on the add/edit form, because it is a property
+   of the category rather than of any one expense. Edit it here to re-map a
+   category; every past and future expense in it follows immediately, since
+   nothing about the mapping is written into the workbook.
+
+   A category mapped to null is deliberately outside the rule. "Other" is the
+   catch-all this app uses for technical fund movements, which are neither a
+   need, a want, nor savings — counting them would quietly inflate one of the
+   three buckets. Individual expenses can be pulled out (or pulled in) one at
+   a time via the row's own "Budget Group" column; see resolveBudgetGroup. */
+const BUDGET_GROUPS = ["Needs", "Wants", "Savings"];
+const BUDGET_GROUP_TARGET = { Needs: 50, Wants: 30, Savings: 20 };
+// Stored in the row's "Budget Group" cell to mean "explicitly outside the rule",
+// as distinct from an empty cell, which means "inherit from the category".
+const BUDGET_GROUP_NONE = "None";
+const BUDGET_GROUP_BLURB = {
+  Needs: "Housing, insurance, transport, basic groceries",
+  Wants: "Entertainment, hobbies, non-essentials",
+  Savings: "Savings and investments"
+};
+const CATEGORY_BUDGET_GROUP = {
+  "Food & Groceries": "Needs",
+  "Restaurants & Cafés": "Wants",
+  "Housing (Rent/Mortgage)": "Needs",
+  "Bills & Utilities": "Needs",
+  "Mom Bills": "Needs",
+  "Sister Bills": "Needs",
+  "Subscriptions": "Wants",
+  "Transportation": "Needs",
+  "Health": "Needs",
+  "Insurance": "Needs",
+  "Education": "Needs",
+  "Leisure & Entertainment": "Wants",
+  "Shopping & Clothing": "Wants",
+  "Investment / Savings Deposit": "Savings",
+  // A loan installment is a contractual obligation, so the rule counts it as a
+  // need rather than as savings — even though paying debt down builds net worth.
+  "Loan Payments": "Needs",
+  // Catch-all: no meaningful bucket. See the note above.
+  "Other": null
+};
 
 const DEFAULT_TIME_RANGE = "This Month";
 
@@ -2349,6 +2464,7 @@ let allRows = [];               // normalized rows from the workbook
 let usingFallback = false;      // true once we're in import/download mode
 let currentRangeType = DEFAULT_TIME_RANGE;
 let trendChart = null, expenseDonutChart = null, incomeDonutChart = null;
+let budgetChart = null;
 const HISTORY_ROW_LIMIT = 10;
 let historyShowAll = false; // reset to false whenever the time range changes
 let paymentHistoryShowAll = false; // Loan Payment History: collapsed to HISTORY_ROW_LIMIT until expanded; reset when the loan scope changes
@@ -2656,6 +2772,7 @@ function getChartThemeColors() {
     grid: pick("--border", "#e2e6ea"),
     surface: pick("--panel", "#ffffff"),
     loan: pick("--loan", "#c0392b"),
+    loanClassif: pick("--loan-classif", "#c9791f"),
     accent: pick("--accent", "#2f6fa8"),
     income: pick("--income", "#1a9c6b"),
     expense: pick("--expense", "#d64545")
@@ -2965,6 +3082,11 @@ function normalizeRow(raw) {
   const description = String(raw.Description || "").trim();
   const loanId = String(raw["Loan ID"] || "").trim();
   const paymentId = String(raw["Payment ID"] || "").trim();
+  // Per-expense 50/30/20 override (§BUDGET-503020). Anything unrecognised —
+  // including the blank every pre-existing row carries — normalizes to "",
+  // which resolveBudgetGroup reads as "inherit from the category".
+  let budgetGroup = String(raw["Budget Group"] || "").trim();
+  if (budgetGroup !== BUDGET_GROUP_NONE && !BUDGET_GROUPS.includes(budgetGroup)) budgetGroup = "";
   // Carry any user-added columns onto the normalized view so row identity
   // (transactionSignature) can tell two otherwise-identical rows apart — an
   // edit/delete then lands on the exact physical row, not merely the first
@@ -2979,8 +3101,23 @@ function normalizeRow(raw) {
     Amount: parseAmountCell(raw.Amount),
     Description: description,
     "Loan ID": loanId,
-    "Payment ID": paymentId
+    "Payment ID": paymentId,
+    "Budget Group": budgetGroup
   });
+}
+
+/* Which 50/30/20 bucket an expense actually counts in, or null for "outside
+   the rule". The row's own cell wins over the category mapping so one entry
+   can be pulled out (BUDGET_GROUP_NONE) or reassigned without touching how
+   its category behaves everywhere else. Income is never bucketed — it is the
+   denominator the three shares are measured against, not a share itself. */
+function resolveBudgetGroup(row) {
+  if (!row || row.Type !== "Expense") return null;
+  const explicit = String(row["Budget Group"] || "").trim();
+  if (explicit === BUDGET_GROUP_NONE) return null;
+  if (BUDGET_GROUPS.includes(explicit)) return explicit;
+  const fromCategory = CATEGORY_BUDGET_GROUP[row.Category];
+  return BUDGET_GROUPS.includes(fromCategory) ? fromCategory : null;
 }
 
 function buildHeaderOnlySheet(headerOrder) {
@@ -3465,6 +3602,7 @@ async function init() {
   populateSelect(el("expCategory"), EXPENSE_CATEGORIES);
   populateSelect(el("expClassification"), CLASSIFICATIONS);
   el("expClassification").value = DEFAULT_CLASSIFICATION;
+  populateBudgetGroupSelect();
   populateSelect(el("incCategory"), INCOME_CATEGORIES);
   el("welcomeFileName").textContent = DATA_FILENAME;
   el("expDate").value = todayISO();
@@ -3632,6 +3770,7 @@ function wireStaticEvents() {
   el("expenseForm").addEventListener("submit", handleExpenseSubmit);
   el("incomeForm").addEventListener("submit", handleIncomeSubmit);
   el("expCategory").addEventListener("change", syncExpenseCategoryLock);
+  el("expBudgetGroup").addEventListener("change", syncBudgetGroupHint);
   el("expLoanId").addEventListener("change", syncExpLoanDescription);
 
   el("btnToggleDivide").addEventListener("click", () => {
@@ -3840,7 +3979,8 @@ function isPlainTransaction(r) {
 }
 
 function transactionSignature(r) {
-  const base = [r.Date, r.Type, r.Category, r.Classification || "", round2(r.Amount), r.Description || ""];
+  const base = [r.Date, r.Type, r.Category, r.Classification || "", round2(r.Amount), r.Description || "",
+                r["Budget Group"] || ""];
   // Fold in any user-added (unknown) columns, deterministically ordered, so two
   // rows identical on every known field but differing in a manually-added Excel
   // column get distinct signatures — an edit/delete then lands on the exact row
@@ -3941,6 +4081,8 @@ function prefillTransactionModal(r) {
     el("expCategory").value = r.Category;
     syncExpenseCategoryLock();
     if (!el("expClassification").disabled) el("expClassification").value = r.Classification || DEFAULT_CLASSIFICATION;
+    el("expBudgetGroup").value = r["Budget Group"] || "";
+    syncBudgetGroupHint();
     el("expAmount").value = r.Amount;
     el("expDescription").value = r.Description;
   }
@@ -4728,6 +4870,47 @@ function syncExpenseCategoryLock() {
     hide("expLoanFieldWrap");
     syncExpPayAll(null); // category changed away from Loan Payments
   }
+  syncBudgetGroupHint(); // the "Auto" target depends on the chosen category
+}
+
+/* The override select (§BUDGET-503020). "" is the stored value for "follow the
+   category", so it is the option that must come first and be the reset default. */
+function populateBudgetGroupSelect() {
+  const sel = el("expBudgetGroup");
+  sel.innerHTML = "";
+  const add = (value, label) => {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    sel.appendChild(o);
+  };
+  add("", "Auto — follow the category");
+  BUDGET_GROUPS.forEach(g => add(g, g));
+  add(BUDGET_GROUP_NONE, "Not counted — leave out of 50/30/20");
+  sel.value = "";
+}
+
+/* Spells out what "Auto" resolves to for the category currently chosen, so the
+   hidden category mapping is visible at the one moment it matters — including
+   when it resolves to nothing at all, which would otherwise look like the
+   expense had silently vanished from the chart. */
+function syncBudgetGroupHint() {
+  const sel = el("expBudgetGroup");
+  const hint = el("expBudgetGroupHint");
+  if (!sel || !hint) return;
+  if (sel.value === BUDGET_GROUP_NONE) {
+    hint.textContent = "This expense stays out of the 50/30/20 breakdown.";
+    return;
+  }
+  if (sel.value) {
+    hint.textContent = "Counted as " + sel.value + " for this expense only.";
+    return;
+  }
+  const category = el("expCategory").value;
+  const auto = CATEGORY_BUDGET_GROUP[category];
+  hint.textContent = BUDGET_GROUPS.includes(auto)
+    ? "“" + category + "” counts as " + auto + "."
+    : "“" + (category || "This category") + "” is not part of 50/30/20, so this expense is not counted.";
 }
 
 function openModal(id) {
@@ -4739,7 +4922,9 @@ function openModal(id) {
     el("expCategory").disabled = false;
     el("expClassification").disabled = false;
     el("expClassification").value = DEFAULT_CLASSIFICATION;
+    el("expBudgetGroup").value = "";
     syncExpenseCategoryLock();
+    syncBudgetGroupHint();
     hide("dividePanel");
     hide("divError");
     hide("expAmountError");
@@ -4819,6 +5004,7 @@ async function handleExpenseSubmit(e) {
   const date = el("expDate").value;
   const category = el("expCategory").value;
   const classification = el("expClassification").value;
+  const budgetGroup = el("expBudgetGroup").value;
   const amount = parseFloat(el("expAmount").value);
   const description = el("expDescription").value.trim();
 
@@ -4842,7 +5028,7 @@ async function handleExpenseSubmit(e) {
   // through the loan-payment flow even if the category reads "Loan Payments" —
   // editing a plain row must not spawn a new loan payment.
   if (editingTransaction && editingTransaction.type === "Expense") {
-    const fields = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description };
+    const fields = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description, "Budget Group": budgetGroup };
     btn.disabled = true;
     const ok = await updateTransaction(editingTransaction.sig, fields);
     btn.disabled = false;
@@ -4869,7 +5055,7 @@ async function handleExpenseSubmit(e) {
     return;
   }
 
-  const row = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description };
+  const row = { Date: date, Type: "Expense", Category: category, Classification: classification, Amount: round2(amount), Description: description, "Budget Group": budgetGroup };
   btn.disabled = true;
   const ok = await appendRow(row);
   btn.disabled = false;
@@ -6004,6 +6190,7 @@ function refreshDashboard() {
   renderClassificationPanel(expenseRows, sumAmount(incomeRows));
   renderSavingsPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
+  renderBudgetBreakdown(from, to, incomeRows, expenseRows);
   renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
   renderCategorySpending(expenseRows, from, to);
   renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
@@ -6186,6 +6373,154 @@ function renderTrendChart(from, to, incomeRows, expenseRows) {
         }
       }
     }
+  });
+}
+
+/* ------------------------------------------------------------
+   50/30/20 BREAKDOWN (§BUDGET-503020)
+   ------------------------------------------------------------
+   Expenses split into Needs / Wants / Savings and measured against
+   the 50/30/20 shares of the income recorded in the same range.
+
+   Three things this panel is deliberately careful about:
+
+     - Each expense's bucket comes from resolveBudgetGroup, so a row's
+       own "Budget Group" cell overrides its category and an expense
+       can be left out of the rule entirely.
+     - Money outside the rule is REPORTED, never silently dropped. If
+       it were just filtered away, an unmapped category or a row set
+       to "Not counted" would quietly shrink the totals with nothing
+       on screen to say so.
+     - With no income in range a share of income is undefined, so the
+       percentages show an em dash rather than a misleading 0% — the
+       same rule the Expense Classification panel follows.
+   ------------------------------------------------------------ */
+function budgetGroupColors(theme) {
+  return { Needs: theme.accent, Wants: theme.loanClassif, Savings: theme.income };
+}
+
+function renderBudgetBreakdown(from, to, incomeRows, expenseRows) {
+  const totalIncome = sumAmount(incomeRows);
+  const granularity = determineGranularity(from, to);
+  const buckets = buildBuckets(from, to, granularity);
+
+  // Per-bucket totals for the chart, plus range totals for the rows below.
+  const perBucket = {};
+  const totals = { Needs: 0, Wants: 0, Savings: 0 };
+  let outside = 0, outsideCount = 0;
+  expenseRows.forEach(r => {
+    const group = resolveBudgetGroup(r);
+    if (!group) { outside = round2(outside + r.Amount); outsideCount++; return; }
+    totals[group] = round2(totals[group] + r.Amount);
+    const k = bucketKeyForRow(r, granularity);
+    if (!perBucket[k]) perBucket[k] = { Needs: 0, Wants: 0, Savings: 0 };
+    perBucket[k][group] = round2(perBucket[k][group] + r.Amount);
+  });
+
+  const counted = round2(totals.Needs + totals.Wants + totals.Savings);
+  el("budgetSubhead").textContent = "Needs 50% · Wants 30% · Savings 20% of income";
+
+  if (counted <= 0) {
+    show("budgetEmpty");
+    hide("budgetContent");
+    if (budgetChart) { budgetChart.destroy(); budgetChart = null; }
+    return;
+  }
+  hide("budgetEmpty");
+  show("budgetContent");
+
+  const theme = getChartThemeColors();
+  const colors = budgetGroupColors(theme);
+  const labels = buckets.map(b => b.label);
+
+  if (budgetChart) budgetChart.destroy();
+  budgetChart = new Chart(el("budgetChart").getContext("2d"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: BUDGET_GROUPS.map(g => ({
+        label: g,
+        data: buckets.map(b => (perBucket[b.key] ? perBucket[b.key][g] : 0)),
+        backgroundColor: colors[g],
+        borderRadius: 4,
+        borderSkipped: false
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      barPercentage: 0.85,
+      categoryPercentage: 0.7,
+      // Stacked so each bar is that period's total spend under the rule, split
+      // into its three parts — the shape of the split is the point.
+      scales: {
+        x: { stacked: true, ticks: { color: theme.text }, grid: { display: false } },
+        y: {
+          stacked: true, beginAtZero: true,
+          ticks: { color: theme.text, callback: (v) => formatNumber(v) },
+          grid: { color: hexToRgba(theme.grid, 0.5) }
+        }
+      },
+      plugins: {
+        legend: { position: "bottom", labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 } },
+        tooltip: {
+          backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
+          titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
+          displayColors: true, boxPadding: 4,
+          callbacks: { label: (c) => `${c.dataset.label}: ${formatMoney(c.parsed.y)}` }
+        }
+      }
+    }
+  });
+
+  renderBudgetRows(totals, totalIncome);
+
+  // Everything the chart above does NOT show, stated plainly.
+  const parts = [];
+  parts.push(totalIncome > 0
+    ? "Shares are of the " + formatMoney(totalIncome) + " income recorded in this range."
+    : "No income recorded in this range, so a share of income can't be worked out — the amounts below are still real.");
+  if (outsideCount > 0) {
+    parts.push(outsideCount + (outsideCount === 1 ? " expense (" : " expenses (") + formatMoney(outside) + ")"
+      + (outsideCount === 1 ? " is" : " are")
+      + " outside the rule — an unmapped category, or set to “Not counted” — so "
+      + (outsideCount === 1 ? "it is" : "they are") + " not in the chart above.");
+  }
+  el("budgetNote").textContent = parts.join(" ");
+}
+
+function renderBudgetRows(totals, totalIncome) {
+  const host = el("budgetRows");
+  host.innerHTML = "";
+  BUDGET_GROUPS.forEach(g => {
+    const target = BUDGET_GROUP_TARGET[g];
+    const amount = totals[g];
+    const targetAmount = round2(totalIncome * target / 100);
+    const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : null;
+    // Savings is the one group where MORE is better, so the test flips: Needs and
+    // Wants miss their share by going OVER it, Savings misses by falling UNDER it.
+    // Judging every group as "over = bad" would paint a 30%-saved month red and a
+    // 0%-saved month neutral — both backwards — so each is judged its own way.
+    const missed = pct != null && (g === "Savings" ? pct < target : pct > target);
+    const good = pct != null && !missed;
+    const railPct = pct == null ? 0 : Math.max(0, Math.min(Math.round((amount / (targetAmount || amount || 1)) * 100), 100));
+
+    const row = document.createElement("div");
+    row.className = "budget-row " + g.toLowerCase();
+    row.innerHTML =
+      '<div class="budget-row-top">' +
+        '<span class="budget-row-name">' + escapeHtml(g) + "</span>" +
+        '<span class="budget-row-pct' + (missed ? " over" : good ? " under" : "") + '">' +
+          (pct == null ? "—" : pct + "%") +
+        "</span>" +
+      "</div>" +
+      '<div class="budget-row-target">target ' + target + "%" +
+        (totalIncome > 0 ? " · " + formatMoney(targetAmount) : "") + "</div>" +
+      '<div class="budget-rail"><div class="budget-rail-fill' + (missed && g !== "Savings" ? " over" : "") +
+        '" style="width:' + railPct + '%"></div></div>' +
+      '<div class="budget-row-amt">' + formatMoney(amount) + " spent</div>" +
+      '<div class="budget-row-blurb">' + escapeHtml(BUDGET_GROUP_BLURB[g]) + "</div>";
+    host.appendChild(row);
   });
 }
 

@@ -72,6 +72,45 @@ move. Two details it is strict about:
   account on the day you started — the app has no opening-balance setting, so it does not
   pretend to know that (see *What it does not do*).
 
+### The 50/30/20 breakdown
+
+The dashboard charts your expenses against Elizabeth Warren's rule: of your net income,
+**50% needs, 30% wants, 20% savings**. Income here is simply whatever the ledger records
+as Income for the period — nothing is grossed up or taxed.
+
+Every expense **category** carries a hidden group. It is hidden because it belongs to the
+category, not to any one expense, so it never clutters the add/edit form. The mapping
+lives in the config block at the top of `index.html` as `CATEGORY_BUDGET_GROUP`:
+
+| Group | Categories |
+|---|---|
+| **Needs** | Food & Groceries, Housing, Bills & Utilities, Mom Bills, Sister Bills, Transportation, Health, Insurance, Education, Loan Payments |
+| **Wants** | Restaurants & Cafés, Subscriptions, Leisure & Entertainment, Shopping & Clothing |
+| **Savings** | Investment / Savings Deposit |
+| *(none)* | Other |
+
+Change a line there and every past and future expense in that category follows at once —
+the mapping is never written into the workbook, so re-mapping rewrites nothing.
+
+`Other` is deliberately mapped to nothing. It is the catch-all for technical fund
+movements, which are neither a need, a want, nor savings; counting them would quietly
+inflate one of the three shares.
+
+**Per-expense override.** The add/edit expense form has a *50/30/20 group* field. Left on
+**Auto** (the default, and what every existing row has) the expense follows its category.
+You can also pin one expense to a specific group, or choose **Not counted** to drop it out
+of the rule entirely — the escape hatch for a transfer that happens to be filed under a
+category that is otherwise counted. This is stored per row in a `Budget Group` column on
+the `Transactions` sheet; blank means "follow the category".
+
+Anything outside the rule is **stated under the chart**, never silently dropped, so an
+unmapped category or an excluded row can't quietly shrink your totals with nothing on
+screen to explain it.
+
+Note this is a second, independent axis from **Classification** (Regular / Loan /
+Investment). The two answer different questions and neither derives from the other: a row
+can be Classification *Loan* and group *Needs* at the same time.
+
 ### Empty states
 
 Before you add your first loan or first investment, those two tabs show an illustration
@@ -212,7 +251,8 @@ single-file, desktop tool.
 
 Editable constants live at the top of `index.html` (the config `<script>` block):
 category lists, `SAVINGS_TARGET_PERCENT`, `DATA_FILENAME`, the sheet names, the default
-theme (dark), `SEVERITY_BANDS` (the effective-annual-rate thresholds that color the loan
+theme (dark), `CATEGORY_BUDGET_GROUP` (which 50/30/20 group each expense category
+counts toward), `SEVERITY_BANDS` (the effective-annual-rate thresholds that color the loan
 ranking), and for the Investments tab `INVESTMENT_TYPES`, `RETURN_BANDS` (the return
 thresholds that color the investment ranking), `INVESTMENT_PROJECTION_YEARS`, and
 `RATE_DECIMALS` (how many decimals an expected return may carry). See `finance-tracker-spec.md` for the fuller design and behavior spec.
