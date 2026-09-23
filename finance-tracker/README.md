@@ -21,8 +21,8 @@ Safari/Firefox don't support the file-linking API the app relies on; there you'l
 The app is one page with four tabs, switched from the bar under the header:
 
 - **Income & Expenses** — the main dashboard: add income/expense entries, see totals,
-  category and classification breakdowns, the income-vs-expense trend, the savings goal,
-  and the transaction history table.
+  category and classification breakdowns, the income-vs-expense trend, the 50/30/20
+  split, and the transaction history table.
 - **Loans** — track the loans you owe, ranked worst-to-best, with payoff/interest
   projections and a real, dated **payment history** you can log against each loan.
 - **Investments** — the mirror image of Loans, for money working *for* you. Register an
@@ -74,9 +74,15 @@ move. Two details it is strict about:
 
 ### The 50/30/20 breakdown
 
-The dashboard charts your expenses against Elizabeth Warren's rule: of your net income,
+The dashboard splits your expenses by Elizabeth Warren's rule: of your net income,
 **50% needs, 30% wants, 20% savings**. Income here is simply whatever the ledger records
 as Income for the period — nothing is grossed up or taxed.
+
+It shows as three cards — actual share, target share and amount, and what was spent —
+sitting beside a condensed **Expense Classification** panel in the same row. There is no
+chart: the split only means something relative to the period's income, and each card
+already carries that comparison. Savings is judged the other way round from the other two,
+so falling *under* 20% flags, while going *over* 50% or 30% does.
 
 Every expense **category** carries a hidden group. It is hidden because it belongs to the
 category, not to any one expense, so it never clutters the add/edit form. The mapping
@@ -176,10 +182,12 @@ and preserves any extra columns/sheets it doesn't recognize when it writes back.
 - **Income vs. expenses** over a selectable time range (This Month / Last Month / This
   Year / Custom), with category breakdowns (donuts) for each and a trend chart.
 - An expense **classification** dimension (Regular / Loan / Investment) — loan spending is
-  flagged as most severe, investment spending counts toward the savings goal.
+  flagged as most severe.
+- A separate **50/30/20** dimension over the same expenses (see above), independent of
+  classification.
 - Two special expense categories that auto-set their classification:
-  - **`Investment / Savings Deposit`** → locks classification to *Investment* and feeds the
-    savings goal.
+  - **`Investment / Savings Deposit`** → locks classification to *Investment*, and is the
+    category that counts toward the 50/30/20 *Savings* share.
   - **`Loan Payments`** → locks classification to *Loan*, asks which loan the payment is
     for, and records a real payment against that loan (the same action as the Loans tab's
     "Log Payment"). Use this instead of logging loan payments as ordinary expenses, so the
@@ -236,8 +244,8 @@ Other things worth knowing:
   there the valuation is treated as the day's closing figure.)
 - **Nothing on this tab touches Income & Expenses.** Investment money is deliberately not
   written to the Transactions sheet, so moving money in or out can never change a past
-  income or expense total. If you also want a deposit to count toward your savings goal,
-  log it separately as an expense under `Investment / Savings Deposit`.
+  income or expense total. If you also want a deposit to count toward your 50/30/20
+  *Savings* share, log it separately as an expense under `Investment / Savings Deposit`.
 
 ## What it does not do (by design)
 
