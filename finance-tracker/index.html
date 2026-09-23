@@ -376,21 +376,6 @@ svg{display:block;}
 /* ---- Classification panel ---- */
 .classif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:14px;}
 .classif-item{border-radius:var(--radius);padding:14px;border:1px solid var(--border);transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;}
-/* ---- Condensed Expense Classification (§SPLIT-ROW) ----
-   Three small figures. Stretched across the page it was mostly whitespace, so
-   it is capped to its natural width and left-aligned, and the room that frees
-   up goes to the charts below rather than to padding. */
-.classif-panel{max-width:440px;}
-/* Condensed: tighter cells and a slightly smaller figure than the full-width
-   version carried, so three of them sit comfortably in the narrower column. */
-.classif-panel .classif-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
-.classif-panel .classif-item{padding:10px 11px;}
-.classif-panel .classif-item .name{font-size:13px;}
-.classif-panel .classif-item .amt{font-size:17px;}
-.classif-panel .classif-item .pct{font-size:12px;}
-@media (max-width:900px){
-  .classif-panel{max-width:none;}
-}
 .classif-item.regular{background:var(--regular-bg);}
 .classif-item.loan{background:var(--loan-classif-bg);border-color:var(--loan-classif-border);}
 .classif-item.investment{background:var(--invest-bg);}
@@ -557,6 +542,9 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    sit evenly across it at every width the dashboard is used at, so none of the
    four-column tightening (smaller gap, padding and type) is needed any more. */
 .dash-top-main > .summary-grid{flex:0 0 auto;}
+/* Grows to the height of the 50/30/20 panel beside it, so the two columns end
+   on the same baseline instead of leaving a ragged step under this one. */
+.dash-top-main > .classif-panel{flex:1 1 auto;}
 /* Must come AFTER the .dash-top base rule above: both are single-class
    selectors, so at equal specificity the later one wins and an override placed
    earlier in the file would silently do nothing. */
@@ -1225,9 +1213,9 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="sub" id="sumCurrentBalanceNote"></div>
       </div>
     </div>
-    <!-- Classification breakdown (§SPLIT-ROW). Condensed and left-aligned rather
-         than stretched across the page: it is three small figures, and at full
-         width it was mostly whitespace. -->
+    <!-- Classification breakdown. Lives in the dash-top's LEFT column, under the
+         summary cards, so it fills the height the taller 50/30/20 panel opens up
+         beside it and spans that column's full width. -->
     <div class="panel classif-panel">
       <h2>Expense Classification</h2>
       <div id="classifEmpty" class="empty-state hidden">No expenses in this range yet.</div>
