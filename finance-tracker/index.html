@@ -376,14 +376,10 @@ svg{display:block;}
 /* ---- Classification panel ---- */
 .classif-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:14px;}
 .classif-item{border-radius:var(--radius);padding:14px;border:1px solid var(--border);transition:background-color var(--dur-ui) ease,border-color var(--dur-ui) ease;}
-/* ---- Classification + 50/30/20 side by side (§SPLIT-ROW) ----
-   Expense Classification is three small figures; stretched across the page it
-   was mostly whitespace. Capped to its natural width and left-aligned here, the
-   remainder goes to the 50/30/20 cards, which genuinely use it. `auto` rather
-   than a fixed width so the cap adapts to the content, and minmax(0,…) on both
-   tracks so a long figure can never push the row wider than the page. */
-.classif-row{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:20px;align-items:start;margin-bottom:20px;}
-.classif-row > .panel{margin-bottom:0;}
+/* ---- Condensed Expense Classification (§SPLIT-ROW) ----
+   Three small figures. Stretched across the page it was mostly whitespace, so
+   it is capped to its natural width and left-aligned, and the room that frees
+   up goes to the charts below rather than to padding. */
 .classif-panel{max-width:440px;}
 /* Condensed: tighter cells and a slightly smaller figure than the full-width
    version carried, so three of them sit comfortably in the narrower column. */
@@ -393,7 +389,6 @@ svg{display:block;}
 .classif-panel .classif-item .amt{font-size:17px;}
 .classif-panel .classif-item .pct{font-size:12px;}
 @media (max-width:900px){
-  .classif-row{grid-template-columns:minmax(0,1fr);}
   .classif-panel{max-width:none;}
 }
 .classif-item.regular{background:var(--regular-bg);}
@@ -536,12 +531,22 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    the two adding up. */
 /* The row owns its own bottom spacing now that its children have none, or */
 /* the panel below would butt straight up against it. */
-/* Single column since the Savings Goal aside was removed (§SPLIT-ROW); the
-   range picker and summary cards now run the full width of the page. */
-.dash-top{display:block;margin-bottom:20px;}
-.dash-top-main{min-width:0;}
+/* Two columns: range picker + summary cards on the left, the 50/30/20
+   breakdown on the right in the slot the Savings Goal panel used to hold.
+   360px rather than the old 300px because three stacked cards each carry a
+   figure, a target line, a rail and a caption — 300px crowded the target line
+   onto two rows. */
+.dash-top{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-bottom:20px;}
+.dash-top-main,.dash-top-side{min-width:0;}
 .dash-top-main{display:flex;flex-direction:column;gap:20px;}
 .dash-top-main > *{margin-bottom:0;}
+.dash-top-side{display:flex;}
+.dash-top-side > .panel{flex:1 1 auto;display:flex;flex-direction:column;margin-bottom:0;}
+/* One card per row in this column: at 360px two across would leave a stranded
+   third, and stacking is what lets each card keep its target line on one line. */
+.dash-top-side .budget-rows{grid-template-columns:minmax(0,1fr);gap:10px;}
+.dash-top-side .budget-row{padding:12px 13px;}
+.dash-top-side .classif-note{margin-top:auto;padding-top:12px;}
 /* The date filter takes up whatever slack the row has. The summary cards keep
    their natural size — stretching the panels the figures live in distorts the
    three amounts, which are the thing being read here, while the filter is just
@@ -552,8 +557,14 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    sit evenly across it at every width the dashboard is used at, so none of the
    four-column tightening (smaller gap, padding and type) is needed any more. */
 .dash-top-main > .summary-grid{flex:0 0 auto;}
-/* Pinned to the bottom so the card reads as deliberate at any height. */
+/* Must come AFTER the .dash-top base rule above: both are single-class
+   selectors, so at equal specificity the later one wins and an override placed
+   earlier in the file would silently do nothing. */
 @media (max-width:900px){
+  .dash-top{grid-template-columns:minmax(0,1fr);}
+  /* Full width again below the breakpoint, so the three cards go back to
+     sitting side by side rather than as one tall stacked column. */
+  .dash-top-side .budget-rows{grid-template-columns:repeat(auto-fit,minmax(168px,1fr));}
 }
 
 /* ---- Day-to-day spending by category (§SPEND-BARS) ---- */
@@ -1214,14 +1225,9 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="sub" id="sumCurrentBalanceNote"></div>
       </div>
     </div>
-    </div>
-   </div>
-
-    <!-- Classification breakdown, now paired with the 50/30/20 cards (§SPLIT-ROW).
-         Classification is condensed and holds its natural width on the left, so
-         the room it used to waste stretching across the page goes to the
-         breakdown beside it. Both read the same range, so they belong together. -->
-    <div class="classif-row">
+    <!-- Classification breakdown (§SPLIT-ROW). Condensed and left-aligned rather
+         than stretched across the page: it is three small figures, and at full
+         width it was mostly whitespace. -->
     <div class="panel classif-panel">
       <h2>Expense Classification</h2>
       <div id="classifEmpty" class="empty-state hidden">No expenses in this range yet.</div>
@@ -1247,11 +1253,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="classif-note">Percentages show each amount as a share of your total income for this period.</div>
       </div>
     </div>
-
-    <!-- 50/30/20 breakdown (§BUDGET-503020). Three cards, no chart: the split
-         only means anything against the period's income, and the cards already
-         carry that comparison. A bar chart of the same three numbers over time
-         said less and took the whole width to say it. -->
+    </div>
+    <!-- 50/30/20 breakdown (§BUDGET-503020) sits where the Savings Goal panel
+         used to, beside the range picker and summary cards. Three cards, no
+         chart: the split only means anything against the period's income, and
+         each card already carries that comparison. In this narrower column the
+         cards stack, which is also what makes the whole row read as one block. -->
+    <aside class="dash-top-side">
     <div class="panel budget-panel">
       <div class="budget-head">
         <h2>50/30/20 Breakdown</h2>
@@ -1263,7 +1271,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="classif-note" id="budgetNote"></div>
       </div>
     </div>
-    </div>
+    </aside>
+   </div>
 
     <!-- Income vs Expenses chart -->
     <div class="panel">
