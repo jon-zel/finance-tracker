@@ -61,10 +61,11 @@ custom range, a 3-way **All / Income / Expense** switch, a **Categories** dropdo
 **Classification** dropdown. Each active filter appears as a removable chip under the
 controls, with one **Clear filters** action beside them.
 
-- **One gesture, one meaning.** Clicking a donut slice, or a category badge under a donut,
-  adds or removes that category as a filter. Clicking the Income/Expenses legend on the
-  trend chart sets the type. Nothing hides data any more, and double-click does nothing —
-  the **only** link inside the Categories dropdown replaces it, and is actually findable.
+- **One gesture, one meaning.** Clicking a donut slice adds or removes that category as a
+  filter. Clicking the Income/Expenses legend on the trend chart sets the type. Nothing
+  hides data any more, and double-click does nothing — the **only** link inside the
+  Categories dropdown replaces it, and is actually findable. The donuts no longer carry a
+  category list underneath: the Categories dropdown is that list, with the same colour dots.
 - **Nothing can be filtered invisibly.** Any state a chart click creates shows up as a chip
   you can remove. If you filter yourself down to nothing, you get *"Nothing matches these
   filters."* and a Clear button.

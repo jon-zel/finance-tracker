@@ -194,8 +194,7 @@ svg{display:block;}
 .scope-clear:focus-visible,.date-cal-btn:focus-visible,.history-toggle-btn:focus-visible,
 .history-search-clear:focus-visible,.seg-btn:focus-visible,.filter-opt:focus-visible,
 .filter-only:focus-visible,.plan-additem-btn:focus-visible,
-.plan-drag-handle:focus-visible,.plan-row-del:focus-visible,.loan-row:focus-visible,
-.legend-badge:focus-visible{
+.plan-drag-handle:focus-visible,.plan-row-del:focus-visible,.loan-row:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px;
 }
 
@@ -501,15 +500,12 @@ svg{display:block;}
 .empty-clear{margin-left:10px;font-size:14px;}
 /* Clickable donut legend badges — they add and remove a category filter now
    rather than hiding data, so a selected one reads as selected. */
-.legend-badge.selected{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);}
 .legend-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
 .legend-badge{
   display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);
   border-radius:var(--radius-pill);padding:6px 12px;font-size:12px;font-weight:600;color:var(--text);
   cursor:pointer;transition:background-color var(--dur) ease,border-color var(--dur) ease,opacity var(--dur) ease;
 }
-.legend-badge:hover{background:var(--surface-alt);border-color:var(--border-strong);}
-.legend-badge.disabled{opacity:.45;}
 .legend-badge .swatch{width:8px;height:8px;border-radius:100%;flex:none;}
 .history-search-wrap{position:relative;margin-top:14px;}
 .history-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint);pointer-events:none;}
@@ -1385,7 +1381,6 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <h2>Expenses by Category <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
         <div id="expenseDonutEmpty" class="empty-state hidden">No expenses in this range yet.</div>
         <div class="chart-wrap" id="expenseDonutWrap"><canvas id="expenseDonutChart"></canvas></div>
-        <div id="expenseDonutLegend" class="legend-badges"></div>
       </div>
       <!-- Day-to-day spending by category (§SPEND-BARS). Sits between the two
            donuts: it breaks the left donut down into a ranked, comparable list
@@ -1404,7 +1399,6 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <h2>Income by Category <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
         <div id="incomeDonutEmpty" class="empty-state hidden">No income in this range yet.</div>
         <div class="chart-wrap" id="incomeDonutWrap"><canvas id="incomeDonutChart"></canvas></div>
-        <div id="incomeDonutLegend" class="legend-badges"></div>
       </div>
     </div>
 
@@ -6493,8 +6487,8 @@ function refreshDashboard() {
 
   // ---- exploration: date + explore filters ----
   renderTrendChart(from, to, exploreIncome, exploreExpense);
-  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, (c) => (expenseDonutChart = c));
-  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, (c) => (incomeDonutChart = c));
+  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "Expense", expenseDonutChart, expenseRows, (c) => (expenseDonutChart = c));
+  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "Income", incomeDonutChart, incomeRows, (c) => (incomeDonutChart = c));
   const q = historySearchQuery.trim().toLowerCase();
   const tableRows = exploreRows.filter(r => !q || rowMatchesSearch(r, q));
   renderHistoryTable(tableRows, rangeRows.length > 0);
@@ -6877,21 +6871,21 @@ function hexToRgba(hex, alpha) {
    itself, so a 10%-of-spend category could fill half the donut and read as a
    completely different picture. The centre shows the matching sum over the
    range total, so both numbers are on screen at once. */
-function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, rows, setChartRef) {
+function renderDonut(canvasId, wrapId, emptyId, type, existingChart, rows, setChartRef) {
   if (existingChart) existingChart.destroy();
   if (rows.length === 0) {
     show(emptyId);
     hide(wrapId);
-    el(legendId).innerHTML = "";
     setChartRef(null);
     return;
   }
   hide(emptyId);
   show(wrapId);
 
-  const categories = categoryListForType(type);
+  // Ordered by the configured category list rather than by size, so a slice
+  // keeps its colour and position as amounts change between ranges.
   const sums = groupSumByCategory(rows);
-  const entries = categories.map(cat => [cat, sums[cat] || 0]).filter(([, v]) => v > 0);
+  const entries = categoryListForType(type).map(cat => [cat, sums[cat] || 0]).filter(([, v]) => v > 0);
 
   const matchedSums = groupSumByCategory(rows.filter(matchesExplore));
   const dimming = hasExploreFilters();
@@ -6939,29 +6933,6 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
     }
   });
   setChartRef(chart);
-
-  renderDonutLegend(legendId, type, categories);
-}
-
-// A badge is a filter toggle now, not a visibility toggle: clicking it adds or
-// removes that category from the global Categories filter, exactly as clicking
-// the matching slice does, and a selected one is styled as selected. The old
-// double-click-to-solo is gone — the popover's "only" link does that job where
-// it can actually be discovered.
-function renderDonutLegend(containerId, type, categories) {
-  const container = el(containerId);
-  container.innerHTML = "";
-  categories.forEach(cat => {
-    const selected = isCategorySelected(type, cat);
-    const badge = document.createElement("button");
-    badge.type = "button";
-    badge.className = "legend-badge" + (selected ? " selected" : "");
-    badge.setAttribute("aria-pressed", selected ? "true" : "false");
-    badge.title = selected ? "Remove this category filter" : "Filter by this category";
-    badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
-    badge.addEventListener("click", () => toggleCategoryFilter(type, cat));
-    container.appendChild(badge);
-  });
 }
 
 
