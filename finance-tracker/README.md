@@ -74,15 +74,19 @@ move. Two details it is strict about:
 
 ### The 50/30/20 breakdown
 
-The dashboard splits your expenses by Elizabeth Warren's rule: of your net income,
-**50% needs, 30% wants, 20% savings**. Income here is simply whatever the ledger records
-as Income for the period — nothing is grossed up or taxed.
+The dashboard splits your expenses by Elizabeth Warren's rule: **50% needs, 30% wants,
+20% savings**. It shows as three cards in the dashboard's right-hand column — actual
+share, target share and amount, and what was spent. Savings is judged the other way round
+from the other two, so falling *under* 20% flags, while going *over* 50% or 30% does.
 
-It shows as three cards — actual share, target share and amount, and what was spent —
-sitting beside a condensed **Expense Classification** panel in the same row. There is no
-chart: the split only means something relative to the period's income, and each card
-already carries that comparison. Savings is judged the other way round from the other two,
-so falling *under* 20% flags, while going *over* 50% or 30% does.
+**What the percentages are a share of.** The three shares are of your **counted spending**
+for the period — total expenses minus anything outside the rule — so they always add up to
+exactly 100%. Measuring against income instead left excluded expenses sitting in the
+denominator they had just been removed from, and the three shares would sum to whatever
+fraction of income happened to be counted (42% in one real range), which read as a broken
+chart. The trade is that the targets now describe the *shape* of your spending rather than
+shares of income: spending less than you earn doesn't show here, it shows on the Total
+Income / Total Expenses / Current Balance cards.
 
 Every expense **category** carries a hidden group. It is hidden because it belongs to the
 category, not to any one expense, so it never clutters the add/edit form. The mapping
@@ -90,8 +94,8 @@ lives in the config block at the top of `index.html` as `CATEGORY_BUDGET_GROUP`:
 
 | Group | Categories |
 |---|---|
-| **Needs** | Food & Groceries, Housing, Bills & Utilities, Mom Bills, Sister Bills, Transportation, Health, Insurance, Education, Loan Payments |
-| **Wants** | Restaurants & Cafés, Subscriptions, Leisure & Entertainment, Shopping & Clothing |
+| **Needs** | Food & Groceries, Housing, Bills & Utilities, Mom Bills, Sister Bills, Subscriptions, Transportation, Health, Insurance, Education, Loan Payments |
+| **Wants** | Restaurants & Cafés, Leisure & Entertainment, Shopping & Clothing |
 | **Savings** | Investment / Savings Deposit |
 | *(none)* | Other |
 

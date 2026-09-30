@@ -542,9 +542,12 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    sit evenly across it at every width the dashboard is used at, so none of the
    four-column tightening (smaller gap, padding and type) is needed any more. */
 .dash-top-main > .summary-grid{flex:0 0 auto;}
-/* Grows to the height of the 50/30/20 panel beside it, so the two columns end
-   on the same baseline instead of leaving a ragged step under this one. */
-.dash-top-main > .classif-panel{flex:1 1 auto;}
+/* The spare height in this column goes to the range picker, not to the
+   classification panel: stretching the latter just padded three small figures
+   out over half a screen, while the range panel's buttons centre in the extra
+   room and look deliberate. Classification keeps its natural height. */
+.dash-top-main > .range-panel{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
+.dash-top-main > .classif-panel{flex:0 0 auto;}
 /* Must come AFTER the .dash-top base rule above: both are single-class
    selectors, so at equal specificity the later one wins and an override placed
    earlier in the file would silently do nothing. */
@@ -1151,7 +1154,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
     <div class="dash-top-main">
 
     <!-- Time range -->
-    <div class="panel">
+    <div class="panel range-panel">
       <div class="range-bar">
         <button class="range-btn" data-range="This Month">This Month</button>
         <button class="range-btn" data-range="Last Month">Last Month</button>
@@ -6179,7 +6182,7 @@ function refreshDashboard() {
   renderSummaryCards(incomeRows, expenseRows);
   renderClassificationPanel(expenseRows, sumAmount(incomeRows));
   renderTrendChart(from, to, incomeRows, expenseRows);
-  renderBudgetBreakdown(incomeRows, expenseRows);
+  renderBudgetBreakdown(expenseRows);
   renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
   renderCategorySpending(expenseRows, from, to);
   renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
@@ -6352,8 +6355,7 @@ function renderTrendChart(from, to, incomeRows, expenseRows) {
        percentages show an em dash rather than a misleading 0% — the
        same rule the Expense Classification panel follows.
    ------------------------------------------------------------ */
-function renderBudgetBreakdown(incomeRows, expenseRows) {
-  const totalIncome = sumAmount(incomeRows);
+function renderBudgetBreakdown(expenseRows) {
   const totals = { Needs: 0, Wants: 0, Savings: 0 };
   let outside = 0, outsideCount = 0;
   expenseRows.forEach(r => {
@@ -6363,7 +6365,7 @@ function renderBudgetBreakdown(incomeRows, expenseRows) {
   });
 
   const counted = round2(totals.Needs + totals.Wants + totals.Savings);
-  el("budgetSubhead").textContent = "Needs 50% · Wants 30% · Savings 20% of income";
+  el("budgetSubhead").textContent = "Needs 50% · Wants 30% · Savings 20%";
 
   if (counted <= 0) {
     show("budgetEmpty");
@@ -6373,13 +6375,12 @@ function renderBudgetBreakdown(incomeRows, expenseRows) {
   hide("budgetEmpty");
   show("budgetContent");
 
-  renderBudgetRows(totals, totalIncome);
+  renderBudgetRows(totals, counted);
 
   // Everything the three cards do NOT cover, stated plainly.
   const parts = [];
-  parts.push(totalIncome > 0
-    ? "Shares are of the " + formatMoney(totalIncome) + " income recorded in this range."
-    : "No income recorded in this range, so a share of income can't be worked out — the amounts below are still real.");
+  parts.push("Shares are of the " + formatMoney(counted)
+    + " of counted spending in this range, so the three add up to 100%.");
   if (outsideCount > 0) {
     parts.push(outsideCount + (outsideCount === 1 ? " expense (" : " expenses (") + formatMoney(outside) + ")"
       + (outsideCount === 1 ? " is" : " are")
@@ -6389,21 +6390,49 @@ function renderBudgetBreakdown(incomeRows, expenseRows) {
   el("budgetNote").textContent = parts.join(" ");
 }
 
-function renderBudgetRows(totals, totalIncome) {
+/* `counted` is the denominator: total expenses MINUS anything outside the rule.
+   Measuring against income instead left the excluded amount sitting in the
+   denominator it had been removed from, so the three shares summed to whatever
+   fraction of income happened to be counted — 42% in one real range — and the
+   split read as broken. Against counted spending they always sum to 100%.
+
+   The trade this makes: the targets now describe the SHAPE of spending rather
+   than shares of income, so spending less than you earn no longer shows here.
+   The Total Income / Total Expenses / Current Balance cards carry that. */
+/* Whole-percent shares that always total exactly 100. Rounding each group on
+   its own does not: 33.4 / 33.3 / 33.3 rounds to 33+33+33 = 99, and the note
+   under the cards promises 100. Largest-remainder handles it — floor everything,
+   then hand the leftover points to the biggest fractions first. */
+function budgetSharePercents(totals, counted) {
+  const raw = BUDGET_GROUPS.map(g => (totals[g] / counted) * 100);
+  const out = raw.map(Math.floor);
+  let leftover = 100 - out.reduce((a, b) => a + b, 0);
+  raw.map((v, i) => ({ i, frac: v - Math.floor(v) }))
+     .sort((a, b) => b.frac - a.frac)
+     .forEach(e => { if (leftover > 0) { out[e.i]++; leftover--; } });
+  const pct = {};
+  BUDGET_GROUPS.forEach((g, i) => { pct[g] = out[i]; });
+  return pct;
+}
+
+function renderBudgetRows(totals, counted) {
   const host = el("budgetRows");
   host.innerHTML = "";
+  // counted > 0 is guaranteed by the caller's empty-state guard, so unlike the
+  // old income denominator this can never be a division by zero.
+  const percents = budgetSharePercents(totals, counted);
   BUDGET_GROUPS.forEach(g => {
     const target = BUDGET_GROUP_TARGET[g];
     const amount = totals[g];
-    const targetAmount = round2(totalIncome * target / 100);
-    const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : null;
+    const targetAmount = round2(counted * target / 100);
+    const pct = percents[g];
     // Savings is the one group where MORE is better, so the test flips: Needs and
     // Wants miss their share by going OVER it, Savings misses by falling UNDER it.
     // Judging every group as "over = bad" would paint a 30%-saved month red and a
     // 0%-saved month neutral — both backwards — so each is judged its own way.
-    const missed = pct != null && (g === "Savings" ? pct < target : pct > target);
-    const good = pct != null && !missed;
-    const railPct = pct == null ? 0 : Math.max(0, Math.min(Math.round((amount / (targetAmount || amount || 1)) * 100), 100));
+    const missed = g === "Savings" ? pct < target : pct > target;
+    const good = !missed;
+    const railPct = Math.max(0, Math.min(Math.round((amount / (targetAmount || amount || 1)) * 100), 100));
 
     const row = document.createElement("div");
     row.className = "budget-row " + g.toLowerCase();
@@ -6411,11 +6440,10 @@ function renderBudgetRows(totals, totalIncome) {
       '<div class="budget-row-top">' +
         '<span class="budget-row-name">' + escapeHtml(g) + "</span>" +
         '<span class="budget-row-pct' + (missed ? " over" : good ? " under" : "") + '">' +
-          (pct == null ? "—" : pct + "%") +
+          pct + "%" +
         "</span>" +
       "</div>" +
-      '<div class="budget-row-target">target ' + target + "%" +
-        (totalIncome > 0 ? " · " + formatMoney(targetAmount) : "") + "</div>" +
+      '<div class="budget-row-target">target ' + target + "% · " + formatMoney(targetAmount) + "</div>" +
       '<div class="budget-rail"><div class="budget-rail-fill' + (missed && g !== "Savings" ? " over" : "") +
         '" style="width:' + railPct + '%"></div></div>' +
       '<div class="budget-row-amt">' + formatMoney(amount) + " spent</div>" +
