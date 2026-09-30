@@ -192,7 +192,8 @@ svg{display:block;}
 .range-btn:focus-visible,.theme-toggle:focus-visible,.export-menu-item:focus-visible,
 .scope-trigger:focus-visible,.scope-menu-item:focus-visible,.scope-chip:focus-visible,
 .scope-clear:focus-visible,.date-cal-btn:focus-visible,.history-toggle-btn:focus-visible,
-.history-search-clear:focus-visible,.table-type-toggle:focus-visible,.plan-additem-btn:focus-visible,
+.history-search-clear:focus-visible,.seg-btn:focus-visible,.filter-opt:focus-visible,
+.filter-only:focus-visible,.plan-additem-btn:focus-visible,
 .plan-drag-handle:focus-visible,.plan-row-del:focus-visible,.loan-row:focus-visible,
 .legend-badge:focus-visible{
   outline:2px solid var(--accent);outline-offset:2px;
@@ -432,6 +433,75 @@ svg{display:block;}
 .chart-wrap{position:relative;height:280px;}
 
 /* ---- Category legend / filter badges (donut legends + history table filter) ---- */
+/* ---- Global filter bar (§FILTER-BAR) ----
+   Sticky so the one place that shows what is filtered stays reachable down a
+   long page. z-index sits above the panels but well below the modal overlay,
+   which is 200+, so a dialog still covers it. */
+.filter-bar{
+  position:sticky;top:0;z-index:40;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:20px;
+}
+.filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;}
+.filter-row > .range-bar{flex:1 1 auto;}
+.filter-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+/* Segmented 3-way type control. Built from the range-pill vocabulary rather
+   than a new component: one bordered group, the active segment filled. */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius-pill);overflow:hidden;}
+.seg-btn{
+  background:transparent;border:none;padding:8px 15px;font-family:inherit;font-size:13px;
+  color:var(--text-muted);cursor:pointer;
+  transition:background-color var(--dur) ease,color var(--dur) ease;
+}
+.seg-btn + .seg-btn{border-left:1px solid var(--border);}
+.seg-btn:hover{background:var(--surface-alt);color:var(--text);}
+.seg-btn.active{background:var(--accent-fill);color:#fff;}
+/* Checkbox popover. Wider than the Loans "Show" menu because rows carry a
+   swatch, a label and an "only" link. */
+.filter-menu{min-width:270px;max-width:min(330px,86vw);max-height:340px;padding:6px;}
+.filter-menu-group{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);padding:9px 10px 5px;flex:none;}
+.filter-opt{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:none;
+  color:var(--text);font-family:inherit;font-size:14px;padding:7px 10px;border-radius:var(--radius);
+  cursor:pointer;flex:none;
+}
+.filter-opt:hover{background:var(--surface-alt);}
+.filter-opt .box{
+  width:15px;height:15px;flex:none;border:1px solid var(--border-strong);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.filter-opt[aria-checked="true"] .box{background:var(--accent-fill);border-color:var(--accent-fill);}
+.filter-opt .box svg{width:11px;height:11px;display:block;opacity:0;}
+.filter-opt[aria-checked="true"] .box svg{opacity:1;}
+.filter-opt .swatch{width:8px;height:8px;border-radius:100%;flex:none;}
+.filter-opt .opt-name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* "only" replaces the old double-click-to-solo, and unlike it is discoverable. */
+.filter-only{
+  flex:none;background:none;border:none;font-family:inherit;font-size:12px;color:var(--accent);
+  cursor:pointer;padding:2px 4px;border-radius:var(--radius-sm);opacity:0;
+}
+.filter-opt:hover .filter-only,.filter-only:focus-visible{opacity:1;}
+.filter-only:hover{background:var(--accent-bg);}
+.filter-menu-foot{border-top:1px solid var(--border);margin-top:4px;padding:8px 10px 4px;flex:none;}
+.filter-menu-foot button{background:none;border:none;font-family:inherit;font-size:13px;color:var(--accent);cursor:pointer;padding:0;}
+/* Row 2: the active filters, shown only when there are any. */
+.filter-active-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:13px;padding-top:13px;border-top:1px solid var(--border);}
+.filter-active-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);}
+.filter-active-row .scope-chips{flex:1 1 auto;}
+.filter-clear{font-size:13px;flex:none;}
+.filter-note{font-size:12px;color:var(--text-muted);margin-top:9px;}
+/* The chip's colour dot, so a category chip carries the same swatch the donut
+   and the popover use. */
+.scope-chip .chip-swatch{width:8px;height:8px;border-radius:100%;flex:none;}
+/* "Affected by filters" badge next to a reacting panel's title (§6). */
+.filter-badge{display:inline-flex;vertical-align:middle;margin-left:8px;color:var(--accent);opacity:.75;}
+.filter-badge svg{width:14px;height:14px;display:block;}
+/* Date context + selected-subset lines on the two total cards. */
+.summary-card .card-range{font-size:11px;color:var(--text-faint);margin:-2px 0 8px;}
+.empty-clear{margin-left:10px;font-size:14px;}
+/* Clickable donut legend badges — they add and remove a category filter now
+   rather than hiding data, so a selected one reads as selected. */
+.legend-badge.selected{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);}
 .legend-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
 .legend-badge{
   display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);
@@ -448,8 +518,6 @@ svg{display:block;}
 .history-search-wrap input::-webkit-search-cancel-button{-webkit-appearance:none;}
 .history-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:var(--radius);}
 .history-search-clear:hover{color:var(--text);background:var(--surface-alt);}
-.table-category-filter-wrap{margin-top:14px;margin-bottom:18px;display:flex;flex-direction:column;gap:14px;}
-.table-category-filter-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
 
 /* ---- Table ---- */
 table{width:100%;border-collapse:collapse;font-size:14px;}
@@ -469,12 +537,6 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
 .tag.Investment .tag-dot{background:var(--invest);}
 .type-Income{color:var(--income);font-weight:600;}
 .type-Expense{color:var(--expense);font-weight:600;}
-.table-type-toggle{
-  background:none;border:none;padding:0;margin:0;cursor:pointer;
-  font:inherit;text-transform:inherit;letter-spacing:inherit;text-underline-offset:3px;
-}
-.table-type-toggle:hover{text-decoration:underline;}
-.table-type-toggle.active{text-decoration:underline;}
 .table-scroll{overflow-x:auto;}
 .history-toggle-btn{
   display:inline-flex;align-items:center;gap:6px;margin-top:14px;
@@ -1150,11 +1212,21 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         cards on the left, the savings goal card beside them on the right.
         ONLY this row is two-column — everything below it (classification,
         charts, history) runs the full width of the page. -->
-   <div class="dash-top">
-    <div class="dash-top-main">
+  <!-- ============================================================
+       GLOBAL FILTER BAR (§FILTER-BAR)
+       ------------------------------------------------------------
+       One place for every filter on this tab, replacing the old
+       scattered set (donut legend toggles, double-click-to-solo, the
+       type labels and the two category chip rows above the table).
+       Every active filter is a removable chip here, so no filter can
+       be on without being visible, and one Clear resets them all.
 
-    <!-- Time range -->
-    <div class="panel range-panel">
+       Date is deliberately NOT part of "Clear filters": it is the
+       context every panel reads, not a filter layered on top. See the
+       scope rule in renderDashboardFilterUI().
+       ============================================================ -->
+  <div class="filter-bar" id="filterBar">
+    <div class="filter-row">
       <div class="range-bar">
         <button class="range-btn" data-range="This Month">This Month</button>
         <button class="range-btn" data-range="Last Month">Last Month</button>
@@ -1194,17 +1266,52 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
           <div class="field-error hidden" id="customRangeError" style="flex-basis:100%;">The “From” date is after the “to” date — swap them to see results.</div>
         </div>
       </div>
+      <div class="filter-controls">
+        <div class="seg" id="filterTypeSeg" role="group" aria-label="Transaction type">
+          <button type="button" class="seg-btn active" data-filter-type="All" aria-pressed="true">All</button>
+          <button type="button" class="seg-btn" data-filter-type="Income">Income</button>
+          <button type="button" class="seg-btn" data-filter-type="Expense">Expense</button>
+        </div>
+        <div class="scope-picker" id="catPicker">
+          <button type="button" class="scope-trigger" id="catTrigger" aria-haspopup="dialog" aria-expanded="false">
+            <span id="catTriggerLabel">Categories</span>
+            <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="scope-menu filter-menu hidden" id="catMenu" role="dialog" aria-label="Filter by category"></div>
+        </div>
+        <div class="scope-picker" id="classPicker">
+          <button type="button" class="scope-trigger" id="classTrigger" aria-haspopup="dialog" aria-expanded="false">
+            <span id="classTriggerLabel">Classification</span>
+            <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="scope-menu filter-menu hidden" id="classMenu" role="dialog" aria-label="Filter by classification"></div>
+        </div>
+      </div>
     </div>
+    <div class="filter-active-row hidden" id="filterActiveRow">
+      <span class="filter-active-label">Active</span>
+      <div class="scope-chips" id="filterChips"></div>
+      <button type="button" class="btn-link filter-clear" id="btnClearFilters">Clear filters</button>
+    </div>
+    <div class="filter-note hidden" id="filterClassNote">Classification applies to expenses only.</div>
+  </div>
+   <div class="dash-top">
+    <div class="dash-top-main">
+
 
     <!-- Summary cards -->
     <div class="summary-grid">
       <div class="summary-card income">
         <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Total Income</div>
+        <div class="card-range" id="sumIncomeRange"></div>
         <div class="value" id="sumIncome">0</div>
+        <div class="sub" id="sumIncomeSel"></div>
       </div>
       <div class="summary-card expense">
         <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>Total Expenses</div>
+        <div class="card-range" id="sumExpenseRange"></div>
         <div class="value" id="sumExpense">0</div>
+        <div class="sub" id="sumExpenseSel"></div>
       </div>
       <!-- Current Balance (§BAL-NOW). The only card in this row that is NOT
            scoped to the selected time range: Total Income and Total Expenses
@@ -1267,15 +1374,15 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 
     <!-- Income vs Expenses chart -->
     <div class="panel">
-      <h2>Income vs. Expenses Over Time</h2>
-      <div id="trendEmpty" class="empty-state hidden">No transactions in this range yet.</div>
+      <h2>Income vs. Expenses Over Time <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
+      <div id="trendEmpty" class="empty-state hidden"><span id="trendEmptyText">No transactions in this range yet.</span><button type="button" class="btn-link empty-clear hidden" data-clear-filters>Clear filters</button></div>
       <div class="chart-wrap" id="trendChartWrap"><canvas id="trendChart"></canvas></div>
     </div>
 
     <!-- Category donuts -->
     <div class="charts-row">
       <div class="panel">
-        <h2>Expenses by Category</h2>
+        <h2>Expenses by Category <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
         <div id="expenseDonutEmpty" class="empty-state hidden">No expenses in this range yet.</div>
         <div class="chart-wrap" id="expenseDonutWrap"><canvas id="expenseDonutChart"></canvas></div>
         <div id="expenseDonutLegend" class="legend-badges"></div>
@@ -1294,7 +1401,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div id="spendBars" class="spend-bars"></div>
       </div>
       <div class="panel">
-        <h2>Income by Category</h2>
+        <h2>Income by Category <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
         <div id="incomeDonutEmpty" class="empty-state hidden">No income in this range yet.</div>
         <div class="chart-wrap" id="incomeDonutWrap"><canvas id="incomeDonutChart"></canvas></div>
         <div id="incomeDonutLegend" class="legend-badges"></div>
@@ -1303,23 +1410,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
 
     <!-- History table -->
     <div class="panel">
-      <h2>Transaction History</h2>
+      <h2>Transaction History <span class="filter-badge hidden" data-filter-badge role="img" aria-label="Affected by filters" title="Affected by filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></span></h2>
       <div class="history-search-wrap">
         <svg class="history-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input type="search" id="historySearch" placeholder="Search description, category, amount…" aria-label="Search transactions">
         <button type="button" class="history-search-clear hidden" id="historySearchClear" aria-label="Clear search" title="Clear search">&times;</button>
       </div>
-      <div class="table-category-filter-wrap">
-        <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleExpense" class="table-type-toggle type-Expense" title="Click to show only Expenses · click again to show both">expense</button> category</div>
-          <div id="tableCategoryFilterExpense" class="legend-badges"></div>
-        </div>
-        <div class="table-category-filter-group">
-          <div class="table-category-filter-label">Filter by <button type="button" id="tableTypeToggleIncome" class="table-type-toggle type-Income" title="Click to show only Income · click again to show both">income</button> category</div>
-          <div id="tableCategoryFilterIncome" class="legend-badges"></div>
-        </div>
-      </div>
-      <div id="historyEmpty" class="empty-state hidden">No transactions yet — add your first one above.</div>
+      <div id="historyEmpty" class="empty-state hidden"><span id="historyEmptyText">No transactions yet — add your first one above.</span><button type="button" class="btn-link empty-clear hidden" data-clear-filters>Clear filters</button></div>
       <div class="table-scroll">
         <table id="historyTable">
           <thead>
@@ -2471,13 +2568,28 @@ let editingTransaction = null; // when set, the expense/income modal is editing 
 // "Type::Category" (not bare category name) so the "Other" category —
 // present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES — never collides
 // between an expense row and an income row.
-let categoryVisibility = {};
 
-// Type-level quick filter for the Transaction History table only (clicking
-// the "expense"/"income" word in the filter labels above it) — null shows
-// both Types, otherwise only rows of that Type are shown, layered on top of
-// the per-category categoryVisibility filtering above.
-let tableTypeFilter = null;
+/* ---- Global filter state (§FILTER-BAR) ----------------------------------
+   The single source of truth for every filter on the Income & Expenses tab.
+   Replaces the old scattered set: a categoryVisibility map driven by
+   click-to-hide and double-click-to-solo on two donut legends plus two chip
+   rows above the table, and a separate tableTypeFilter driven by clicking the
+   word "expense"/"income". None of that was visible in one place or resettable
+   in one action; all of it is now a chip in the bar.
+
+   Date is NOT in here. It keeps its own existing state (currentRangeType plus
+   the custom inputs) and its own persistence, because it is the context every
+   panel reads rather than a filter layered over that context — which is also
+   why "Clear filters" leaves it alone.
+
+   Nothing here is persisted (§7): a hidden filter surviving a reload is how a
+   user ends up mistrusting the numbers. It is never written to the workbook
+   either — UI state only, Golden Rule. */
+const filterState = {
+  type: "All",            // "All" | "Income" | "Expense"
+  categories: [],         // [{ type, category }] — type-scoped, "Other" exists in both lists
+  classifications: []     // subset of CLASSIFICATIONS
+};
 
 // ---- Loans module state ----
 let allLoans = [];              // normalized loan records
@@ -2587,31 +2699,6 @@ function tableCategoryList() {
   ];
 }
 
-// Shared by the donut legends and the table filter: a single click toggles
-// just this category; double-clicking it instead solos it (hides every other
-// category), and double-clicking an already-isolated category again restores
-// everyone — solo mode is never a dead end. A plain click listener would fire
-// twice before "dblclick" and flip the category on/off/on again first, so the
-// single-click action is deferred briefly and a second click within the
-// window cancels it, letting the dblclick handler take over.
-function attachCategoryToggle(element, key, visibility, listFn, rerender) {
-  let pending = null;
-  element.addEventListener("click", () => {
-    if (pending) { clearTimeout(pending); pending = null; return; }
-    pending = setTimeout(() => {
-      pending = null;
-      visibility[key] = visibility[key] === false ? true : false;
-      rerender();
-    }, 250);
-  });
-  element.addEventListener("dblclick", () => {
-    if (pending) { clearTimeout(pending); pending = null; }
-    const list = listFn();
-    const isolated = list.every(k => (visibility[k] !== false) === (k === key));
-    list.forEach(k => { visibility[k] = isolated ? true : k === key; });
-    rerender();
-  });
-}
 
 /* ============================================================
    CHART SETUP — a small plugin that draws a clean total label in
@@ -2628,9 +2715,15 @@ Chart.register({
     // chart options: Chart.js treats function values found anywhere in options
     // as "scriptable" and auto-invokes them with its own context internally,
     // which crashes a plain formatter like ours — call it directly instead.)
-    const data = chart.data.datasets[0].data;
-    let total = 0;
-    data.forEach((v, i) => { if (chart.getDataVisibility(i)) total += v; });
+    // `value` is supplied by the dashboard donuts, which report a filtered
+    // subset against a range total (§5.2). Other donuts pass nothing and keep
+    // the old behaviour: sum whatever slices are currently visible.
+    let total = opts.value;
+    if (total == null) {
+      const data = chart.data.datasets[0].data;
+      total = 0;
+      data.forEach((v, i) => { if (chart.getDataVisibility(i)) total += v; });
+    }
     // `whole` is set by the Investments tab's donut (§INVEST-WHOLE), where every
     // figure is a round number; the dashboard's donuts leave it off and keep
     // their to-the-cent totals.
@@ -2644,7 +2737,14 @@ Chart.register({
     ctx.textBaseline = "middle";
     ctx.font = "700 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     ctx.fillStyle = opts.color || "#1f2937";
-    ctx.fillText(text, cx, cy);
+    // Shift the headline up when a sub-line follows, so the pair stays optically
+    // centred in the ring rather than sitting high.
+    ctx.fillText(text, cx, opts.sub ? cy - 9 : cy);
+    if (opts.sub) {
+      ctx.font = "500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillStyle = opts.subColor || opts.color || "#6b7280";
+      ctx.fillText(opts.sub, cx, cy + 10);
+    }
     ctx.restore();
   }
 });
@@ -3776,6 +3876,7 @@ function wireStaticEvents() {
   document.querySelectorAll(".range-btn").forEach(btn => {
     btn.addEventListener("click", () => setRange(btn.dataset.range));
   });
+  wireFilterBar();
   // `true` marks the change as coming from the user editing a date field, so
   // setRange won't re-seed / overwrite the fields (which used to wipe the value
   // just typed in the other field). See setRange().
@@ -3825,26 +3926,12 @@ function wireStaticEvents() {
     el("historySearch").focus();
   });
 
-  attachTableTypeToggle(el("tableTypeToggleExpense"), "Expense");
-  attachTableTypeToggle(el("tableTypeToggleIncome"), "Income");
 
   wireLoanEvents();
   wireInvestmentEvents();
   wirePlanningEvents();
 }
 
-// Click the "expense"/"income" word above the Transaction History table to
-// show only that Type there; click the same word again to cancel it and
-// show both again — a plain two-state toggle, no double-click involved (a
-// deferred click/dblclick pattern here turned out fragile under a rapid
-// multi-click, occasionally leaving the filter stuck).
-function attachTableTypeToggle(element, type) {
-  element.addEventListener("click", () => {
-    tableTypeFilter = tableTypeFilter === type ? null : type;
-    historyShowAll = false;
-    refreshDashboard();
-  });
-}
 
 async function chooseFolder() {
   try {
@@ -5195,6 +5282,144 @@ function syncDatePartsFromHidden(field) {
   field.dataset.rawDay = String(parseInt(parts[3], 10));
 }
 
+/* ---- The two checkbox popovers (§3.3) ----
+   Rebuilt each time they open, from filterState and the current category
+   lists, so they can never show a stale checkmark. Categories are grouped by
+   type and, when Type is not "All", the irrelevant group is not offered at
+   all — a filter you cannot reach from the bar should not be reachable here. */
+const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>';
+
+function buildFilterOption({ checked, label, swatch, onToggle, onOnly }) {
+  const row = document.createElement("div");
+  row.className = "filter-opt";
+  row.setAttribute("role", "checkbox");
+  row.setAttribute("aria-checked", checked ? "true" : "false");
+  row.tabIndex = 0;
+  row.innerHTML = '<span class="box">' + TICK + "</span>"
+    + (swatch ? '<span class="swatch" style="background:' + swatch + '"></span>' : "")
+    + '<span class="opt-name">' + escapeHtml(label) + "</span>";
+  if (onOnly) {
+    const only = document.createElement("button");
+    only.type = "button";
+    only.className = "filter-only";
+    only.textContent = "only";
+    only.addEventListener("click", (e) => { e.stopPropagation(); onOnly(); });
+    row.appendChild(only);
+  }
+  row.addEventListener("click", onToggle);
+  row.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); return; }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    // Roving focus within the popover (§9). The list is rebuilt on every toggle,
+    // so focus is moved by index rather than held on a node that may be replaced.
+    e.preventDefault();
+    const rows = [...row.parentElement.querySelectorAll(".filter-opt")];
+    const i = rows.indexOf(row);
+    const next = e.key === "ArrowDown" ? i + 1 : i - 1;
+    if (rows[next]) rows[next].focus();
+  });
+  return row;
+}
+
+function renderCategoryMenu() {
+  const menu = el("catMenu");
+  menu.innerHTML = "";
+  const types = filterState.type === "All" ? ["Expense", "Income"] : [filterState.type];
+  types.forEach(type => {
+    const head = document.createElement("div");
+    head.className = "filter-menu-group";
+    head.textContent = type;
+    menu.appendChild(head);
+    categoryListForType(type).forEach(cat => {
+      menu.appendChild(buildFilterOption({
+        checked: isCategorySelected(type, cat),
+        label: cat,
+        swatch: categoryColorForType(type, cat),
+        onToggle: () => { toggleCategoryFilter(type, cat); renderCategoryMenu(); },
+        onOnly: () => { onlyCategoryFilter(type, cat); renderCategoryMenu(); }
+      }));
+    });
+  });
+  const foot = document.createElement("div");
+  foot.className = "filter-menu-foot";
+  const none = document.createElement("button");
+  none.type = "button";
+  none.textContent = "Select none";
+  none.addEventListener("click", () => {
+    filterState.categories = [];
+    refreshDashboard();
+    renderCategoryMenu();
+  });
+  foot.appendChild(none);
+  menu.appendChild(foot);
+}
+
+function renderClassificationMenu() {
+  const menu = el("classMenu");
+  menu.innerHTML = "";
+  CLASSIFICATIONS.forEach(v => {
+    menu.appendChild(buildFilterOption({
+      checked: filterState.classifications.includes(v),
+      label: v,
+      onToggle: () => { toggleClassificationFilter(v); renderClassificationMenu(); },
+      onOnly: () => {
+        filterState.classifications = [v];
+        refreshDashboard();
+        renderClassificationMenu();
+      }
+    }));
+  });
+  const foot = document.createElement("div");
+  foot.className = "filter-menu-foot";
+  const none = document.createElement("button");
+  none.type = "button";
+  none.textContent = "Select none";
+  none.addEventListener("click", () => {
+    filterState.classifications = [];
+    refreshDashboard();
+    renderClassificationMenu();
+  });
+  foot.appendChild(none);
+  menu.appendChild(foot);
+}
+
+function wireFilterBar() {
+  document.querySelectorAll("#filterTypeSeg [data-filter-type]").forEach(btn => {
+    btn.addEventListener("click", () => setFilterType(btn.dataset.filterType));
+  });
+
+  const menus = [
+    { trigger: "catTrigger", menu: "catMenu", render: renderCategoryMenu, wrap: "catPicker" },
+    { trigger: "classTrigger", menu: "classMenu", render: renderClassificationMenu, wrap: "classPicker" }
+  ];
+  const closeAll = () => menus.forEach(m => {
+    el(m.menu).classList.add("hidden");
+    el(m.trigger).setAttribute("aria-expanded", "false");
+  });
+  menus.forEach(m => {
+    el(m.trigger).addEventListener("click", (e) => {
+      e.stopPropagation();
+      const wasOpen = !el(m.menu).classList.contains("hidden");
+      closeAll();
+      if (!wasOpen) {
+        m.render();
+        el(m.menu).classList.remove("hidden");
+        el(m.trigger).setAttribute("aria-expanded", "true");
+        const first = el(m.menu).querySelector(".filter-opt");
+        if (first) first.focus();
+      }
+    });
+    el(m.menu).addEventListener("click", (e) => e.stopPropagation());
+  });
+  document.addEventListener("click", closeAll);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
+
+  el("btnClearFilters").addEventListener("click", clearExploreFilters);
+  document.querySelectorAll("[data-clear-filters]").forEach(b => {
+    b.addEventListener("click", clearExploreFilters);
+  });
+}
+
 function wireDateField(field) {
   const dEl = field.querySelector(".dp-d"), mEl = field.querySelector(".dp-m"), yEl = field.querySelector(".dp-y");
   field.addEventListener("input", e => {
@@ -5277,6 +5502,78 @@ function computeRangeBounds(rangeType) {
 /* ============================================================
    AGGREGATION
    ============================================================ */
+/* ---- Filter selectors (§FILTER-BAR) ----
+   Two views of the data, and the rule for which panels get which:
+
+     rowsInDate            — date only. Feeds the headline totals and the
+                             benchmark panels, so those stay stable anchors a
+                             filter can't move under you.
+     matchesExplore(row)   — date PLUS type/categories/classification. Feeds the
+                             exploration views: trend chart, donuts, table.
+
+   One predicate, used everywhere, so a panel can never disagree with a chip. */
+function hasExploreFilters() {
+  return filterState.type !== "All"
+    || filterState.categories.length > 0
+    || filterState.classifications.length > 0;
+}
+
+function categoryKey(type, category) { return type + "::" + category; }
+
+function isCategorySelected(type, category) {
+  return filterState.categories.some(c => c.type === type && c.category === category);
+}
+
+function matchesExplore(r) {
+  if (filterState.type !== "All" && r.Type !== filterState.type) return false;
+  // Categories are compared as (Type, Category) pairs: "Other" exists in both
+  // the expense and the income list, and selecting one must not drag in the other.
+  if (filterState.categories.length > 0 && !isCategorySelected(r.Type, r.Category)) return false;
+  // Income rows carry no classification, so any classification filter excludes
+  // them outright rather than matching them vacuously. The bar says so (§5.3).
+  if (filterState.classifications.length > 0) {
+    if (r.Type !== "Expense") return false;
+    if (!filterState.classifications.includes(r.Classification)) return false;
+  }
+  return true;
+}
+
+// ---- setters: each mutates the state and triggers exactly one render ----
+function setFilterType(type) {
+  if (!["All", "Income", "Expense"].includes(type) || filterState.type === type) return;
+  filterState.type = type;
+  // Silently drop selections that can't apply to the new type (§3.3), so the
+  // chips never show a filter the dropdown no longer offers.
+  if (type !== "All") filterState.categories = filterState.categories.filter(c => c.type === type);
+  refreshDashboard();
+}
+
+function toggleCategoryFilter(type, category) {
+  const i = filterState.categories.findIndex(c => c.type === type && c.category === category);
+  if (i === -1) filterState.categories.push({ type, category });
+  else filterState.categories.splice(i, 1);
+  refreshDashboard();
+}
+
+function onlyCategoryFilter(type, category) {
+  filterState.categories = [{ type, category }];
+  refreshDashboard();
+}
+
+function toggleClassificationFilter(value) {
+  const i = filterState.classifications.indexOf(value);
+  if (i === -1) filterState.classifications.push(value);
+  else filterState.classifications.splice(i, 1);
+  refreshDashboard();
+}
+
+function clearExploreFilters() {
+  filterState.type = "All";
+  filterState.categories = [];
+  filterState.classifications = [];
+  refreshDashboard();
+}
+
 function filterByRange(rows, from, to) {
   return rows.filter(r => r.Date >= from && r.Date <= to);
 }
@@ -6175,30 +6472,125 @@ function refreshDashboard() {
   } else if (err) {
     err.classList.add("hidden");
   }
+  // §5: date-only rows feed the anchors, explore-filtered rows feed the
+  // exploration views. The two are computed once here and handed out, so no
+  // panel can quietly pick the wrong one.
   const rangeRows = invalidCustom ? [] : filterByRange(allRows, from, to);
   const incomeRows = rangeRows.filter(r => r.Type === "Income");
   const expenseRows = rangeRows.filter(r => r.Type === "Expense");
 
-  renderSummaryCards(incomeRows, expenseRows);
+  const exploreRows = rangeRows.filter(matchesExplore);
+  const exploreIncome = exploreRows.filter(r => r.Type === "Income");
+  const exploreExpense = exploreRows.filter(r => r.Type === "Expense");
+
+  renderDashboardFilterUI(from, to);
+
+  // ---- anchors: date only ----
+  renderSummaryCards(incomeRows, expenseRows, exploreIncome, exploreExpense);
   renderClassificationPanel(expenseRows, sumAmount(incomeRows));
-  renderTrendChart(from, to, incomeRows, expenseRows);
   renderBudgetBreakdown(expenseRows);
-  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, categoryVisibility, (c) => (expenseDonutChart = c));
   renderCategorySpending(expenseRows, from, to);
-  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, categoryVisibility, (c) => (incomeDonutChart = c));
-  renderTableCategoryFilter();
+
+  // ---- exploration: date + explore filters ----
+  renderTrendChart(from, to, exploreIncome, exploreExpense);
+  renderDonut("expenseDonutChart", "expenseDonutWrap", "expenseDonutEmpty", "expenseDonutLegend", "Expense", expenseDonutChart, expenseRows, (c) => (expenseDonutChart = c));
+  renderDonut("incomeDonutChart", "incomeDonutWrap", "incomeDonutEmpty", "incomeDonutLegend", "Income", incomeDonutChart, incomeRows, (c) => (incomeDonutChart = c));
   const q = historySearchQuery.trim().toLowerCase();
-  const tableRows = rangeRows.filter(r =>
-    (!tableTypeFilter || r.Type === tableTypeFilter) &&
-    categoryVisibility[`${r.Type}::${r.Category}`] !== false &&
-    (!q || rowMatchesSearch(r, q)));
+  const tableRows = exploreRows.filter(r => !q || rowMatchesSearch(r, q));
   renderHistoryTable(tableRows, rangeRows.length > 0);
 }
 
-function renderSummaryCards(incomeRows, expenseRows) {
-  el("sumIncome").textContent = formatMoney(sumAmount(incomeRows));
-  el("sumExpense").textContent = formatMoney(sumAmount(expenseRows));
+/* ---- The filter bar's own UI (§3, §6) ----
+   Rebuilt wholesale on every render off filterState, so what is on screen and
+   what the selectors use can never drift apart. */
+function renderDashboardFilterUI(from, to) {
+  const active = hasExploreFilters();
+
+  document.querySelectorAll("#filterTypeSeg [data-filter-type]").forEach(b => {
+    const on = b.dataset.filterType === filterState.type;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+
+  el("catTriggerLabel").textContent = pickerLabel(
+    filterState.categories.map(c => c.category), "Categories", "categories");
+  el("classTriggerLabel").textContent = pickerLabel(
+    filterState.classifications, "Classification", "classifications");
+
+  renderFilterChips();
+  el("filterActiveRow").classList.toggle("hidden", !active);
+  // §5.3: a classification filter silently drops every income row, which looks
+  // like a bug unless it is said out loud.
+  el("filterClassNote").classList.toggle("hidden", filterState.classifications.length === 0);
+
+  // §6: a funnel next to every panel that reacts, and nothing next to those
+  // that don't, so the scope rule is legible without reading the docs.
+  document.querySelectorAll("[data-filter-badge]").forEach(b => b.classList.toggle("hidden", !active));
+
+  const rangeLabel = currentRangeType === "Custom" ? rangeDisplayLabel(from, to) : currentRangeType;
+  el("sumIncomeRange").textContent = rangeLabel;
+  el("sumExpenseRange").textContent = rangeLabel;
+}
+
+// "Categories" / "Mom Bills" / "3 categories" (§3.3).
+function pickerLabel(values, emptyLabel, pluralNoun) {
+  if (values.length === 0) return emptyLabel;
+  if (values.length === 1) return values[0];
+  return values.length + " " + pluralNoun;
+}
+
+function renderFilterChips() {
+  const host = el("filterChips");
+  host.innerHTML = "";
+  const chip = (label, aria, onRemove, swatch) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "scope-chip";
+    b.setAttribute("aria-label", "Remove filter: " + aria);
+    b.innerHTML = (swatch ? '<span class="chip-swatch" style="background:' + swatch + '"></span>' : "")
+      + escapeHtml(label)
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    b.addEventListener("click", onRemove);
+    host.appendChild(b);
+  };
+
+  if (filterState.type !== "All") {
+    chip(filterState.type, filterState.type, () => setFilterType("All"));
+  }
+  filterState.categories.forEach(c => {
+    chip(c.category, c.category, () => toggleCategoryFilter(c.type, c.category),
+         categoryColorForType(c.type, c.category));
+  });
+  filterState.classifications.forEach(v => {
+    chip(v, v, () => toggleClassificationFilter(v));
+  });
+}
+
+/* The two headline totals follow the DATE only — the big number never moves
+   because of an explore filter (§5). When one is active the card gains a
+   secondary line naming the filtered subset, so the filter is acknowledged
+   without the anchor shifting under it. */
+function renderSummaryCards(incomeRows, expenseRows, exploreIncome, exploreExpense) {
+  const totalIncome = sumAmount(incomeRows);
+  const totalExpense = sumAmount(expenseRows);
+  el("sumIncome").textContent = formatMoney(totalIncome);
+  el("sumExpense").textContent = formatMoney(totalExpense);
+  renderSelectedLine("sumIncomeSel", sumAmount(exploreIncome), totalIncome, "Income");
+  renderSelectedLine("sumExpenseSel", sumAmount(exploreExpense), totalExpense, "Expense");
   renderCurrentBalanceCard();
+}
+
+function renderSelectedLine(id, selected, total, cardType) {
+  const node = el(id);
+  if (!hasExploreFilters()) { node.textContent = ""; node.classList.add("hidden"); return; }
+  node.classList.remove("hidden");
+  // "Excluded entirely" is a different statement from "zero matched", and the
+  // user should be able to tell which one they are looking at.
+  const typeExcluded = filterState.type !== "All" && filterState.type !== cardType;
+  const classExcluded = cardType === "Income" && filterState.classifications.length > 0;
+  if (typeExcluded || classExcluded) { node.textContent = "Not in current filter"; return; }
+  const pct = total > 0 ? Math.round((selected / total) * 100) : 0;
+  node.textContent = "Selected: " + formatMoney(selected) + " · " + pct + "%";
 }
 
 /* ------------------------------------------------------------
@@ -6283,6 +6675,7 @@ function renderClassificationPanel(expenseRows, totalIncome) {
 function renderTrendChart(from, to, incomeRows, expenseRows) {
   const hasData = incomeRows.length > 0 || expenseRows.length > 0;
   if (!hasData) {
+    setEmptyState("trendEmpty", "trendEmptyText", "No transactions in this range yet.");
     show("trendEmpty");
     hide("trendChartWrap");
     if (trendChart) { trendChart.destroy(); trendChart = null; }
@@ -6307,10 +6700,13 @@ function renderTrendChart(from, to, incomeRows, expenseRows) {
     type: "bar",
     data: {
       labels,
+      // With Type set, only that series is plotted — the other one is not
+      // "hidden", it is not part of what the filter selected.
       datasets: [
         { label: "Income", data: incomeData, backgroundColor: theme.income, borderRadius: 4, borderSkipped: false },
         { label: "Expenses", data: expenseData, backgroundColor: theme.expense, borderRadius: 4, borderSkipped: false }
-      ]
+      ].filter(d => filterState.type === "All"
+        || (filterState.type === "Income" ? d.label === "Income" : d.label === "Expenses"))
     },
     options: {
       responsive: true,
@@ -6322,7 +6718,17 @@ function renderTrendChart(from, to, incomeRows, expenseRows) {
         x: { ticks: { color: theme.text }, grid: { display: false } }
       },
       plugins: {
-        legend: { position: "bottom", labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 } },
+        legend: {
+          position: "bottom",
+          labels: { color: theme.heading, usePointStyle: true, pointStyle: "circle", boxWidth: 8, boxHeight: 8 },
+          // §4: the legend sets the Type filter instead of hiding a dataset, so
+          // the state it creates is visible as a chip and removable from the bar.
+          // Chart.js's default onClick (hide the dataset) is deliberately replaced.
+          onClick: (e, item) => {
+            const wanted = item.text === "Income" ? "Income" : "Expense";
+            setFilterType(filterState.type === wanted ? "All" : wanted);
+          }
+        },
         tooltip: {
           backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
           titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
@@ -6465,7 +6871,13 @@ function hexToRgba(hex, alpha) {
 // while `categoryListForType` still yields every configured category —
 // keeping every category's legend badge present (and toggleable back on)
 // even after it's been hidden or has no data in the current range.
-function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, rows, visibility, setChartRef) {
+/* §5.2 — the donuts HIGHLIGHT rather than filter. Every slice the date range
+   contains stays on the chart; ones that don't match the explore filters drop
+   to 25% alpha. Hiding them instead would make the ring silently re-proportion
+   itself, so a 10%-of-spend category could fill half the donut and read as a
+   completely different picture. The centre shows the matching sum over the
+   range total, so both numbers are on screen at once. */
+function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, rows, setChartRef) {
   if (existingChart) existingChart.destroy();
   if (rows.length === 0) {
     show(emptyId);
@@ -6478,14 +6890,22 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
   show(wrapId);
 
   const categories = categoryListForType(type);
-  const visibleRows = rows.filter(r => visibility[`${type}::${r.Category}`] !== false);
-  const chartSums = groupSumByCategory(visibleRows);
-  const chartEntries = categories.map(cat => [cat, chartSums[cat] || 0]).filter(([, v]) => v > 0);
+  const sums = groupSumByCategory(rows);
+  const entries = categories.map(cat => [cat, sums[cat] || 0]).filter(([, v]) => v > 0);
+
+  const matchedSums = groupSumByCategory(rows.filter(matchesExplore));
+  const dimming = hasExploreFilters();
 
   const theme = getChartThemeColors();
-  const labels = chartEntries.map(([k]) => k);
-  const data = chartEntries.map(([, v]) => v);
-  const colors = labels.map(cat => categoryColorForType(type, cat));
+  const labels = entries.map(([k]) => k);
+  const data = entries.map(([, v]) => v);
+  const colors = labels.map(cat => {
+    const base = categoryColorForType(type, cat);
+    return dimming && !(matchedSums[cat] > 0) ? hexToRgba(base, 0.25) : base;
+  });
+  const total = round2(data.reduce((a, b) => a + b, 0));
+  const matched = round2(labels.reduce((a, cat) => a + (matchedSums[cat] || 0), 0));
+
   const chart = new Chart(el(canvasId).getContext("2d"), {
     type: "doughnut",
     data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: theme.surface || "#fff", borderWidth: 2, hoverOffset: 6 }] },
@@ -6493,79 +6913,69 @@ function renderDonut(canvasId, wrapId, emptyId, legendId, type, existingChart, r
       responsive: true,
       maintainAspectRatio: false,
       cutout: "68%",
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? "pointer" : "default"; },
+      // §4: one gesture, one meaning — a click toggles that category in the
+      // global filter, and the chip appears in the bar. Nothing hides.
+      onClick: (e, els) => {
+        if (!els.length) return;
+        toggleCategoryFilter(type, labels[els[0].index]);
+      },
       plugins: {
-        // Custom HTML badges below the canvas (renderDonutLegend) replace
-        // Chart.js's built-in legend — they support double-click "solo" the
-        // built-in legend doesn't, and their category list stays stable
-        // instead of shrinking/growing with whichever slices have data.
-        legend: { display: false },
+        legend: { display: false }, // replaced by the HTML badges below the canvas
         tooltip: {
           backgroundColor: theme.surface, borderColor: hexToRgba(theme.grid, 0.6), borderWidth: 1,
           titleColor: theme.text, bodyColor: theme.heading, padding: 10, cornerRadius: 8,
           displayColors: true, boxPadding: 4,
           callbacks: { label: (ctx) => `${ctx.label}: ${formatMoney(ctx.parsed)}` }
         },
-        centerText: { enabled: true, color: theme.heading }
+        centerText: {
+          enabled: true, color: theme.heading, subColor: theme.text,
+          // With a filter on, the centre reports the matching sum and what it is
+          // out of; with none, the plain total exactly as before.
+          value: dimming ? matched : total,
+          sub: dimming ? "of " + formatMoney(total) : ""
+        }
       }
     }
   });
   setChartRef(chart);
 
-  renderDonutLegend(legendId, type, categories, visibility);
+  renderDonutLegend(legendId, type, categories);
 }
 
-// Click a badge to toggle that category on/off in the chart above; double-click
-// to solo it (hide every other category) — same interaction as the second
-// application's chart legends.
-function renderDonutLegend(containerId, type, categories, visibility) {
+// A badge is a filter toggle now, not a visibility toggle: clicking it adds or
+// removes that category from the global Categories filter, exactly as clicking
+// the matching slice does, and a selected one is styled as selected. The old
+// double-click-to-solo is gone — the popover's "only" link does that job where
+// it can actually be discovered.
+function renderDonutLegend(containerId, type, categories) {
   const container = el(containerId);
   container.innerHTML = "";
-  const keysForType = categories.map(c => `${type}::${c}`);
   categories.forEach(cat => {
-    const key = `${type}::${cat}`;
+    const selected = isCategorySelected(type, cat);
     const badge = document.createElement("button");
     badge.type = "button";
-    badge.className = "legend-badge" + (visibility[key] !== false ? "" : " disabled");
-    badge.title = "Click to toggle · double-click to show only this category";
+    badge.className = "legend-badge" + (selected ? " selected" : "");
+    badge.setAttribute("aria-pressed", selected ? "true" : "false");
+    badge.title = selected ? "Remove this category filter" : "Filter by this category";
     badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
-    attachCategoryToggle(badge, key, visibility, () => keysForType, refreshDashboard);
+    badge.addEventListener("click", () => toggleCategoryFilter(type, cat));
     container.appendChild(badge);
   });
 }
 
-// The two filter rows above the Transaction History table (one per Type, so
-// "Other" — present in both EXPENSE_CATEGORIES and INCOME_CATEGORIES — never
-// collides between an expense entry and an income entry). Same click/double-
-// click toggle as the donut legends, and the same shared categoryVisibility
-// map — toggling a category here also hides/shows it in its donut, and vice
-// versa, since refreshDashboard re-renders every one of these together off
-// the same state.
-function renderTableCategoryFilter() {
-  renderGroup("tableCategoryFilterExpense", "Expense");
-  renderGroup("tableCategoryFilterIncome", "Income");
-  el("tableTypeToggleExpense").classList.toggle("active", tableTypeFilter === "Expense");
-  el("tableTypeToggleIncome").classList.toggle("active", tableTypeFilter === "Income");
-
-  function renderGroup(containerId, type) {
-    const container = el(containerId);
-    container.innerHTML = "";
-    const allKeys = tableCategoryList().map(c => `${c.type}::${c.category}`);
-    categoryListForType(type).forEach(cat => {
-      const key = `${type}::${cat}`;
-      const badge = document.createElement("button");
-      badge.type = "button";
-      badge.className = "legend-badge" + (categoryVisibility[key] !== false ? "" : " disabled");
-      badge.title = "Click to toggle · double-click to show only this category";
-      badge.innerHTML = `<span class="swatch" style="background:${categoryColorForType(type, cat)}"></span>${escapeHtml(cat)}`;
-      attachCategoryToggle(badge, key, categoryVisibility, () => allKeys, refreshDashboard);
-      container.appendChild(badge);
-    });
-  }
-}
 
 // Free-text match across the visible columns (§4.3) — description, category,
 // type, classification, amount (as shown and raw), and the date in both the
 // friendly and ISO forms so either spelling of a date finds a row.
+/* §8 — an empty result caused by filters must offer the way out of it, so the
+   Clear button appears exactly when explore filters are the reason (or part of
+   it). With no filters active it stays hidden and the message reads as before. */
+function setEmptyState(hostId, textId, message) {
+  el(textId).textContent = hasExploreFilters() ? "Nothing matches these filters." : message;
+  el(hostId).querySelectorAll("[data-clear-filters]").forEach(b => b.classList.toggle("hidden", !hasExploreFilters()));
+}
+
 function rowMatchesSearch(r, q) {
   return [
     r.Category, r.Type, r.Classification, r.Description,
@@ -6578,11 +6988,10 @@ function renderHistoryTable(rangeRows, hasRowsInRange) {
   body.innerHTML = "";
   if (rangeRows.length === 0) {
     const searching = historySearchQuery.trim() !== "";
-    el("historyEmpty").textContent = searching
-      ? "No transactions match your search."
-      : hasRowsInRange
-        ? "No transactions match the selected category filters."
-        : "No transactions yet — add your first one above.";
+    setEmptyState("historyEmpty", "historyEmptyText",
+      searching ? "No transactions match your search."
+      : hasRowsInRange ? "Nothing matches these filters."
+      : "No transactions yet — add your first one above.");
     show("historyEmpty");
     body.parentElement.parentElement.classList.add("hidden");
     hide("btnShowAllHistory");
@@ -6789,8 +7198,9 @@ function downloadBytes(bytes, filename) {
 // The .xlsx export is a STRUCTURALLY IDENTICAL copy of finances.xlsx — same
 // three sheets, same columns, same raw rows (unknown/manually-added columns
 // preserved, Golden Rule) — with exactly one difference: the Transactions sheet
-// contains only the rows that pass the currently-selected date range and the
-// active table filters (type, category toggles, search). The Loans and
+// contains only the rows that pass the currently-selected date range, the
+// global filter bar, and the table's search box — the same predicate the
+// visible table uses, so an export always matches what is on screen. The Loans and
 // LoanPayments sheets, which those filters don't touch, are copied in full so
 // the file stays a drop-in-shaped finances.xlsx. It is a separate download and
 // never modifies the real file.
@@ -6805,8 +7215,7 @@ function exportFilteredWorkbook() {
     const r = normalizeRow(raw);
     if (!(r.Date && r.Type && isFinite(r.Amount))) return false;    // skip blank/unreadable rows
     if (!(r.Date >= from && r.Date <= to)) return false;            // selected date range
-    if (tableTypeFilter && r.Type !== tableTypeFilter) return false; // Income/Expense toggle
-    if (categoryVisibility[`${r.Type}::${r.Category}`] === false) return false; // category filters
+    if (!matchesExplore(r)) return false;                           // global filter bar
     if (q && !rowMatchesSearch(r, q)) return false;                 // search box
     return true;
   });

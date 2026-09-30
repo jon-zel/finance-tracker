@@ -54,6 +54,40 @@ chart, and the payment/activity history — not just the graphs.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
+### Filtering
+
+Every filter on this tab lives in one **sticky bar** at the top: the date presets and
+custom range, a 3-way **All / Income / Expense** switch, a **Categories** dropdown and a
+**Classification** dropdown. Each active filter appears as a removable chip under the
+controls, with one **Clear filters** action beside them.
+
+- **One gesture, one meaning.** Clicking a donut slice, or a category badge under a donut,
+  adds or removes that category as a filter. Clicking the Income/Expenses legend on the
+  trend chart sets the type. Nothing hides data any more, and double-click does nothing —
+  the **only** link inside the Categories dropdown replaces it, and is actually findable.
+- **Nothing can be filtered invisibly.** Any state a chart click creates shows up as a chip
+  you can remove. If you filter yourself down to nothing, you get *"Nothing matches these
+  filters."* and a Clear button.
+
+**What reacts to what.** Totals and benchmarks follow the **date only**; exploration views
+follow everything:
+
+| Follows date only | Follows date + filters |
+|---|---|
+| Total Income, Total Expenses, Current Balance | Income vs. Expenses over time *(filters)* |
+| Expense Classification | Expenses / Income by category *(dims non-matching slices)* |
+| 50/30/20 breakdown | Transaction history table *(filters)* |
+| Day-to-day spending vs 3-month average | |
+
+So the big numbers stay put as anchors while you explore. When a filter is on, the two
+total cards gain a `Selected: … · …%` line for the filtered subset, and every panel that
+reacts shows a small funnel next to its title.
+
+Two things worth knowing: **Classification applies to expenses only**, so selecting one
+excludes all income rows (the bar says so). And **filters are not saved** — only the date
+preset persists, so the app never opens with a stale filter hiding your data. The table's
+own search box is separate and combines with whatever the bar has selected.
+
 ### The three summary cards
 
 **Total Income** and **Total Expenses** both describe the **selected time range** — change
