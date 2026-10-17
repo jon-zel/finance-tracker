@@ -437,9 +437,8 @@ svg{display:block;}
    long page. z-index sits above the panels but well below the modal overlay,
    which is 200+, so a dialog still covers it. */
 .filter-bar{
-  position:sticky;top:0;z-index:40;
   background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-  padding:14px 16px;margin-bottom:20px;
+  padding:14px 16px;
 }
 .filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;}
 .filter-row > .range-bar{flex:1 1 auto;}
@@ -600,11 +599,12 @@ th.amount-col,td.amount-col{text-align:right;font-variant-numeric:tabular-nums;}
    sit evenly across it at every width the dashboard is used at, so none of the
    four-column tightening (smaller gap, padding and type) is needed any more. */
 .dash-top-main > .summary-grid{flex:0 0 auto;}
-/* The spare height in this column goes to the range picker, not to the
+/* The spare height in this column goes to the filter bar, not to the
    classification panel: stretching the latter just padded three small figures
-   out over half a screen, while the range panel's buttons centre in the extra
-   room and look deliberate. Classification keeps its natural height. */
-.dash-top-main > .range-panel{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
+   out over half a screen, whereas the bar's controls centre in the extra room
+   and look deliberate. It also means the column ends level with the 50/30/20
+   panel opposite, so nothing below sits against a gap. */
+.dash-top-main > .filter-bar{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
 .dash-top-main > .classif-panel{flex:0 0 auto;}
 /* Must come AFTER the .dash-top base rule above: both are single-class
    selectors, so at equal specificity the later one wins and an override placed
@@ -1208,91 +1208,97 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         cards on the left, the savings goal card beside them on the right.
         ONLY this row is two-column — everything below it (classification,
         charts, history) runs the full width of the page. -->
-  <!-- ============================================================
-       GLOBAL FILTER BAR (§FILTER-BAR)
-       ------------------------------------------------------------
-       One place for every filter on this tab, replacing the old
-       scattered set (donut legend toggles, double-click-to-solo, the
-       type labels and the two category chip rows above the table).
-       Every active filter is a removable chip here, so no filter can
-       be on without being visible, and one Clear resets them all.
-
-       Date is deliberately NOT part of "Clear filters": it is the
-       context every panel reads, not a filter layered on top. See the
-       scope rule in renderDashboardFilterUI().
-       ============================================================ -->
-  <div class="filter-bar" id="filterBar">
-    <div class="filter-row">
-      <div class="range-bar">
-        <button class="range-btn" data-range="This Month">This Month</button>
-        <button class="range-btn" data-range="Last Month">Last Month</button>
-        <button class="range-btn" data-range="Last 12 Months">Last 12 Months</button>
-        <button class="range-btn" data-range="This Year">This Year</button>
-        <button class="range-btn" data-range="All Time">All Time</button>
-        <button class="range-btn" data-range="Custom">Custom</button>
-        <div class="custom-range hidden" id="customRangeInputs">
-          <label style="font-size:13px;color:var(--text-muted);">From
-            <span class="date-field" data-hidden="customFrom">
-              <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="From day">
-              <span class="dp-sep">/</span>
-              <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="From month">
-              <span class="dp-sep">/</span>
-              <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="From year">
-              <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
-              <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
-            </span>
-            <input type="hidden" id="customFrom">
-          </label>
-          <label style="font-size:13px;color:var(--text-muted);">to
-            <span class="date-field" data-hidden="customTo">
-              <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="To day">
-              <span class="dp-sep">/</span>
-              <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="To month">
-              <span class="dp-sep">/</span>
-              <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="To year">
-              <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              </button>
-              <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
-            </span>
-            <input type="hidden" id="customTo">
-          </label>
-          <div class="field-error hidden" id="customRangeError" style="flex-basis:100%;">The “From” date is after the “to” date — swap them to see results.</div>
-        </div>
-      </div>
-      <div class="filter-controls">
-        <div class="seg" id="filterTypeSeg" role="group" aria-label="Transaction type">
-          <button type="button" class="seg-btn active" data-filter-type="All" aria-pressed="true">All</button>
-          <button type="button" class="seg-btn" data-filter-type="Income">Income</button>
-          <button type="button" class="seg-btn" data-filter-type="Expense">Expense</button>
-        </div>
-        <div class="scope-picker" id="catPicker">
-          <button type="button" class="scope-trigger" id="catTrigger" aria-haspopup="dialog" aria-expanded="false">
-            <span id="catTriggerLabel">Categories</span>
-            <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="scope-menu filter-menu hidden" id="catMenu" role="dialog" aria-label="Filter by category"></div>
-        </div>
-        <div class="scope-picker" id="classPicker">
-          <button type="button" class="scope-trigger" id="classTrigger" aria-haspopup="dialog" aria-expanded="false">
-            <span id="classTriggerLabel">Classification</span>
-            <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="scope-menu filter-menu hidden" id="classMenu" role="dialog" aria-label="Filter by classification"></div>
-        </div>
-      </div>
-    </div>
-    <div class="filter-active-row hidden" id="filterActiveRow">
-      <span class="filter-active-label">Active</span>
-      <div class="scope-chips" id="filterChips"></div>
-      <button type="button" class="btn-link filter-clear" id="btnClearFilters">Clear filters</button>
-    </div>
-    <div class="filter-note hidden" id="filterClassNote">Classification applies to expenses only.</div>
-  </div>
    <div class="dash-top">
     <div class="dash-top-main">
+    <!-- ============================================================
+         GLOBAL FILTER BAR (§FILTER-BAR)
+         ------------------------------------------------------------
+         One place for every filter on this tab, replacing the old
+         scattered set (donut legend toggles, double-click-to-solo, the
+         type labels and the two category chip rows above the table).
+         Every active filter is a removable chip here, so no filter can
+         be on without being visible, and one Clear resets them all.
+
+         Date is deliberately NOT part of "Clear filters": it is the
+         context every panel reads, not a filter layered on top. See the
+         scope rule in renderDashboardFilterUI().
+
+         It sits in the dash-top's LEFT column so it lines up with the
+         summary cards and Expense Classification below it, and grows to
+         take up whatever height the taller 50/30/20 panel opens up on
+         the right — which is what closes the gap this column used to
+         leave under Classification.
+         ============================================================ -->
+    <div class="filter-bar" id="filterBar">
+      <div class="filter-row">
+        <div class="range-bar">
+          <button class="range-btn" data-range="This Month">This Month</button>
+          <button class="range-btn" data-range="Last Month">Last Month</button>
+          <button class="range-btn" data-range="Last 12 Months">Last 12 Months</button>
+          <button class="range-btn" data-range="This Year">This Year</button>
+          <button class="range-btn" data-range="All Time">All Time</button>
+          <button class="range-btn" data-range="Custom">Custom</button>
+          <div class="custom-range hidden" id="customRangeInputs">
+            <label style="font-size:13px;color:var(--text-muted);">From
+              <span class="date-field" data-hidden="customFrom">
+                <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="From day">
+                <span class="dp-sep">/</span>
+                <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="From month">
+                <span class="dp-sep">/</span>
+                <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="From year">
+                <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </button>
+                <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
+              </span>
+              <input type="hidden" id="customFrom">
+            </label>
+            <label style="font-size:13px;color:var(--text-muted);">to
+              <span class="date-field" data-hidden="customTo">
+                <input type="text" inputmode="numeric" class="dp dp-d" maxlength="2" placeholder="DD" aria-label="To day">
+                <span class="dp-sep">/</span>
+                <input type="text" inputmode="numeric" class="dp dp-m" maxlength="2" placeholder="MM" aria-label="To month">
+                <span class="dp-sep">/</span>
+                <input type="text" inputmode="numeric" class="dp dp-y" maxlength="4" placeholder="YYYY" aria-label="To year">
+                <button type="button" class="date-cal-btn" aria-label="Open calendar" tabindex="-1">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </button>
+                <input type="date" class="date-native" min="1900-01-01" max="2999-12-31" tabindex="-1" aria-hidden="true">
+              </span>
+              <input type="hidden" id="customTo">
+            </label>
+            <div class="field-error hidden" id="customRangeError" style="flex-basis:100%;">The “From” date is after the “to” date — swap them to see results.</div>
+          </div>
+        </div>
+        <div class="filter-controls">
+          <div class="seg" id="filterTypeSeg" role="group" aria-label="Transaction type">
+            <button type="button" class="seg-btn active" data-filter-type="All" aria-pressed="true">All</button>
+            <button type="button" class="seg-btn" data-filter-type="Income">Income</button>
+            <button type="button" class="seg-btn" data-filter-type="Expense">Expense</button>
+          </div>
+          <div class="scope-picker" id="catPicker">
+            <button type="button" class="scope-trigger" id="catTrigger" aria-haspopup="dialog" aria-expanded="false">
+              <span id="catTriggerLabel">Categories</span>
+              <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="scope-menu filter-menu hidden" id="catMenu" role="dialog" aria-label="Filter by category"></div>
+          </div>
+          <div class="scope-picker" id="classPicker">
+            <button type="button" class="scope-trigger" id="classTrigger" aria-haspopup="dialog" aria-expanded="false">
+              <span id="classTriggerLabel">Classification</span>
+              <svg class="scope-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="scope-menu filter-menu hidden" id="classMenu" role="dialog" aria-label="Filter by classification"></div>
+          </div>
+        </div>
+      </div>
+      <div class="filter-active-row hidden" id="filterActiveRow">
+        <span class="filter-active-label">Active</span>
+        <div class="scope-chips" id="filterChips"></div>
+        <button type="button" class="btn-link filter-clear" id="btnClearFilters">Clear filters</button>
+      </div>
+      <div class="filter-note hidden" id="filterClassNote">Classification applies to expenses only.</div>
+    </div>
 
 
     <!-- Summary cards -->

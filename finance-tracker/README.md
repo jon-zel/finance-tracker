@@ -56,9 +56,9 @@ Your tab choice is remembered in the browser (localStorage), never in the Excel 
 
 ### Filtering
 
-Every filter on this tab lives in one **sticky bar** at the top: the date presets and
-custom range, a 3-way **All / Income / Expense** switch, a **Categories** dropdown and a
-**Classification** dropdown. Each active filter appears as a removable chip under the
+Every filter on this tab lives in one **filter bar** at the top of the left column, above
+the summary cards: the date presets and custom range, a 3-way **All / Income / Expense**
+switch, a **Categories** dropdown and a **Classification** dropdown. Each active filter appears as a removable chip under the
 controls, with one **Clear filters** action beside them.
 
 - **One gesture, one meaning.** Clicking a donut slice adds or removes that category as a
