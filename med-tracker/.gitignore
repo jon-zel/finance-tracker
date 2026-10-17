@@ -1,0 +1,3 @@
+# Real medication data — never commit it, even if the data folder is chosen here
+*.xlsx
+backups/
