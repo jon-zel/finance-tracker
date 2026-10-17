@@ -16,9 +16,9 @@ Safari/Firefox don't support the file-linking API the app relies on; there you'l
 **"Import Excel file"** button instead, and saving downloads an updated copy of
 `finances.xlsx` rather than writing it in place.
 
-## The four tabs
+## The five tabs
 
-The app is one page with four tabs, switched from the bar under the header:
+The app is one page with five tabs, switched from the bar under the header:
 
 - **Income & Expenses** — the main dashboard: add income/expense entries, see totals,
   category and classification breakdowns, the income-vs-expense trend, the 50/30/20
@@ -33,6 +33,11 @@ The app is one page with four tabs, switched from the bar under the header:
   in 1 / 3 / 5 years. Cashing out **closes** an investment: it keeps its full history and
   final profit but drops out of your active list and totals. **Nothing here touches
   Income & Expenses** — see below.
+- **Advisor** — a placeholder for the financial-advice feature. It will let you ask
+  questions about your money and get answers grounded in the figures you already track
+  here. **Under development**: the page is static, reads nothing from the workbook and
+  writes nothing to it.
+
 Both the Loans and Investments tabs are scoped by the **"Show" filter** at the top. Pick
 from the dropdown and that loan/investment **pins beside it as a chip**; pick again to
 add another, so the filter is a **multi-selection**. Click a chip (or its row in the
@@ -48,9 +53,10 @@ chart, and the payment/activity history — not just the graphs.
   payments can be pulled straight from the Loans tab into **Credit Cards & Loans**, and
   **Import fixed expenses** totals last month's real spending in a few set categories
   (Subscriptions, Housing, Mom Bills) into **Can Wait** — both still editable afterwards.
-  You can drag any row between sections. A side "Advisor" panel flags shortfalls,
+  You can drag any row between sections. A side **advice panel** flags shortfalls,
   minimum-only cards, how much of your income is already committed, and where a surplus
-  could go. It's all estimates — it never touches your recorded income, expenses, or loans.
+  could go (this is a rules-based panel inside Monthly Planning, unrelated to the
+  **Advisor** tab). It's all estimates — it never touches your recorded income, expenses, or loans.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
