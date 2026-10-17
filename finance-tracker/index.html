@@ -856,6 +856,9 @@ td.row-actions .icon-btn + .icon-btn{margin-left:6px;}
   padding:2px 8px;border-radius:var(--radius-pill);border:1px solid transparent;
 }
 .invest-badge.type{background:var(--regular-bg);color:var(--text-muted);border-color:var(--border);}
+/* Purpose reads as the more meaningful of the two, so it takes the accent tint
+   while Type stays neutral grey (§INVEST-PURPOSE). */
+.invest-badge.purpose{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border);}
 .invest-badge.closed{background:var(--surface-alt);color:var(--text-muted);border-color:var(--border-strong);}
 .invest-badge.estimated{background:var(--loan-classif-bg);color:var(--loan-classif);border-color:var(--loan-classif-border);}
 .invest-bar-fill.value{background:var(--invest);}
@@ -1808,6 +1811,33 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="field-error hidden" id="expLoanIdError">Add a loan in the Loans tab first, or choose a different category.</div>
         <div class="field-hint">This also records a real payment against that loan.</div>
       </div>
+      <!-- Which investment a savings deposit goes into (§INVEST-LINK). The
+           mirror of the loan field above: choosing one makes this expense and a
+           real deposit on the Investments tab the same linked movement, instead
+           of two numbers typed separately that drift apart. -->
+      <div class="field hidden" id="expInvestFieldWrap">
+        <label for="expInvestmentId">Which investment?</label>
+        <select id="expInvestmentId"></select>
+        <div class="field-error hidden" id="expInvestmentIdError">Pick an investment, or create a new one.</div>
+        <div class="field-hint" id="expInvestHint">This also records a deposit into that investment.</div>
+        <!-- Shown only when "New investment" is chosen, so a first deposit never
+             has to start on the other tab. -->
+        <div class="hidden" id="expNewInvestFields">
+          <div class="field">
+            <label for="expNewInvestName">New investment name</label>
+            <input type="text" id="expNewInvestName" placeholder="e.g. Emergency fund">
+            <div class="field-error hidden" id="expNewInvestNameError">Give the new investment a name.</div>
+          </div>
+          <div class="field">
+            <label for="expNewInvestPurpose">What is it for?</label>
+            <select id="expNewInvestPurpose"></select>
+          </div>
+          <div class="field">
+            <label for="expNewInvestType">Type</label>
+            <select id="expNewInvestType"></select>
+          </div>
+        </div>
+      </div>
       <!-- 50/30/20 override (§BUDGET-503020). Left on "Auto" the expense simply
            follows its category's mapping, which is the case for every row unless
            the user deliberately says otherwise. "Not counted" is the escape hatch
@@ -1956,6 +1986,13 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div class="field">
         <label for="invType">Type</label>
         <select id="invType"></select>
+      </div>
+      <!-- What the money is FOR (§INVEST-PURPOSE) — the question "Type" can't
+           answer. Two identical ETFs can be a safety net and a pension. -->
+      <div class="field">
+        <label for="invPurpose">What is it for?</label>
+        <select id="invPurpose"></select>
+        <div class="field-hint">Groups your investments by what the money is set aside for, independently of what it's invested in.</div>
       </div>
       <div class="field">
         <label for="invExpectedReturn">Expected Annual Return (%)</label>
@@ -2185,7 +2222,12 @@ const SHEET_NAME = "Transactions";
 // every pre-existing row has, so adding this column changes no existing
 // number. It is appended to the sheet by computeFinalHeader on the next save
 // like any other known column.
-const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description", "Loan ID", "Payment ID", "Budget Group"];
+// "Investment ID" / "Flow ID" (§INVEST-LINK) are the investment mirror of
+// "Loan ID" / "Payment ID": a deposit or withdrawal and the expense/income row
+// it corresponds to are ONE real movement of money, so they are written as a
+// linked pair and edited and deleted together. Blank on every row that isn't
+// part of such a pair, which is every row that existed before this feature.
+const COLUMNS = ["Date", "Type", "Category", "Classification", "Amount", "Description", "Loan ID", "Payment ID", "Budget Group", "Investment ID", "Flow ID"];
 
 const EXPENSE_CATEGORIES = [
   "Food & Groceries",
@@ -2218,6 +2260,12 @@ const INVESTMENT_LOCKED_CATEGORY = "Investment / Savings Deposit";
 // it belongs to.
 const LOAN_LOCKED_CATEGORY = "Loan Payments";
 
+/* Money coming back OUT of an investment (§INVEST-LINK). Its own category
+   rather than "Investment / Interest income" because a withdrawal is mostly
+   your own capital returning, not interest earned — filing it as interest
+   would overstate what the portfolio actually made. */
+const INVESTMENT_WITHDRAWAL_CATEGORY = "Investment Withdrawal";
+
 const INCOME_CATEGORIES = [
   "Salary",
   "Freelance / Self-employment",
@@ -2225,6 +2273,7 @@ const INCOME_CATEGORIES = [
   "Refunds",
   "Rental income",
   "Investment / Interest income",
+  INVESTMENT_WITHDRAWAL_CATEGORY,
   "Gifts",
   "Other"
 ];
@@ -2431,7 +2480,7 @@ const INVESTMENTS_SHEET_NAME = "Investments";
 // "Expected Annual Return" is the % you expect this to make per year; it drives
 // the forward projection and the "is this beating expectations?" comparison,
 // exactly as a loan's Annual Interest Rate drives its payoff projection.
-const INVESTMENT_COLUMNS = ["Investment ID", "Name", "Type", "Expected Annual Return", "Start Date", "Status", "Closed Date", "Notes", "Last Updated"];
+const INVESTMENT_COLUMNS = ["Investment ID", "Name", "Type", "Expected Annual Return", "Start Date", "Status", "Closed Date", "Notes", "Last Updated", "Purpose"];
 
 const INVESTMENT_FLOWS_SHEET_NAME = "InvestmentFlows";
 // "Direction" is "Deposit" (money in) or "Withdrawal" (money out). Amount is
@@ -2451,6 +2500,27 @@ const INVESTMENT_STATUS_CLOSED = "Closed";
 // the Type dropdown; an investment whose Type isn't in this list still works
 // (it just sorts after the configured ones), so renaming an entry here never
 // orphans existing rows.
+/* What the money is FOR, as opposed to what it is invested in (§INVEST-PURPOSE).
+   Two investments can both be "Stocks & ETFs" while one is a six-month safety
+   net and the other is a 30-year pension — the same instrument doing completely
+   different jobs. Type answers "what is it", Purpose answers "what is it for",
+   and only the second tells you whether touching it is reasonable.
+
+   Edit this list freely; it is read straight into the dropdown, and an
+   investment saved under a purpose later removed from here keeps its own value
+   rather than silently losing it. */
+const INVESTMENT_PURPOSES = [
+  "Current expenses",
+  "Financial safety net",
+  "Travel",
+  "Self-gifts",
+  "Long-term / retirement",
+  "Education",
+  "Home / property",
+  "Other"
+];
+const INVESTMENT_PURPOSE_UNSET = "";
+
 const INVESTMENT_TYPES = [
   "Stocks & ETFs",
   "Crypto",
@@ -3175,6 +3245,8 @@ function normalizeRow(raw) {
   const description = String(raw.Description || "").trim();
   const loanId = String(raw["Loan ID"] || "").trim();
   const paymentId = String(raw["Payment ID"] || "").trim();
+  const investmentId = String(raw["Investment ID"] || "").trim();
+  const flowId = String(raw["Flow ID"] || "").trim();
   // Per-expense 50/30/20 override (§BUDGET-503020). Anything unrecognised —
   // including the blank every pre-existing row carries — normalizes to "",
   // which resolveBudgetGroup reads as "inherit from the category".
@@ -3195,7 +3267,9 @@ function normalizeRow(raw) {
     Description: description,
     "Loan ID": loanId,
     "Payment ID": paymentId,
-    "Budget Group": budgetGroup
+    "Budget Group": budgetGroup,
+    "Investment ID": investmentId,
+    "Flow ID": flowId
   });
 }
 
@@ -3696,6 +3770,8 @@ async function init() {
   populateSelect(el("expClassification"), CLASSIFICATIONS);
   el("expClassification").value = DEFAULT_CLASSIFICATION;
   populateBudgetGroupSelect();
+  populateSelect(el("expNewInvestType"), INVESTMENT_TYPES);
+  populateSelect(el("expNewInvestPurpose"), INVESTMENT_PURPOSES);
   populateSelect(el("incCategory"), INCOME_CATEGORIES);
   el("welcomeFileName").textContent = DATA_FILENAME;
   el("expDate").value = todayISO();
@@ -3864,6 +3940,7 @@ function wireStaticEvents() {
   el("incomeForm").addEventListener("submit", handleIncomeSubmit);
   el("expCategory").addEventListener("change", syncExpenseCategoryLock);
   el("expBudgetGroup").addEventListener("change", syncBudgetGroupHint);
+  el("expInvestmentId").addEventListener("change", syncExpNewInvestmentFields);
   el("expLoanId").addEventListener("change", syncExpLoanDescription);
 
   el("btnToggleDivide").addEventListener("click", () => {
@@ -4050,12 +4127,17 @@ async function appendRow(row) {
    added in Excel are preserved on edit (Golden Rule) — only the known fields
    the user changed are overwritten.
    ============================================================ */
+/* A "plain" row is one this tab owns outright. Rows carrying a loan or an
+   investment link are the visible half of a movement recorded on another tab,
+   so they are edited and deleted there — editing one here would desync it from
+   the payment or flow it mirrors (§INVEST-LINK). */
 function isPlainTransactionRaw(raw) {
-  return !String(raw["Payment ID"] || "").trim() && !String(raw["Loan ID"] || "").trim();
+  return !String(raw["Payment ID"] || "").trim() && !String(raw["Loan ID"] || "").trim()
+    && !String(raw["Flow ID"] || "").trim() && !String(raw["Investment ID"] || "").trim();
 }
 
 function isPlainTransaction(r) {
-  return !(r["Loan ID"] || r["Payment ID"]);
+  return !(r["Loan ID"] || r["Payment ID"] || r["Investment ID"] || r["Flow ID"]);
 }
 
 function transactionSignature(r) {
@@ -4950,7 +5032,51 @@ function syncExpenseCategoryLock() {
     hide("expLoanFieldWrap");
     syncExpPayAll(null); // category changed away from Loan Payments
   }
+
+  if (cat === INVESTMENT_LOCKED_CATEGORY) {
+    populateExpInvestmentSelect();
+    hide("expInvestmentIdError");
+    show("expInvestFieldWrap");
+  } else {
+    hide("expInvestFieldWrap");
+  }
+  syncExpNewInvestmentFields();
   syncBudgetGroupHint(); // the "Auto" target depends on the chosen category
+}
+
+/* Open investments, plus the escape hatch that makes this field usable on day
+   one: with nothing registered yet, "New investment" is the only option that
+   isn't a dead end. Closed investments are left out — money cannot go into
+   something already cashed out. */
+const EXP_NEW_INVESTMENT = "__new__";
+
+function populateExpInvestmentSelect() {
+  const sel = el("expInvestmentId");
+  const previous = sel.value;
+  sel.innerHTML = "";
+  const open = allInvestments.filter(i => i.status !== INVESTMENT_STATUS_CLOSED);
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = open.length ? "Choose an investment…" : "No investments yet — create one below";
+  sel.appendChild(blank);
+  open.forEach(inv => {
+    const o = document.createElement("option");
+    o.value = inv.id;
+    o.textContent = inv.purpose ? inv.name + " · " + inv.purpose : inv.name;
+    sel.appendChild(o);
+  });
+  const neu = document.createElement("option");
+  neu.value = EXP_NEW_INVESTMENT;
+  neu.textContent = "＋ New investment…";
+  sel.appendChild(neu);
+  if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
+}
+
+function syncExpNewInvestmentFields() {
+  const creating = el("expCategory").value === INVESTMENT_LOCKED_CATEGORY
+    && el("expInvestmentId").value === EXP_NEW_INVESTMENT;
+  el("expNewInvestFields").classList.toggle("hidden", !creating);
+  if (!creating) hide("expNewInvestNameError");
 }
 
 /* The override select (§BUDGET-503020). "" is the stored value for "follow the
@@ -5003,6 +5129,8 @@ function openModal(id) {
     el("expClassification").disabled = false;
     el("expClassification").value = DEFAULT_CLASSIFICATION;
     el("expBudgetGroup").value = "";
+    el("expInvestmentId").value = "";
+    el("expNewInvestName").value = "";
     syncExpenseCategoryLock();
     syncBudgetGroupHint();
     hide("dividePanel");
@@ -5091,6 +5219,8 @@ async function handleExpenseSubmit(e) {
   hide("expAmountError");
   hide("expenseFormError");
   hide("expLoanIdError");
+  hide("expInvestmentIdError");
+  hide("expNewInvestNameError");
 
   if (!date || !category) {
     el("expenseFormError").textContent = "Please fill in the date and category.";
@@ -5099,6 +5229,13 @@ async function handleExpenseSubmit(e) {
   }
   if (isNaN(amount) || amount <= 0) {
     show("expAmountError");
+    return;
+  }
+  // Investments deal in whole numbers everywhere (§INVEST-WHOLE). Rounding the
+  // cents off silently would make this expense and its linked deposit disagree.
+  if (category === INVESTMENT_LOCKED_CATEGORY && !isWholeAmount(amount, { allowZero: false })) {
+    el("expenseFormError").textContent = "Investment deposits are whole numbers — drop the decimals.";
+    show("expenseFormError");
     return;
   }
 
@@ -5113,6 +5250,41 @@ async function handleExpenseSubmit(e) {
     const ok = await updateTransaction(editingTransaction.sig, fields);
     btn.disabled = false;
     if (ok) { editingTransaction = null; closeModal("expenseModalOverlay"); }
+    return;
+  }
+
+  /* A savings deposit is the same movement as a deposit on the Investments
+     tab, so it goes through the flow path and comes back as a linked pair
+     (§INVEST-LINK) rather than as a lone expense row. Edit mode is excluded
+     above, exactly as it is for loan payments: editing a plain row must never
+     spawn a new flow. */
+  if (category === INVESTMENT_LOCKED_CATEGORY) {
+    const choice = el("expInvestmentId").value;
+    if (!choice) { show("expInvestmentIdError"); return; }
+
+    let investmentId = choice;
+    btn.disabled = true;
+    if (choice === EXP_NEW_INVESTMENT) {
+      const name = el("expNewInvestName").value.trim();
+      if (!name) { btn.disabled = false; show("expNewInvestNameError"); return; }
+      investmentId = generateInvestmentId();
+      const created = await appendInvestment({
+        id: investmentId, name, type: el("expNewInvestType").value,
+        // No expectation stated from here — the Investments tab is where you go
+        // to set one, and a made-up number would pollute the projection.
+        expectedReturn: 0, hasExpectedReturn: false,
+        startDate: date, status: INVESTMENT_STATUS_ACTIVE, closedDate: null,
+        notes: "", purpose: el("expNewInvestPurpose").value, lastUpdated: todayISO()
+      }, null, null);
+      if (!created) { btn.disabled = false; return; }
+    }
+
+    const ok = await appendInvestmentFlow({
+      id: generateFlowId(), investmentId, date, direction: INVESTMENT_DEPOSIT,
+      amount: round0(amount), notes: description, lastUpdated: todayISO()
+    });
+    btn.disabled = false;
+    if (ok) closeModal("expenseModalOverlay");
     return;
   }
 
@@ -8529,6 +8701,9 @@ function normalizeInvestmentRow(raw) {
     status,
     closedDate,
     notes: String(raw["Notes"] || "").trim(),
+    // Free text on purpose: a purpose dropped from INVESTMENT_PURPOSES, or typed
+    // straight into Excel, is kept and shown rather than silently blanked.
+    purpose: String(raw["Purpose"] || "").trim(),
     lastUpdated: normalizeDateValue(raw["Last Updated"]) || todayISO()
   };
 }
@@ -8543,7 +8718,8 @@ function investmentToRawRow(inv) {
     "Status": inv.status,
     "Closed Date": inv.closedDate == null ? "" : inv.closedDate,
     "Notes": inv.notes,
-    "Last Updated": inv.lastUpdated
+    "Last Updated": inv.lastUpdated,
+    "Purpose": inv.purpose || ""
   };
 }
 
@@ -8905,6 +9081,9 @@ async function saveInvestmentChange(mutate, failureMessage) {
   try {
     await saveWithFreshMerge(mutate);
     refreshInvestmentsModule();
+    // Flows now write a paired Transactions row (§INVEST-LINK), so the dashboard
+    // is stale the moment one is saved unless it re-renders too.
+    refreshDashboard();
     return true;
   } catch (err) {
     console.error(err);
@@ -8921,7 +9100,13 @@ async function saveInvestmentChange(mutate, failureMessage) {
 async function appendInvestment(inv, initialFlow, initialValuation) {
   return saveInvestmentChange(state => {
     state.rawInvestmentRows.push(investmentToRawRow(inv));
-    if (initialFlow) state.rawInvestmentFlowRows.push(investmentFlowToRawRow(initialFlow));
+    if (initialFlow) {
+      state.rawInvestmentFlowRows.push(investmentFlowToRawRow(initialFlow));
+      // The opening deposit is a real movement too, so it gets its expense row
+      // like any other — pushed after the investment row exists so the paired
+      // row can pick up the investment's name.
+      upsertFlowTransaction(state, initialFlow);
+    }
     if (initialValuation) state.rawInvestmentValuationRows.push(investmentValuationToRawRow(initialValuation));
   }, "Couldn't save your investment");
 }
@@ -8941,23 +9126,97 @@ async function updateInvestment(id, fields) {
   return ok && found;
 }
 
-// Deleting takes the investment's whole history with it — its flows and
-// valuations have nothing left to belong to. Nothing in Transactions is
-// touched, because nothing here was ever written there.
+/* Deleting takes the investment's whole history with it — its flows and
+   valuations have nothing left to belong to — and now also the Transactions
+   rows those flows created (§INVEST-LINK). Only rows carrying this
+   investment's own Flow IDs go: an expense typed by hand under
+   "Investment / Savings Deposit", with no Flow ID, is this tab's to keep and
+   is deliberately left alone. */
 async function deleteInvestment(id) {
   return saveInvestmentChange(state => {
     const idx = findRawInvestmentIndex(state.rawInvestmentRows, id);
     if (idx === -1) return;
     state.rawInvestmentRows.splice(idx, 1);
+    const doomedFlowIds = new Set(
+      state.rawInvestmentFlowRows
+        .filter(r => String(r["Investment ID"] || "").trim() === id)
+        .map(r => String(r["Flow ID"] || "").trim())
+        .filter(Boolean));
+    state.rawRows = state.rawRows.filter(r => {
+      const fid = String(r["Flow ID"] || "").trim();
+      return !(fid && doomedFlowIds.has(fid));
+    });
     state.rawInvestmentFlowRows = state.rawInvestmentFlowRows.filter(r => String(r["Investment ID"] || "").trim() !== id);
     state.rawInvestmentValuationRows = state.rawInvestmentValuationRows.filter(r => String(r["Investment ID"] || "").trim() !== id);
     selectedInvestmentIds.delete(id);
   }, "Couldn't delete your investment");
 }
 
+/* ---- Flow <-> Transaction linking (§INVEST-LINK) -------------------------
+   Putting money into an investment is an expense; taking it out is income.
+   Previously the Investments tab deliberately wrote nothing to Transactions,
+   which kept the ledger safe but meant Current Balance never saw the money
+   leave your account, and a deposit had to be typed twice to show up in both
+   places. A flow and its transaction row are now one linked pair, created,
+   edited and deleted together — exactly how a loan payment and its expense row
+   already work.
+
+   Only rows created from here carry a Flow ID. Anything logged before this
+   existed stays exactly as it is: unlinked, untouched, and still counted. */
+function flowTransactionRow(flow, investmentName) {
+  const label = flow.notes || (investmentName ? investmentName : "");
+  if (flow.direction === INVESTMENT_WITHDRAWAL) {
+    return {
+      Date: flow.date, Type: "Income", Category: INVESTMENT_WITHDRAWAL_CATEGORY,
+      // Income rows carry no classification anywhere in this app.
+      Classification: "", Amount: round0(flow.amount), Description: label,
+      "Investment ID": flow.investmentId, "Flow ID": flow.id
+    };
+  }
+  return {
+    Date: flow.date, Type: "Expense", Category: INVESTMENT_LOCKED_CATEGORY,
+    Classification: "Investment", Amount: round0(flow.amount), Description: label,
+    "Investment ID": flow.investmentId, "Flow ID": flow.id
+  };
+}
+
+// Matched by the stable Flow ID, never by position or by content.
+function findRawTxIndexByFlowId(rows, flowId) {
+  if (!flowId) return -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i]["Flow ID"] || "").trim() === flowId) return i;
+  }
+  return -1;
+}
+
+function investmentNameById(state, investmentId) {
+  const idx = findRawInvestmentIndex(state.rawInvestmentRows, investmentId);
+  return idx === -1 ? "" : normalizeInvestmentRow(state.rawInvestmentRows[idx]).name;
+}
+
+// Writes the paired row for a flow, replacing any existing one in place so an
+// edit never leaves a second copy behind. Unknown columns a human added in
+// Excel survive, because only our own keys are assigned over the existing row.
+function upsertFlowTransaction(state, flow) {
+  const row = flowTransactionRow(flow, investmentNameById(state, flow.investmentId));
+  const idx = findRawTxIndexByFlowId(state.rawRows, flow.id);
+  if (idx === -1) state.rawRows.push(row);
+  else state.rawRows[idx] = Object.assign({}, state.rawRows[idx], row, {
+    // A deposit edited into a withdrawal flips the row's Type, and the stale
+    // Classification from the other direction has to go with it.
+    Classification: row.Classification
+  });
+}
+
+function removeFlowTransaction(state, flowId) {
+  const idx = findRawTxIndexByFlowId(state.rawRows, flowId);
+  if (idx !== -1) state.rawRows.splice(idx, 1);
+}
+
 async function appendInvestmentFlow(flow) {
   return saveInvestmentChange(state => {
     state.rawInvestmentFlowRows.push(investmentFlowToRawRow(flow));
+    upsertFlowTransaction(state, flow);
   }, "Couldn't save that deposit/withdrawal");
 }
 
@@ -8968,6 +9227,8 @@ async function updateInvestmentFlow(id, fields) {
     const prev = normalizeInvestmentFlowRow(state.rawInvestmentFlowRows[idx]);
     const updated = Object.assign({}, prev, fields, { lastUpdated: todayISO() });
     state.rawInvestmentFlowRows[idx] = Object.assign({}, state.rawInvestmentFlowRows[idx], investmentFlowToRawRow(updated));
+    // The paired row describes the same movement, so it follows every edit.
+    upsertFlowTransaction(state, updated);
   }, "Couldn't update that entry");
 }
 
@@ -8975,6 +9236,7 @@ async function deleteInvestmentFlow(id) {
   return saveInvestmentChange(state => {
     const idx = findRawFlowIndex(state.rawInvestmentFlowRows, id);
     if (idx !== -1) state.rawInvestmentFlowRows.splice(idx, 1);
+    removeFlowTransaction(state, id);
   }, "Couldn't delete that entry");
 }
 
@@ -9109,6 +9371,9 @@ function renderInvestmentsList(stats) {
     const gainSign = s.gain > 0 ? "+" : "";
 
     const badges = [`<span class="invest-badge type">${escapeHtml(inv.type)}</span>`];
+    // Purpose sits beside Type because the two answer different questions and
+    // the pair is what actually identifies an investment (§INVEST-PURPOSE).
+    if (inv.purpose) badges.push(`<span class="invest-badge purpose">${escapeHtml(inv.purpose)}</span>`);
     if (isClosed) badges.push('<span class="invest-badge closed">Closed</span>');
     else if (s.isEstimated) {
       const since = s.lastValuation ? `no new value since ${friendlyDate(s.lastValuation.date)}` : "no value recorded yet";
@@ -9704,6 +9969,7 @@ function openInvestmentModalForAdd() {
   el("investmentModalTitle").textContent = "Add Investment";
   el("btnSaveInvestment").textContent = "Save";
   populateSelect(el("invType"), INVESTMENT_TYPES);
+  populateSelect(el("invPurpose"), INVESTMENT_PURPOSES);
   el("invStartDate").value = todayISO();
   show("invInitialFields");
   hideInvestmentFormErrors();
@@ -9715,12 +9981,17 @@ function openInvestmentModalForEdit(id) {
   if (!inv) return;
   el("investmentForm").reset();
   populateSelect(el("invType"), INVESTMENT_TYPES);
+  populateSelect(el("invPurpose"), INVESTMENT_PURPOSES);
   ensureSelectOption(el("invType"), inv.type); // a type from an older/hand-edited file still shows
+  // Same for a purpose since removed from INVESTMENT_PURPOSES, or typed into
+  // the sheet by hand: show it rather than silently reassigning the investment.
+  if (inv.purpose) ensureSelectOption(el("invPurpose"), inv.purpose);
   el("invId").value = inv.id;
   el("investmentModalTitle").textContent = "Edit Investment";
   el("btnSaveInvestment").textContent = "Save Changes";
   el("invName").value = inv.name;
   el("invType").value = inv.type;
+  el("invPurpose").value = inv.purpose || "";
   el("invExpectedReturn").value = inv.expectedReturn;
   el("invNotes").value = inv.notes;
   // The opening deposit/value only make sense when creating — afterwards those
@@ -9740,6 +10011,7 @@ async function handleInvestmentSubmit(e) {
   const expectedReturnRaw = el("invExpectedReturn").value;
   const expectedReturn = parseFloat(expectedReturnRaw);
   const notes = el("invNotes").value.trim();
+  const purpose = el("invPurpose").value;
 
   let hasError = false;
   if (!name) { el("investmentFormError").textContent = "Please enter a name."; show("investmentFormError"); hasError = true; }
@@ -9769,14 +10041,14 @@ async function handleInvestmentSubmit(e) {
   btn.disabled = true;
   let ok;
   if (id) {
-    ok = await updateInvestment(id, { name, type, expectedReturn: round4(expectedReturn), hasExpectedReturn: true, notes });
+    ok = await updateInvestment(id, { name, type, purpose, expectedReturn: round4(expectedReturn), hasExpectedReturn: true, notes });
   } else {
     const invId = generateInvestmentId();
     const investment = {
       id: invId, name, type,
       expectedReturn: round4(expectedReturn), hasExpectedReturn: true,
       startDate, status: INVESTMENT_STATUS_ACTIVE, closedDate: null,
-      notes, lastUpdated: todayISO()
+      notes, purpose, lastUpdated: todayISO()
     };
     const flow = {
       id: generateFlowId(), investmentId: invId, date: startDate,

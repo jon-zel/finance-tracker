@@ -156,6 +156,51 @@ Note this is a second, independent axis from **Classification** (Regular / Loan 
 Investment). The two answer different questions and neither derives from the other: a row
 can be Classification *Loan* and group *Needs* at the same time.
 
+### Linking investments to expenses
+
+Putting money into an investment is an expense; taking it back out is income. Rather than
+typing each movement twice, the two sides are one **linked pair**, the same way a loan
+payment and its expense row already work:
+
+| You do this | It records |
+|---|---|
+| Add an expense under `Investment / Savings Deposit` | A **deposit** into the investment you pick |
+| Log a deposit on the Investments tab | An **expense** under `Investment / Savings Deposit` |
+| Log a withdrawal on the Investments tab | **Income** under `Investment Withdrawal` |
+
+The expense form asks **which investment** the money is going into, and offers
+**＋ New investment** so a first deposit never has to start on the other tab — give it a
+name and a purpose and it's created along with the deposit.
+
+Linked rows are **read-only in the Transaction History table**: they have no edit or delete
+icons, because editing one there would desync it from the flow it mirrors. Edit or delete
+them from the Investments tab's activity table and both halves move together.
+
+Two things this deliberately does *not* do:
+
+- **It doesn't touch anything that already existed.** Only rows created from here carry a
+  `Flow ID`. An expense you typed under `Investment / Savings Deposit` before this existed
+  stays exactly as it is — unlinked, still counted, and left alone even when you delete the
+  investment it looks like it belongs to.
+- **Withdrawals are filed as their own income category**, not as
+  `Investment / Interest income` — a withdrawal is mostly your own capital coming back, and
+  calling it interest would overstate what the portfolio actually earned. It does mean
+  **Total Income includes returned capital**, so a big withdrawal will lift that figure.
+
+### Investment purpose
+
+Each investment carries a **purpose** alongside its type: what the money is *for*, as
+opposed to what it's invested *in*. Two identical ETFs can be a six-month safety net and a
+30-year pension — same instrument, completely different jobs, and only the purpose tells
+you whether raiding it is reasonable. It shows as a badge beside the type in the ranked
+list. The list lives in `INVESTMENT_PURPOSES` at the top of `index.html`:
+
+> Current expenses · Financial safety net · Travel · Self-gifts · Long-term / retirement ·
+> Education · Home / property · Other
+
+Edit that list freely. An investment saved under a purpose you later remove keeps its own
+value rather than being silently reassigned.
+
 ### Empty states
 
 Before you add your first loan or first investment, those two tabs show an illustration
@@ -225,8 +270,9 @@ and preserves any extra columns/sheets it doesn't recognize when it writes back.
 - A separate **50/30/20** dimension over the same expenses (see above), independent of
   classification.
 - Two special expense categories that auto-set their classification:
-  - **`Investment / Savings Deposit`** → locks classification to *Investment*, and is the
-    category that counts toward the 50/30/20 *Savings* share.
+  - **`Investment / Savings Deposit`** → locks classification to *Investment*, asks which
+    investment the money goes into, and is the category that counts toward the 50/30/20
+    *Savings* share.
   - **`Loan Payments`** → locks classification to *Loan*, asks which loan the payment is
     for, and records a real payment against that loan (the same action as the Loans tab's
     "Log Payment"). Use this instead of logging loan payments as ordinary expenses, so the
@@ -281,10 +327,13 @@ Other things worth knowing:
   withdraw on the same day and the withdrawal comes off that value; deposit and then
   record a value and the value wins. (A row typed straight into Excel has no log time, so
   there the valuation is treated as the day's closing figure.)
-- **Nothing on this tab touches Income & Expenses.** Investment money is deliberately not
-  written to the Transactions sheet, so moving money in or out can never change a past
-  income or expense total. If you also want a deposit to count toward your 50/30/20
-  *Savings* share, log it separately as an expense under `Investment / Savings Deposit`.
+- **Deposits and withdrawals are linked to Income & Expenses.** Money moving in or out of
+  an investment is real money leaving or entering your account, so each flow writes one
+  paired row on the Transactions sheet: a **deposit becomes an expense** under
+  `Investment / Savings Deposit`, and a **withdrawal becomes income** under
+  `Investment Withdrawal`. The pair is created, edited and deleted as one — change a
+  deposit's amount here and its expense row follows; delete the investment and its rows go
+  with it. See *Linking investments to expenses* below.
 
 ## What it does not do (by design)
 
