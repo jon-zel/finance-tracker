@@ -201,6 +201,17 @@ list. The list lives in `INVESTMENT_PURPOSES` at the top of `index.html`:
 Edit that list freely. An investment saved under a purpose you later remove keeps its own
 value rather than being silently reassigned.
 
+### Investment amounts and rounding
+
+Investment figures are **stored to the agorah** — type 999.54 and 999.54 is what lands in
+the sheet and in the linked expense row — but the Investments tab **displays them rounded**
+to whole units, because that tab reads better in round figures. The Transaction History
+table shows the linked row to the cent, like every other expense.
+
+One consequence worth knowing: a column of rounded rows need not add up to the rounded
+total beside it. The total is the rounded sum of the exact amounts, not the sum of the
+rounded ones, so it can differ by an agorah or two. The total is the honest figure.
+
 ### Empty states
 
 Before you add your first loan or first investment, those two tabs show an illustration

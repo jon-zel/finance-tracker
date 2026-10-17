@@ -1434,7 +1434,7 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <span id="btnShowAllHistoryLabel"></span>
         <svg class="history-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
-      <div class="table-note">Use the edit and delete icons to correct an entry. Loan payments are managed on the Loans tab.</div>
+      <div class="table-note">Use the edit and delete icons to correct an entry. Loan payments are managed on the Loans tab, and investment deposits and withdrawals on the Investments tab.</div>
     </div>
 
   </div>
@@ -2006,8 +2006,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       <div id="invInitialFields">
         <div class="field">
           <label for="invInitialAmount">Amount Invested</label>
-          <input type="number" id="invInitialAmount" min="1" step="1" inputmode="numeric">
-          <div class="field-error hidden" id="invInitialAmountError">Enter a whole amount greater than 0 &mdash; no decimals.</div>
+          <input type="number" id="invInitialAmount" min="0.01" step="0.01" inputmode="decimal">
+          <div class="field-error hidden" id="invInitialAmountError">Enter an amount greater than 0.</div>
         </div>
         <div class="field">
           <label for="invStartDate">Date Invested</label>
@@ -2016,8 +2016,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         </div>
         <div class="field">
           <label for="invInitialValue">Worth Now (optional)</label>
-          <input type="number" id="invInitialValue" min="0" step="1" inputmode="numeric">
-          <div class="field-error hidden" id="invInitialValueError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+          <input type="number" id="invInitialValue" min="0" step="0.01" inputmode="decimal">
+          <div class="field-error hidden" id="invInitialValueError">Enter an amount, 0 or more.</div>
           <div class="field-hint">If it's already gained or lost since you put the money in, record today's value here. Leave blank to start it at the amount invested.</div>
         </div>
       </div>
@@ -2065,8 +2065,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       </div>
       <div class="field">
         <label for="flowAmount">Amount</label>
-        <input type="number" id="flowAmount" min="1" step="1" inputmode="numeric" required>
-        <div class="field-error hidden" id="flowAmountError">Enter a whole amount greater than 0 &mdash; no decimals.</div>
+        <input type="number" id="flowAmount" min="0.01" step="0.01" inputmode="decimal" required>
+        <div class="field-error hidden" id="flowAmountError">Enter an amount greater than 0.</div>
         <div class="field-hint" id="flowAmountHint"></div>
       </div>
       <div class="field">
@@ -2104,8 +2104,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       </div>
       <div class="field">
         <label for="valValue">Worth on That Date</label>
-        <input type="number" id="valValue" min="0" step="1" inputmode="numeric" required>
-        <div class="field-error hidden" id="valValueError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+        <input type="number" id="valValue" min="0" step="0.01" inputmode="decimal" required>
+        <div class="field-error hidden" id="valValueError">Enter an amount, 0 or more.</div>
         <div class="field-hint" id="valValueHint">The total the investment is worth — not the change since last time.</div>
       </div>
       <div class="field">
@@ -2142,8 +2142,8 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
       </div>
       <div class="field">
         <label for="closeAmount">Cashed Out</label>
-        <input type="number" id="closeAmount" min="0" step="1" inputmode="numeric" required>
-        <div class="field-error hidden" id="closeAmountError">Enter a whole number, 0 or more &mdash; no decimals.</div>
+        <input type="number" id="closeAmount" min="0" step="0.01" inputmode="decimal" required>
+        <div class="field-error hidden" id="closeAmountError">Enter an amount, 0 or more.</div>
         <div class="field-hint" id="closeAmountHint"></div>
       </div>
       <div class="field">
@@ -2962,18 +2962,21 @@ function formatMoney(n) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Whole-number money, used throughout the Investments tab (§INVEST-WHOLE). That
-// tab deals in round sums you'd actually transfer, and trailing ".00" on every
-// figure just adds noise there. Deliberately NOT applied to the rest of the app:
-// income/expense entries and loan payments are genuinely to-the-cent.
-// Rounding happens at the data layer too (normalizeInvestment*Row), so a total
-// here is always exactly the sum of the rows shown above it.
+// Rounded money for display, used throughout the Investments tab
+// (§INVEST-WHOLE). That tab deals in sums you'd read as round figures, and
+// trailing ".00" on every one just adds noise. Deliberately NOT applied to the
+// rest of the app, where income/expense entries and loan payments show cents.
+//
+// This rounds for DISPLAY ONLY — the stored figure keeps its agorot. One
+// consequence worth knowing: a column of rounded rows need not add up to the
+// rounded total beside it, because the total is the rounded sum of the exact
+// amounts rather than the sum of the rounded ones. The total is the honest
+// number; the rows are each honest to within half an agorah.
 function formatWholeMoney(n) {
   if (!isFinite(n)) return "0";
   return Math.round(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-function round0(n) { return Math.round(isFinite(n) ? n : 0); }
 
 // ---- Rate precision (§INVEST-RATE) ----
 // An expected annual return is often a precise figure off a fund factsheet
@@ -5231,14 +5234,6 @@ async function handleExpenseSubmit(e) {
     show("expAmountError");
     return;
   }
-  // Investments deal in whole numbers everywhere (§INVEST-WHOLE). Rounding the
-  // cents off silently would make this expense and its linked deposit disagree.
-  if (category === INVESTMENT_LOCKED_CATEGORY && !isWholeAmount(amount, { allowZero: false })) {
-    el("expenseFormError").textContent = "Investment deposits are whole numbers — drop the decimals.";
-    show("expenseFormError");
-    return;
-  }
-
   const btn = e.target.querySelector('button[type="submit"]');
 
   // Edit mode (§4.2): update the located plain row in place. Never routes
@@ -5281,7 +5276,7 @@ async function handleExpenseSubmit(e) {
 
     const ok = await appendInvestmentFlow({
       id: generateFlowId(), investmentId, date, direction: INVESTMENT_DEPOSIT,
-      amount: round0(amount), notes: description, lastUpdated: todayISO()
+      amount: round2(amount), notes: description, lastUpdated: todayISO()
     });
     btn.disabled = false;
     if (ok) closeModal("expenseModalOverlay");
@@ -7201,8 +7196,16 @@ function renderHistoryTable(rangeRows, hasRowsInRange) {
       actionsTd.appendChild(dupBtn);
       actionsTd.appendChild(delBtn);
     } else {
-      // Loan-linked row: managed on the Loans tab so the payment ledger stays in sync.
-      actionsTd.innerHTML = `<span class="row-actions-note" title="This is a loan payment — edit or delete it on the Loans tab.">Loans&nbsp;tab</span>`;
+      // A linked row is the visible half of something recorded on another tab,
+      // and is edited there so the two halves can never disagree. Which tab
+      // depends on what it is linked to — saying "Loans" on an investment
+      // deposit sends the user somewhere that cannot edit it (§INVEST-LINK).
+      const isInvestmentRow = !!(r["Flow ID"] || r["Investment ID"]);
+      const where = isInvestmentRow ? "Investments" : "Loans";
+      const why = isInvestmentRow
+        ? "This is an investment deposit/withdrawal — edit or delete it on the Investments tab."
+        : "This is a loan payment — edit or delete it on the Loans tab.";
+      actionsTd.innerHTML = `<span class="row-actions-note" title="${escapeHtml(why)}">${where}&nbsp;tab</span>`;
     }
     tr.appendChild(actionsTd);
     body.appendChild(tr);
@@ -8724,12 +8727,13 @@ function investmentToRawRow(inv) {
 }
 
 function normalizeInvestmentFlowRow(raw) {
-  // Whole numbers (§INVEST-WHOLE). Rounding here, at the boundary, means the
-  // engine only ever does integer arithmetic — so a fractional amount left in
-  // an older file (or typed straight into Excel) is read as the nearest whole
-  // number rather than quietly making a total disagree with its rows. The raw
-  // sheet row is untouched until that entry is actually edited.
-  const amount = round0(parseFloat(raw["Amount"]));
+  // To the agorah (§INVEST-WHOLE). The boundary rounds to 2 decimals, the same
+  // precision the rest of the app's money carries, so a figure like 999.54 is
+  // stored and summed exactly as typed. Only the DISPLAY rounds to whole units
+  // (formatWholeMoney). A third decimal left in an older file, or typed into
+  // Excel by hand, is read to the nearest agorah; the raw sheet row is
+  // untouched until that entry is actually edited.
+  const amount = round2(parseFloat(raw["Amount"]));
   // Amount is stored positive with the sign carried by Direction, but a file
   // hand-edited in Excel could still hold a negative — read that as the
   // withdrawal it obviously means rather than letting it corrupt the running
@@ -8762,7 +8766,7 @@ function investmentFlowToRawRow(f) {
 }
 
 function normalizeInvestmentValuationRow(raw) {
-  const value = round0(parseFloat(raw["Value"])); // whole numbers — see normalizeInvestmentFlowRow
+  const value = round2(parseFloat(raw["Value"])); // to the agorah — see normalizeInvestmentFlowRow
   return {
     id: String(raw["Valuation ID"] || "").trim(),
     investmentId: String(raw["Investment ID"] || "").trim(),
@@ -8879,8 +8883,8 @@ function buildInvestmentTimeline(flows, valuations) {
       value = e.ref.value;
     } else {
       const signed = e.ref.direction === INVESTMENT_WITHDRAWAL ? -e.ref.amount : e.ref.amount;
-      value = round0(value + signed);
-      cost = round0(cost + signed);
+      value = round2(value + signed);
+      cost = round2(cost + signed);
     }
     e.valueAfter = value;
     e.costAfter = cost;
@@ -8944,13 +8948,13 @@ function computeInvestmentStats(inv) {
   const currentValue = last ? Math.max(0, last.valueAfter) : 0;
   const netInvested = last ? last.costAfter : 0;
 
-  const deposited = round0(flows.filter(f => f.direction === INVESTMENT_DEPOSIT).reduce((s, f) => s + f.amount, 0));
-  const withdrawn = round0(flows.filter(f => f.direction === INVESTMENT_WITHDRAWAL).reduce((s, f) => s + f.amount, 0));
+  const deposited = round2(flows.filter(f => f.direction === INVESTMENT_DEPOSIT).reduce((s, f) => s + f.amount, 0));
+  const withdrawn = round2(flows.filter(f => f.direction === INVESTMENT_WITHDRAWAL).reduce((s, f) => s + f.amount, 0));
 
   // Profit is value-now plus anything already taken out, less everything put
   // in. Written this way it stays correct for a partly- or fully-cashed-out
   // investment, where "value − net invested" alone would understate it.
-  const gain = round0(currentValue + withdrawn - deposited);
+  const gain = round2(currentValue + withdrawn - deposited);
   const gainPercent = deposited > 0 ? round1((gain / deposited) * 100) : 0;
 
   // "Estimated" = money has moved since the last statement reading, so what
@@ -9066,10 +9070,10 @@ function maxWithdrawableAt(investmentId, iso, excludeFlowId) {
     if (e.date <= iso) return;
     if (nextValuation && e.date > nextValuation.date) return;
     if (e.kind === "valuation") return;
-    running = round0(running + (e.ref.direction === INVESTMENT_WITHDRAWAL ? -e.ref.amount : e.ref.amount));
+    running = round2(running + (e.ref.direction === INVESTMENT_WITHDRAWAL ? -e.ref.amount : e.ref.amount));
     if (running < worstAhead) worstAhead = running;
   });
-  return Math.max(0, round0(worstAhead));
+  return Math.max(0, round2(worstAhead));
 }
 
 /* ============================================================
@@ -9169,13 +9173,13 @@ function flowTransactionRow(flow, investmentName) {
     return {
       Date: flow.date, Type: "Income", Category: INVESTMENT_WITHDRAWAL_CATEGORY,
       // Income rows carry no classification anywhere in this app.
-      Classification: "", Amount: round0(flow.amount), Description: label,
+      Classification: "", Amount: round2(flow.amount), Description: label,
       "Investment ID": flow.investmentId, "Flow ID": flow.id
     };
   }
   return {
     Date: flow.date, Type: "Expense", Category: INVESTMENT_LOCKED_CATEGORY,
-    Classification: "Investment", Amount: round0(flow.amount), Description: label,
+    Classification: "Investment", Amount: round2(flow.amount), Description: label,
     "Investment ID": flow.investmentId, "Flow ID": flow.id
   };
 }
@@ -9273,7 +9277,7 @@ async function closeInvestment(id, { date, amount, notes }) {
     if (amount > 0) {
       state.rawInvestmentFlowRows.push(investmentFlowToRawRow({
         id: generateFlowId(), investmentId: id, date,
-        direction: INVESTMENT_WITHDRAWAL, amount: round0(amount),
+        direction: INVESTMENT_WITHDRAWAL, amount: round2(amount),
         notes: notes || "Cashed out — investment closed", lastUpdated: todayISO()
       }));
     }
@@ -9485,11 +9489,11 @@ function renderInvestmentScopeChips() {
 // rates, which would weight a 50-unit position the same as a 50,000-unit one.
 function renderInvestmentSummary(stats) {
   const scope = selectedInvestmentsSet();
-  const totalValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
-  const totalDeposited = round0(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
-  const totalWithdrawn = round0(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
-  const totalCost = round0(totalDeposited - totalWithdrawn);
-  const totalGain = round0(totalValue + totalWithdrawn - totalDeposited);
+  const totalValue = round2(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  const totalDeposited = round2(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
+  const totalWithdrawn = round2(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
+  const totalCost = round2(totalDeposited - totalWithdrawn);
+  const totalGain = round2(totalValue + totalWithdrawn - totalDeposited);
   const gainPct = totalDeposited > 0 ? round1((totalGain / totalDeposited) * 100) : 0;
 
   el("investTotalCost").textContent = formatWholeMoney(totalCost);
@@ -9537,11 +9541,11 @@ function renderInvestmentSummary(stats) {
 
 function renderInvestmentBars(stats) {
   const scope = selectedInvestmentsSet();
-  const totalValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
-  const totalDeposited = round0(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
-  const totalWithdrawn = round0(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
-  const totalCost = round0(totalDeposited - totalWithdrawn);
-  const totalGain = round0(totalValue + totalWithdrawn - totalDeposited);
+  const totalValue = round2(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  const totalDeposited = round2(scope.reduce((s, i) => s + stats[i.id].deposited, 0));
+  const totalWithdrawn = round2(scope.reduce((s, i) => s + stats[i.id].withdrawn, 0));
+  const totalCost = round2(totalDeposited - totalWithdrawn);
+  const totalGain = round2(totalValue + totalWithdrawn - totalDeposited);
 
   const maxCompare = Math.max(totalCost, totalValue, 1);
   el("investBarCostFill").style.width = `${Math.min(100, (Math.max(0, totalCost) / maxCompare) * 100)}%`;
@@ -9575,7 +9579,7 @@ function renderInvestmentProjection(stats) {
   const scope = selectedInvestmentsSet().filter(i => i.status === INVESTMENT_STATUS_ACTIVE);
   const grid = el("investProjGrid");
   grid.innerHTML = "";
-  const baseValue = round0(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
+  const baseValue = round2(scope.reduce((s, i) => s + stats[i.id].currentValue, 0));
   if (scope.length === 0 || baseValue <= 0) {
     show("investProjEmpty");
     hide("investProjGrid");
@@ -9593,11 +9597,11 @@ function renderInvestmentProjection(stats) {
   grid.appendChild(todayCard);
 
   INVESTMENT_PROJECTION_YEARS.forEach(years => {
-    const projected = round0(scope.reduce((sum, inv) => {
+    const projected = round2(scope.reduce((sum, inv) => {
       const r = stats[inv.id].currentValue * Math.pow(1 + (inv.expectedReturn / 100), years);
       return sum + (isFinite(r) ? r : stats[inv.id].currentValue);
     }, 0));
-    const delta = round0(projected - baseValue);
+    const delta = round2(projected - baseValue);
     const card = document.createElement("div");
     card.className = "invest-proj-card";
     card.innerHTML = `
@@ -9660,8 +9664,8 @@ function renderInvestmentChart(stats) {
       v += Math.max(0, st.value);
       c += st.cost;
     });
-    valueSeries.push(round0(v));
-    costSeries.push(round0(c));
+    valueSeries.push(round2(v));
+    costSeries.push(round2(c));
   });
 
   const theme = getChartThemeColors();
@@ -9730,7 +9734,7 @@ function renderPerInvestmentChart(stats) {
       // Before this investment's first entry there's nothing to draw — a zero
       // there would read as "held, worth nothing" rather than "not yet owned".
       if (!st.sawAny) return null;
-      return round0(Math.max(0, st.value));
+      return round2(Math.max(0, st.value));
     });
     return {
       label: `${inv.name} — ${formatRate(inv.expectedReturn)}% exp.`,
@@ -9802,7 +9806,7 @@ function renderInvestmentAllocation(stats) {
   scope.forEach(inv => {
     const v = stats[inv.id].currentValue;
     if (v <= 0) return;
-    sums[inv.type] = round0((sums[inv.type] || 0) + v);
+    sums[inv.type] = round2((sums[inv.type] || 0) + v);
   });
   const entries = Object.entries(sums).sort((a, b) => b[1] - a[1]);
 
@@ -9934,13 +9938,13 @@ function renderInvestmentActivityTable() {
    ============================================================ */
 
 // Whole-number money guard (§INVEST-WHOLE). Every money field on this tab is
-// integer-only: `step="1"` makes the browser reject a decimal before we ever
+// to-the-agorah: `step="0.01"` lets the browser accept the cents before we ever
 // see it, and this is the backstop that produces the app's own error styling
 // (and covers anything that slips past native validation, e.g. a pasted value
 // in a browser that doesn't enforce step). Returns true when the value is a
-// usable whole number.
-function isWholeAmount(n, { allowZero }) {
-  if (!isFinite(n) || !Number.isInteger(n)) return false;
+// usable money amount.
+function isMoneyAmount(n, { allowZero }) {
+  if (!isFinite(n)) return false;
   return allowZero ? n >= 0 : n > 0;
 }
 
@@ -10027,13 +10031,13 @@ async function handleInvestmentSubmit(e) {
     startDate = el("invStartDate").value;
     const rawValue = el("invInitialValue").value.trim();
     initialValue = rawValue === "" ? null : parseFloat(rawValue);
-    if (!isWholeAmount(initialAmount, { allowZero: false })) { show("invInitialAmountError"); hasError = true; }
+    if (!isMoneyAmount(initialAmount, { allowZero: false })) { show("invInitialAmountError"); hasError = true; }
     const dateProblem = calendarDateError(startDate);
     if (!startDate || dateProblem) {
       el("invStartDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
       show("invStartDateError"); hasError = true;
     }
-    if (initialValue !== null && !isWholeAmount(initialValue, { allowZero: true })) { show("invInitialValueError"); hasError = true; }
+    if (initialValue !== null && !isMoneyAmount(initialValue, { allowZero: true })) { show("invInitialValueError"); hasError = true; }
   }
   if (hasError) return;
 
@@ -10052,16 +10056,16 @@ async function handleInvestmentSubmit(e) {
     };
     const flow = {
       id: generateFlowId(), investmentId: invId, date: startDate,
-      direction: INVESTMENT_DEPOSIT, amount: round0(initialAmount),
+      direction: INVESTMENT_DEPOSIT, amount: round2(initialAmount),
       notes: "Opening deposit", lastUpdated: todayISO()
     };
     // Only record an opening valuation when it actually says something new —
     // a value equal to the deposit is what the timeline computes anyway, and
     // an extra row there would just be noise in the Activity table.
-    const valuation = (initialValue !== null && round0(initialValue) !== round0(initialAmount))
+    const valuation = (initialValue !== null && round2(initialValue) !== round2(initialAmount))
       ? {
           id: generateValuationId(), investmentId: invId, date: todayISO(),
-          value: round0(initialValue), notes: "Value at registration", lastUpdated: todayISO()
+          value: round2(initialValue), notes: "Value at registration", lastUpdated: todayISO()
         }
       : null;
     ok = await appendInvestment(investment, flow, valuation);
@@ -10167,7 +10171,7 @@ async function handleFlowSubmit(e) {
     el("flowDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
     show("flowDateError"); hasError = true;
   }
-  if (!isWholeAmount(amount, { allowZero: false })) { show("flowAmountError"); hasError = true; }
+  if (!isMoneyAmount(amount, { allowZero: false })) { show("flowAmountError"); hasError = true; }
   if (!investmentId) { el("investFlowFormError").textContent = "Pick an investment."; show("investFlowFormError"); hasError = true; }
   if (hasError) return;
 
@@ -10176,7 +10180,7 @@ async function handleFlowSubmit(e) {
   // previous version, so editing a withdrawal down never trips over itself.
   if (direction === INVESTMENT_WITHDRAWAL) {
     const max = maxWithdrawableAt(investmentId, date, id || null);
-    if (round0(amount) > max + 0.005) {
+    if (round2(amount) > max + 0.005) {
       el("investFlowFormError").textContent = max <= 0
         ? "There's nothing in this investment on that date to withdraw."
         : `That's more than the investment was worth on that date — the most you can take out is ${formatWholeMoney(max)}.`;
@@ -10188,10 +10192,10 @@ async function handleFlowSubmit(e) {
   const btn = el("btnSaveInvestFlow");
   btn.disabled = true;
   const ok = id
-    ? await updateInvestmentFlow(id, { date, direction, amount: round0(amount), notes })
+    ? await updateInvestmentFlow(id, { date, direction, amount: round2(amount), notes })
     : await appendInvestmentFlow({
         id: generateFlowId(), investmentId, date, direction,
-        amount: round0(amount), notes, lastUpdated: todayISO()
+        amount: round2(amount), notes, lastUpdated: todayISO()
       });
   btn.disabled = false;
   if (ok) closeModal("investFlowModalOverlay");
@@ -10275,17 +10279,17 @@ async function handleValuationSubmit(e) {
     el("valDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
     show("valDateError"); hasError = true;
   }
-  if (!isWholeAmount(value, { allowZero: true })) { show("valValueError"); hasError = true; }
+  if (!isMoneyAmount(value, { allowZero: true })) { show("valValueError"); hasError = true; }
   if (!investmentId) { el("investValuationFormError").textContent = "Pick an investment."; show("investValuationFormError"); hasError = true; }
   if (hasError) return;
 
   const btn = el("btnSaveInvestValuation");
   btn.disabled = true;
   const ok = id
-    ? await updateInvestmentValuation(id, { date, value: round0(value), notes })
+    ? await updateInvestmentValuation(id, { date, value: round2(value), notes })
     : await appendInvestmentValuation({
         id: generateValuationId(), investmentId, date,
-        value: round0(value), notes, lastUpdated: todayISO()
+        value: round2(value), notes, lastUpdated: todayISO()
       });
   btn.disabled = false;
   if (ok) closeModal("investValuationModalOverlay");
@@ -10329,12 +10333,12 @@ async function handleCloseInvestmentSubmit(e) {
     el("closeDateError").textContent = dateProblem ? `That date ${dateProblem}` : "Enter a real date.";
     show("closeDateError"); hasError = true;
   }
-  if (!isWholeAmount(amount, { allowZero: true })) { show("closeAmountError"); hasError = true; }
+  if (!isMoneyAmount(amount, { allowZero: true })) { show("closeAmountError"); hasError = true; }
   if (hasError) return;
 
   const btn = el("btnSaveInvestClose");
   btn.disabled = true;
-  const ok = await closeInvestment(id, { date, amount: round0(amount), notes });
+  const ok = await closeInvestment(id, { date, amount: round2(amount), notes });
   btn.disabled = false;
   if (ok) closeModal("investCloseModalOverlay");
 }
