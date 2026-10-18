@@ -60,6 +60,23 @@ chart, and the payment/activity history — not just the graphs.
 
 Your tab choice is remembered in the browser (localStorage), never in the Excel file.
 
+### How loan interest accrues
+
+Interest is charged for the **days actually elapsed** since the balance on record was
+struck — not a flat month per payment. Paying twice in one month costs one month of
+interest, not two; leaving a payment two months costs two.
+
+A loan's row shows the **settle-today** figure, with the accrued part spelled out beneath
+it: *includes 349.01 interest since Oct 1, 2026 · principal on record 35,707.01*. That
+number is exactly what the next payment will be charged, so interest never appears out of
+nowhere the moment you log one.
+
+`Tracking Start Date` on the Loans sheet is the date the balance beside it is the balance
+at. It is pinned automatically the first time a loan is written after this change, using
+the balance already on record, so **existing balances do not move** — only payments from
+that point on use the new accrual, and historical payment rows keep the splits already
+written to them.
+
 ### Filtering
 
 Every filter on this tab lives in one **filter bar** at the top of the left column, above
