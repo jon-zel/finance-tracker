@@ -2121,6 +2121,15 @@ footer.app-footer{text-align:center;color:var(--text-muted);font-size:12px;margi
         <div class="field-error hidden" id="flowAmountError">Enter an amount greater than 0.</div>
         <div class="field-hint" id="flowAmountHint"></div>
       </div>
+      <!-- The same 50/30/20 override the expense form offers (§BUDGET-503020).
+           It lives here too because a linked row cannot be edited from the
+           history table, so this is the only place an existing deposit's group
+           can be corrected after the fact. -->
+      <div class="field">
+        <label for="flowBudgetGroup">50/30/20 group</label>
+        <select id="flowBudgetGroup"></select>
+        <div class="field-hint" id="flowBudgetGroupHint"></div>
+      </div>
       <div class="field">
         <label for="flowNotes">Notes (optional)</label>
         <input type="text" id="flowNotes">
@@ -3828,6 +3837,7 @@ async function init() {
   populateSelect(el("expClassification"), CLASSIFICATIONS);
   el("expClassification").value = DEFAULT_CLASSIFICATION;
   populateBudgetGroupSelect();
+  fillBudgetGroupOptions(el("flowBudgetGroup"));
   populateSelect(el("expNewInvestType"), INVESTMENT_TYPES);
   populateSelect(el("expNewInvestPurpose"), INVESTMENT_PURPOSES);
   populateSelect(el("incCategory"), INCOME_CATEGORIES);
@@ -4000,6 +4010,7 @@ function wireStaticEvents() {
   el("expCategory").addEventListener("change", syncExpenseCategoryLock);
   el("expBudgetGroup").addEventListener("change", syncBudgetGroupHint);
   el("expInvestmentId").addEventListener("change", syncExpNewInvestmentFields);
+  el("flowBudgetGroup").addEventListener("change", syncFlowBudgetGroupHint);
   el("expLoanId").addEventListener("change", syncExpLoanDescription);
 
   el("btnToggleDivide").addEventListener("click", () => {
@@ -5140,6 +5151,41 @@ function syncExpNewInvestmentFields() {
 
 /* The override select (§BUDGET-503020). "" is the stored value for "follow the
    category", so it is the option that must come first and be the reset default. */
+/* Fills any 50/30/20 override select. Shared by the expense form and the flow
+   modal so the two can never drift apart on options or stored values. */
+function fillBudgetGroupOptions(sel) {
+  sel.innerHTML = "";
+  const add = (value, label) => {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    sel.appendChild(o);
+  };
+  add("", "Auto — follow the category");
+  BUDGET_GROUPS.forEach(g => add(g, g));
+  add(BUDGET_GROUP_NONE, "Not counted — leave out of 50/30/20");
+  sel.value = "";
+}
+
+// Mirrors syncBudgetGroupHint for the flow modal, where the category is always
+// the investment one, so "Auto" always resolves to the same group.
+function syncFlowBudgetGroupHint() {
+  const sel = el("flowBudgetGroup");
+  const hint = el("flowBudgetGroupHint");
+  if (!sel || !hint) return;
+  const isWithdrawal = el("flowDirection").value === INVESTMENT_WITHDRAWAL;
+  if (isWithdrawal) {
+    hint.textContent = "Withdrawals are income, so 50/30/20 doesn't apply to them.";
+    return;
+  }
+  if (sel.value === BUDGET_GROUP_NONE) { hint.textContent = "This deposit stays out of the 50/30/20 breakdown."; return; }
+  if (sel.value) { hint.textContent = "Counted as " + sel.value + " for this deposit only."; return; }
+  const auto = CATEGORY_BUDGET_GROUP[INVESTMENT_LOCKED_CATEGORY];
+  hint.textContent = BUDGET_GROUPS.includes(auto)
+    ? "“" + INVESTMENT_LOCKED_CATEGORY + "” counts as " + auto + "."
+    : "“" + INVESTMENT_LOCKED_CATEGORY + "” is not part of 50/30/20.";
+}
+
 function populateBudgetGroupSelect() {
   const sel = el("expBudgetGroup");
   sel.innerHTML = "";
@@ -5332,7 +5378,9 @@ async function handleExpenseSubmit(e) {
 
     const ok = await appendInvestmentFlow({
       id: generateFlowId(), investmentId, date, direction: INVESTMENT_DEPOSIT,
-      amount: round2(amount), notes: description, lastUpdated: todayISO()
+      amount: round2(amount), notes: description, lastUpdated: todayISO(),
+      // Whatever the user picked in the 50/30/20 field on this very form.
+      budgetGroup: budgetGroup
     });
     btn.disabled = false;
     if (ok) closeModal("expenseModalOverlay");
@@ -9260,12 +9308,33 @@ function investmentNameById(state, investmentId) {
 function upsertFlowTransaction(state, flow) {
   const row = flowTransactionRow(flow, investmentNameById(state, flow.investmentId));
   const idx = findRawTxIndexByFlowId(state.rawRows, flow.id);
+  /* The 50/30/20 override (§BUDGET-503020) lives on the Transactions row, and a
+     flow is the only way to reach that row — linked rows are read-only in the
+     history table. So it has to travel with the flow:
+       flow.budgetGroup set    -> write it (the user just chose it)
+       flow.budgetGroup absent -> keep whatever the row already carries, so an
+                                  unrelated edit (amount, date, notes) can't
+                                  silently reset a deliberate "Wants" back to
+                                  the category default of Savings.
+     Without this, choosing Wants on the expense form was accepted and then
+     thrown away, and every deposit counted as Savings regardless. */
+  const budgetGroup = flow.budgetGroup !== undefined
+    ? flow.budgetGroup
+    : (idx === -1 ? "" : String(state.rawRows[idx]["Budget Group"] || "").trim());
+  row["Budget Group"] = budgetGroup;
   if (idx === -1) state.rawRows.push(row);
   else state.rawRows[idx] = Object.assign({}, state.rawRows[idx], row, {
     // A deposit edited into a withdrawal flips the row's Type, and the stale
     // Classification from the other direction has to go with it.
     Classification: row.Classification
   });
+}
+
+// The override as it currently stands on a flow's linked row, for prefilling
+// the flow modal. "" means "follow the category".
+function budgetGroupForFlow(flowId) {
+  const row = allRows.find(r => String(r["Flow ID"] || "").trim() === flowId);
+  return row ? String(row["Budget Group"] || "").trim() : "";
 }
 
 function removeFlowTransaction(state, flowId) {
@@ -10150,6 +10219,9 @@ function setFlowDirection(direction) {
     b.classList.toggle("active", b.dataset.direction === direction);
   });
   updateFlowAmountHint();
+  // The 50/30/20 field only means something for a deposit, since a withdrawal
+  // becomes income — the hint says so as the direction flips.
+  syncFlowBudgetGroupHint();
 }
 
 // Live "the most you can take out right now is X" hint, so a withdrawal that
@@ -10181,7 +10253,9 @@ function openFlowModalForAdd(investmentId, direction) {
   el("investFlowModalTitle").textContent = "Deposit / Withdraw";
   el("btnSaveInvestFlow").textContent = "Save";
   el("flowDate").value = todayISO();
+  fillBudgetGroupOptions(el("flowBudgetGroup"));
   setFlowDirection(direction || INVESTMENT_DEPOSIT);
+  syncFlowBudgetGroupHint();
   hideFlowFormErrors();
   show("investFlowModalOverlay");
 }
@@ -10205,7 +10279,12 @@ function openFlowModalForEdit(id) {
   el("flowDate").value = flow.date;
   el("flowAmount").value = flow.amount;
   el("flowNotes").value = flow.notes;
+  // Prefilled from the linked Transactions row, which is where the override
+  // actually lives — so an existing deposit's group can be corrected here.
+  fillBudgetGroupOptions(el("flowBudgetGroup"));
+  el("flowBudgetGroup").value = budgetGroupForFlow(flow.id);
   setFlowDirection(flow.direction);
+  syncFlowBudgetGroupHint();
   hideFlowFormErrors();
   show("investFlowModalOverlay");
 }
@@ -10247,11 +10326,12 @@ async function handleFlowSubmit(e) {
 
   const btn = el("btnSaveInvestFlow");
   btn.disabled = true;
+  const budgetGroup = el("flowBudgetGroup").value;
   const ok = id
-    ? await updateInvestmentFlow(id, { date, direction, amount: round2(amount), notes })
+    ? await updateInvestmentFlow(id, { date, direction, amount: round2(amount), notes, budgetGroup })
     : await appendInvestmentFlow({
         id: generateFlowId(), investmentId, date, direction,
-        amount: round2(amount), notes, lastUpdated: todayISO()
+        amount: round2(amount), notes, lastUpdated: todayISO(), budgetGroup
       });
   btn.disabled = false;
   if (ok) closeModal("investFlowModalOverlay");
