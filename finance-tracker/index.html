@@ -4067,6 +4067,9 @@ function wireStaticEvents() {
   });
 
   el("btnPayAll").addEventListener("click", applyPayAll);
+  // The settle figure depends on the payment date, so it follows that field.
+  el("pmtDate").addEventListener("change", syncPayAllForDate);
+  el("pmtDate").addEventListener("input", syncPayAllForDate);
   el("btnExpPayAll").addEventListener("click", applyExpPayAll);
   el("snowballBudget").addEventListener("input", handleSnowballInput);
   el("snowballReset").addEventListener("click", resetSnowballBudget);
@@ -4647,9 +4650,23 @@ function sortPaymentsForChain(payments) {
 /* Months between two ISO dates, as a fraction. 30.44 is the mean month length
    (365.25/12); using it rather than whole months means two payments eleven days
    apart are charged eleven days of interest, which is the whole point. */
+/* Whole days between two ISO dates, counted on the calendar.
+
+   Deliberately NOT (dateFromISO(b) - dateFromISO(a)) / 86400000: dateFromISO
+   builds a LOCAL midnight, and the gap between two local midnights spanning a
+   daylight-saving change is 25 or 23 hours, not 24. That leaked into the
+   interest — a 30-day period across the autumn change measured 30.04 days and
+   billed 98.70 instead of 98.56 on 10,000 at 12%/yr. Date.UTC has no DST, so
+   this is exact year-round. */
+function calendarDaysBetween(fromISO, toISO) {
+  const [fy, fm, fd] = fromISO.split("-").map(Number);
+  const [ty, tm, td] = toISO.split("-").map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
+}
+
 function elapsedMonthsBetween(fromISO, toISO) {
   if (!fromISO || !toISO) return 0;
-  const days = (dateFromISO(toISO) - dateFromISO(fromISO)) / 86400000;
+  const days = calendarDaysBetween(fromISO, toISO);
   return days <= 0 ? 0 : days / 30.436875;
 }
 
@@ -5137,6 +5154,18 @@ function loanAccruedInterest(loan) {
   if (!isFinite(monthlyRate) || monthlyRate === 0) return 0;
   const periods = elapsedMonthsBetween(loanBalanceAsOf(loan), todayISO());
   return round2(loan.balance * monthlyRate * periods);
+}
+
+/* What settles the loan on `dateISO` — the balance plus the interest that will
+   have accrued by then. loanPayoffNow is this for today; the payment form needs
+   it for whatever date the user has actually picked, because that is the date
+   the chain will charge interest up to. */
+function loanPayoffAt(loan, dateISO) {
+  if (loan.balance <= 0) return 0;
+  const monthlyRate = (loan.rate / 100) / 12;
+  if (!isFinite(monthlyRate) || monthlyRate === 0) return round2(loan.balance);
+  const periods = elapsedMonthsBetween(loanBalanceAsOf(loan), dateISO || todayISO());
+  return round2(loan.balance + round2(loan.balance * monthlyRate * periods));
 }
 
 function loanPayoffNow(loan) {
@@ -8735,12 +8764,25 @@ function openPaymentModalForAdd(loanId) {
   el("pmtDate").value = todayISO();
   el("pmtAmount").value = loan.payment;
   el("pmtNotes").value = `${loan.name} payment`;
-  // "Pay all" fills the exact settle-today figure, which clears the balance to
-  // 0 and flips the loan to its "Paid off" state (§LOAN-PAYOFF).
-  pendingPayoffAmount = loanPayoffNow(loan);
-  setPayAllVisible(pendingPayoffAmount > 0);
+  // "Pay all" fills the exact settle figure FOR THE DATE IN THE FORM, which
+  // clears the balance to 0 and flips the loan to "Paid off" (§LOAN-PAYOFF).
+  syncPayAllForDate();
   hidePaymentFormErrors();
   show("paymentModalOverlay");
+}
+
+/* Recomputes the payoff for the date currently in the form. Wired to the date
+   field: moving the date changes how much interest will have accrued by then,
+   and a figure left over from another date would not clear the loan — it would
+   leave exactly those days' interest behind and the loan stubbornly open. */
+function syncPayAllForDate() {
+  const loan = allLoans.find(l => l.id === el("pmtLoanId").value);
+  if (!loan) { pendingPayoffAmount = 0; setPayAllVisible(false); return; }
+  // Only for a brand-new payment: editing an existing one replays the whole
+  // chain, so "settle from here" is not a meaningful shortcut there.
+  if (el("pmtId").value) { pendingPayoffAmount = 0; setPayAllVisible(false); return; }
+  pendingPayoffAmount = loanPayoffAt(loan, el("pmtDate").value || todayISO());
+  setPayAllVisible(pendingPayoffAmount > 0);
 }
 
 // Shows or hides the "Pay all" shortcut and the line explaining what it will
@@ -8752,7 +8794,7 @@ function setPayAllVisible(visible) {
   hint.classList.toggle("hidden", !visible);
   if (visible) {
     hint.textContent = `Pay all enters ${formatNumber(pendingPayoffAmount)} — the principal on record plus the interest `
-      + `accrued since that balance was struck. That clears the loan to zero and marks it paid off.`;
+      + `accrued up to the date above. That clears the loan to zero and marks it paid off.`;
   }
 }
 
@@ -8796,11 +8838,18 @@ function openPaymentModalForEdit(id) {
 function clientCheckLoanPaymentFits(loanId, candidate, excludePaymentId) {
   const loan = allLoans.find(l => l.id === loanId);
   if (!loan) return null;
-  const others = allLoanPayments.filter(p => p.loanId === loanId && p.id !== (excludePaymentId || ""));
+  /* Must mirror checkLoanPaymentFits exactly — same freeze point, same replay
+     scope, same date-aware accrual. While this still billed a flat month it
+     capped a settle-in-90-days payment at balance + ONE month and rejected the
+     very figure "Pay all" had just entered. */
+  const point = loanAnchorPoint(loan);
+  const anchorDate = point.date;
+  const others = allLoanPayments
+    .filter(p => p.loanId === loanId && p.id !== (excludePaymentId || ""))
+    .filter(p => p.date > anchorDate);
   const payments = sortPaymentsForChain(others.concat([candidate]));
-  const anchor = loan.trackingStartBalance != null ? loan.trackingStartBalance : loan.balance;
   const monthlyRate = (loan.rate / 100) / 12;
-  const { results } = computeLoanChain(anchor, monthlyRate, payments);
+  const { results } = computeLoanChain(point.balance, monthlyRate, payments, anchorDate);
   const slot = results.find(r => r.payment === candidate);
   return { exceeds: slot.capped, maxAmount: slot.maxAmount };
 }
