@@ -4021,6 +4021,9 @@ function wireStaticEvents() {
   el("expCategory").addEventListener("change", syncExpenseCategoryLock);
   el("expBudgetGroup").addEventListener("change", syncBudgetGroupHint);
   el("expInvestmentId").addEventListener("change", syncExpNewInvestmentFields);
+  // Same reason as pmtDate: the settle figure is dated, so it follows the field.
+  el("expDate").addEventListener("change", () => syncExpPayAll());
+  el("expDate").addEventListener("input", () => syncExpPayAll());
   el("flowBudgetGroup").addEventListener("change", syncFlowBudgetGroupHint);
   el("expLoanId").addEventListener("change", syncExpLoanDescription);
 
@@ -5222,15 +5225,24 @@ function syncExpLoanDescription() {
 // entry points write through the identical path and must not disagree about
 // what settling a loan costs. Pass null to clear it (no loan chosen, or the
 // category is no longer Loan Payments).
+/* The settle figure depends on the date the payment will carry, because that
+   is the date interest is charged up to. Taking it as of TODAY and then letting
+   the user move the date left exactly those days' interest unpaid and the loan
+   open — the same defect the Log Payment modal had. `currentLoan` is held so a
+   later date change can recompute without re-picking the loan. */
+let expPayAllLoan = null;
+
 function syncExpPayAll(loan) {
-  pendingExpPayoffAmount = loan ? loanPayoffNow(loan) : 0;
+  if (loan !== undefined) expPayAllLoan = loan;
+  const target = expPayAllLoan;
+  pendingExpPayoffAmount = target ? loanPayoffAt(target, el("expDate").value || todayISO()) : 0;
   const offer = pendingExpPayoffAmount > 0;
   el("btnExpPayAll").classList.toggle("hidden", !offer);
   el("expPayoffHint").classList.toggle("hidden", !offer);
   if (offer) {
     el("expPayoffHint").textContent =
-      `Pay all enters ${formatNumber(pendingExpPayoffAmount)} — the balance plus this period’s `
-      + `interest. That clears the loan to zero and marks it paid off.`;
+      `Pay all enters ${formatNumber(pendingExpPayoffAmount)} — the principal on record plus the `
+      + `interest accrued up to the date above. That clears the loan to zero and marks it paid off.`;
   }
 }
 
